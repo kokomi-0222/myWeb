@@ -1,9 +1,16 @@
 <script setup></script>
 
 <template>
-  <div id="myWebApp">
+  <div id="myWebApp" >
     <router-view />
   </div>
 </template>
 
-<style scoped></style>
+<script setup>
+
+</script>
+
+
+<style scoped>
+
+</style>

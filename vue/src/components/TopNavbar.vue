@@ -1,23 +1,100 @@
 <template>
   <!-- 顶部导航栏 -->
   <div class="header-bar">
-    <div class="header-bar-left" style="height: 100%; width: 100%;">
-      <svg style="height: 100%; width: 100%;" data-v-4a38563e="" aria-hidden="true" focusable="false" data-prefix="fas" data-icon="home" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" class="tab-icon svg-inline--fa fa-home fa-w-18"><path data-v-4a38563e="" fill="currentColor" d="M280.37 148.26L96 300.11V464a16 16 0 0 0 16 16l112.06-.29a16 16 0 0 0 15.92-16V368a16 16 0 0 1 16-16h64a16 16 0 0 1 16 16v95.64a16 16 0 0 0 16 16.05L464 480a16 16 0 0 0 16-16V300L295.67 148.26a12.19 12.19 0 0 0-15.3 0zM571.6 251.47L488 182.56V44.05a12 12 0 0 0-12-12h-56a12 12 0 0 0-12 12v72.61L318.47 43a48 48 0 0 0-61 0L4.34 251.47a12 12 0 0 0-1.6 16.9l25.5 31A12 12 0 0 0 45.15 301l235.22-193.74a12.19 12.19 0 0 1 15.3 0L530.9 301a12 12 0 0 0 16.9-1.6l25.5-31a12 12 0 0 0-1.7-16.93z" class=""></path></svg>
+    <div class="header-bar-left">
+      <IconHome class="iconHome" size="36" />
+      <span style="font-size: 18px">{{ $route.meta.title }}</span>
     </div>
-    <div class="header-bar-right" style="height: 100%; width: 100%;">
+    <div class="header-bar-center">
+      <!--  <el-input
+        placeholder="请输入内容"
+        style="
+          height: 36px;
+          width: 100%;
+          border-radius: 18px;
+          padding: 0 10px;
+        "
+      ><template #append>
+        <el-button :icon="Search" />
+      </template></el-input> -->
+      <InputSearch
+        v-model="searchText"
+        placeholder="搜索帖子、用户..."
+        @search="onSearch"
+      />
+    </div>
+    <!-- 右侧 -->
+    <div class="header-bar-right">
+      <!-- 切换主题 -->
+      <div class="header-bar-switch">
+        <el-switch
+          v-model="styleSwitch"
+          :active-action-icon="IconLight"
+          :inactive-action-icon="IconDark"
+        >
+        </el-switch>
+      </div>
+      <!-- 登录 -->
+      <div class="header-bar-login">
+        <el-button
+          @click="login"
+          color="#00aeec"
+          style="
+            height: 36px;
+            width: 36px;
+            border-radius: 50%;
+            color: white;
+            font-size: 16px;
+          "
+          >登录</el-button
+        >
+      </div>
+      <!-- 消息  -->
+      <div class="header-bar-message">
+        <el-icon color="#000" :size="24"><Message /></el-icon>
+      </div>
+      <!-- 联系站长 -->
+      <div class="header-bar-contact">
+        <el-icon color="#000" :size="24"><Promotion /></el-icon>
+      </div>
+      <!-- 发布动态 -->
+      <div class="header-bar-publish">
+        <el-button color="#fb7299" style="height: 36px; width: 36px; border-radius: 30%"
+          ><el-icon size="large" color="#fff"><UploadFilled /></el-icon
+        ></el-button>
+      </div>
     </div>
   </div>
-  <div class="top-navbar">
+  <!-- 顶部宣传图 -->
+  <!--  <div class="header-banner">
     <img
       src="@/assets/images/bgTop.jpg"
       alt=""
       style="height: 100%; width: 100%; object-fit: cover"
     />
-  </div>
+  </div> -->
 </template>
 <script setup>
 import { ref } from "vue";
-import { House } from "@element-plus/icons-vue";
+import { Search, Message, UploadFilled, Promotion } from "@element-plus/icons-vue";
+import IconHome from "./icons/IconHome.vue";
+import IconLight from "./icons/IconLight.vue";
+import IconDark from "./icons/IconDark.vue";
+import InputSearch from "./inputs/InputSearch.vue";
+const styleSwitch = ref(true);
+
+const searchText = ref('')
+
+function onSearch(keyword) {
+  console.log('执行搜索:', keyword)
+  // 这里调用你的 API
+
+}
+
+const login = () => {
+  console.log("登录");
+};
+
 
 </script>
 
@@ -30,26 +107,67 @@ import { House } from "@element-plus/icons-vue";
   align-items: center;
   justify-content: space-between;
   padding: 0;
-  max-width: 2560px;
   width: 100%;
   height: 64px;
-  background-color: rgba(255, 255, 255, 1);
+  background-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
 }
 
-.top-navbar {
+.header-bar-left {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding-left: 20px;
+}
+
+.header-bar-center {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 20px;
+}
+
+.header-bar-right {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20px;
+  padding-right: 20px;
+}
+
+.iconHome {
+  color: #00aeec;
+}
+
+.header-banner {
   position: relative;
   z-index: 0;
   display: flex;
-  -ms-flex-pack: center;
   justify-content: center;
   margin: 0 auto;
-  min-width: 1000px;
-  min-height: 155px;
+  width: 100%;
   height: 300px;
-  max-height: 40vh;
   background-color: #e3e5e7;
   background-position: center 0;
   background-size: cover;
   background-repeat: no-repeat;
+}
+
+.el-switch {
+  --el-switch-off-color: #f2f2f2;
+  --el-switch-on-color: #f2f2f2;
+  --el-switch-border-color: #dcdfe6;
+}
+
+:deep(.icon-dark),
+:deep(.icon-light) {
+  color: #222;
 }
 </style>
