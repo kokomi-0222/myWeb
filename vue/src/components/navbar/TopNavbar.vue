@@ -6,22 +6,7 @@
       <span style="font-size: 18px">{{ $route.meta.title }}</span>
     </div>
     <div class="header-bar-center">
-      <!--  <el-input
-        placeholder="请输入内容"
-        style="
-          height: 36px;
-          width: 100%;
-          border-radius: 18px;
-          padding: 0 10px;
-        "
-      ><template #append>
-        <el-button :icon="Search" />
-      </template></el-input> -->
-      <InputSearch
-        v-model="searchText"
-        placeholder="搜索帖子、用户..."
-        @search="onSearch"
-      />
+      <InputSearch v-model="searchText" placeholder="请输入内容" @search="onSearch" />
     </div>
     <!-- 右侧 -->
     <div class="header-bar-right">
@@ -44,58 +29,70 @@
             width: 36px;
             border-radius: 50%;
             color: white;
-            font-size: 16px;
+            font-size: 14px;
           "
           >登录</el-button
         >
       </div>
       <!-- 消息  -->
       <div class="header-bar-message">
-        <el-icon color="#000" :size="24"><Message /></el-icon>
+        <el-icon color="#222" :size="24"><Message /></el-icon>
       </div>
       <!-- 联系站长 -->
       <div class="header-bar-contact">
-        <el-icon color="#000" :size="24"><Promotion /></el-icon>
+        <el-icon color="#222" :size="24"><Promotion /></el-icon>
       </div>
       <!-- 发布动态 -->
       <div class="header-bar-publish">
-        <el-button color="#fb7299" style="height: 36px; width: 36px; border-radius: 30%"
-          ><el-icon size="large" color="#fff"><UploadFilled /></el-icon
-        ></el-button>
+        <el-button
+          color="#fb7299"
+          style="
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 100%;
+            width: 100%;
+            border-radius: 10px;
+          "
+          ><el-icon size="large" color="#fff"><UploadFilled /></el-icon>
+          <span style="margin-left: 5px; color: white">发布</span>
+        </el-button>
       </div>
     </div>
   </div>
   <!-- 顶部宣传图 -->
-  <!--  <div class="header-banner">
+  <div class="header-banner">
     <img
       src="@/assets/images/bgTop.jpg"
       alt=""
       style="height: 100%; width: 100%; object-fit: cover"
     />
-  </div> -->
+  </div>
 </template>
 <script setup>
 import { ref } from "vue";
-import { Search, Message, UploadFilled, Promotion } from "@element-plus/icons-vue";
-import IconHome from "./icons/IconHome.vue";
-import IconLight from "./icons/IconLight.vue";
-import IconDark from "./icons/IconDark.vue";
-import InputSearch from "./inputs/InputSearch.vue";
+import { Message, UploadFilled, Promotion } from "@element-plus/icons-vue";
+import IconHome from "@/components/icons/IconHome.vue";
+import IconLight from "@/components/icons/IconLight.vue";
+import IconDark from "@/components/icons/IconDark.vue";
+import InputSearch from "@/components/inputs/InputSearch.vue";
+import { useScroll } from "@/utils/UseScroll";
+
+const navbar = document.querySelector('.header-bar')
+const navbarHeight = navbar?.offsetHeight || 55
+const { isScrolled } = useScroll(navbarHeight / 2);
+
 const styleSwitch = ref(true);
 
-const searchText = ref('')
+const searchText = ref("");
 
 function onSearch(keyword) {
-  console.log('执行搜索:', keyword)
-  // 这里调用你的 API
-
+  console.log("执行搜索:", keyword);
 }
 
 const login = () => {
   console.log("登录");
 };
-
-
 </script>
 
 <style scoped>
@@ -108,12 +105,15 @@ const login = () => {
   justify-content: space-between;
   padding: 0;
   width: 100%;
-  height: 64px;
-  background-color: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  min-width: var(--header-min-width);
+  height: var(--header-bar-height);
+  max-height: var(--header-bar-max-height);
+  background-color: rgba(255, 255, 255, 0.0);
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.0);
 }
 
 .header-bar-left {
+  position: relative;
   height: 100%;
   width: 100%;
   display: flex;
@@ -121,18 +121,22 @@ const login = () => {
   justify-content: flex-start;
   gap: 10px;
   padding-left: 20px;
+  min-width: 100px;
 }
 
 .header-bar-center {
+  position: relative;
   height: 100%;
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   padding-left: 20px;
+  min-width: 200px;
 }
 
 .header-bar-right {
+  position: relative;
   height: 100%;
   width: 100%;
   display: flex;
@@ -140,6 +144,16 @@ const login = () => {
   justify-content: flex-end;
   gap: 20px;
   padding-right: 20px;
+  min-width: 200px;
+}
+
+.header-bar-switch,
+.header-bar-login,
+.header-bar-contact,
+.header-bar-publish {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .iconHome {
@@ -153,7 +167,9 @@ const login = () => {
   justify-content: center;
   margin: 0 auto;
   width: 100%;
-  height: 300px;
+  min-width: var(--header-min-width);
+  height: var(--header-banner-height);
+  max-height: var(--header-banner-max-height);
   background-color: #e3e5e7;
   background-position: center 0;
   background-size: cover;
@@ -161,9 +177,9 @@ const login = () => {
 }
 
 .el-switch {
-  --el-switch-off-color: #f2f2f2;
-  --el-switch-on-color: #f2f2f2;
-  --el-switch-border-color: #dcdfe6;
+  --el-switch-off-color: var(--bg3);
+  --el-switch-on-color: var(--bg3);
+  --el-switch-border-color: var(--border1);
 }
 
 :deep(.icon-dark),
