@@ -130,6 +130,7 @@ const togglePasswordVisible = () => {
   margin-bottom: 12px;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
 .input-line {

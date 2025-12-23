@@ -1,9 +1,9 @@
 <template>
   <!-- 顶部导航栏 -->
-  <div class="header-bar">
+  <div class="header-bar" :class="{ 'is-scrolled': isScrolled }">
     <div class="header-bar-left">
-      <IconHome class="iconHome" size="36" />
-      <span style="font-size: 18px">{{ $route.meta.title }}</span>
+      <IconHome class="iconHome" :size="24" />
+      <span class="header-bar-title">{{ $route.meta.title }}</span>
     </div>
     <div class="header-bar-center">
       <InputSearch v-model="searchText" placeholder="请输入内容" @search="onSearch" />
@@ -22,7 +22,7 @@
       <!-- 登录 -->
       <div class="header-bar-login">
         <el-button
-          @click="login"
+          @click="handleLogin"
           color="#00aeec"
           style="
             height: 36px;
@@ -36,11 +36,11 @@
       </div>
       <!-- 消息  -->
       <div class="header-bar-message">
-        <el-icon color="#222" :size="24"><Message /></el-icon>
+        <IconMessage class="iconMessage" :size="24" />
       </div>
       <!-- 联系站长 -->
       <div class="header-bar-contact">
-        <el-icon color="#222" :size="24"><Promotion /></el-icon>
+        <el-icon :size="24" class="iconContact"><Promotion /></el-icon>
       </div>
       <!-- 发布动态 -->
       <div class="header-bar-publish">
@@ -64,35 +64,104 @@
   <div class="header-banner">
     <img
       src="@/assets/images/bgTop.jpg"
-      alt=""
-      style="height: 100%; width: 100%; object-fit: cover"
+      style="height: 100%; width: 100%; object-fit: cover; display: block"
     />
+
+    <div class="header-banner-overlay"></div>
   </div>
+
+  <!-- 登录表单 -->
+  <!-- <el-dialog
+    v-model="data.LoginFormVisible"
+    title=""
+    destroy-on-close
+    style="
+      width: 350px;
+      background-color: #e7ecfd;
+      opacity: 0.9;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.24);
+      padding: 40px 20px;
+    "
+  >
+    <el-form ref="formRef" :model="data.form" :rules="data.rules">
+      <div
+        style="
+          margin-bottom: 40px;
+          text-align: center;
+          font-weight: bold;
+          font-size: 25px;
+        "
+      >
+        用 户 登 录
+      </div>
+      <el-form-item prop="username" label="">
+        <InputLine v-model="data.form.username" placeholder="请输入账号" type="text"/>
+      </el-form-item>
+      <el-form-item prop="password" label="">
+        <InputLine v-model="data.form.password" placeholder="请输入密码" type="password"/>
+      </el-form-item>
+      <div style="display: flex; justify-content: center; align-items: center">
+        <el-button
+          style="width: 100%"
+          size="large"
+          color="#ccd1e6"
+          @click="userStore.register"
+          >注册
+        </el-button>
+        <el-button
+          style="width: 100%"
+          size="large"
+          color="#2244db"
+          @click="userStore.login"
+          >登录
+        </el-button>
+      </div>
+      <div style="margin-top: 20px; text-align: right">
+        还没有账号? <a style="color: #4173df" href="/register">立即注册</a>
+      </div>
+    </el-form>
+  </el-dialog> -->
 </template>
 <script setup>
-import { ref } from "vue";
+import { ref, reactive } from "vue";
 import { Message, UploadFilled, Promotion } from "@element-plus/icons-vue";
 import IconHome from "@/components/icons/IconHome.vue";
 import IconLight from "@/components/icons/IconLight.vue";
 import IconDark from "@/components/icons/IconDark.vue";
+import IconMessage from "@/components/icons/IconMessage.vue";
 import InputSearch from "@/components/inputs/InputSearch.vue";
-import { useScroll } from "@/utils/UseScroll";
+import { useScroll } from "@/utils/useScroll";
+import { useUserStore } from "@/stores/user";
+import { useUIStore } from "@/stores/ui";
 
-const navbar = document.querySelector('.header-bar')
-const navbarHeight = navbar?.offsetHeight || 55
+const navbar = document.querySelector(".header-bar");
+const navbarHeight = navbar?.offsetHeight || 55;
 const { isScrolled } = useScroll(navbarHeight / 2);
+const userStore = useUserStore();
+const uiStore = useUIStore();
 
 const styleSwitch = ref(true);
-
 const searchText = ref("");
+
 
 function onSearch(keyword) {
   console.log("执行搜索:", keyword);
 }
 
-const login = () => {
-  console.log("登录");
-};
+
+
+
+//导航栏上的登录按键处理
+function handleLogin() {
+  // 判断是否登录
+  if (userStore.isLogin) {
+
+    
+  }else{
+    uiStore.openLoginModal();
+  }
+}
 </script>
 
 <style scoped>
@@ -108,8 +177,23 @@ const login = () => {
   min-width: var(--header-min-width);
   height: var(--header-bar-height);
   max-height: var(--header-bar-max-height);
-  background-color: rgba(255, 255, 255, 0.0);
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.0);
+  background-color: rgba(255, 255, 255, 0);
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0);
+}
+
+.header-bar.is-scrolled {
+  position: fixed;
+  background-color: rgba(255, 255, 255, 1);
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+}
+
+.header-bar-title {
+  font-size: 14px;
+  color: #fff;
+}
+
+.header-bar.is-scrolled .header-bar-title {
+  color: #222;
 }
 
 .header-bar-left {
@@ -149,6 +233,7 @@ const login = () => {
 
 .header-bar-switch,
 .header-bar-login,
+.header-bar-message,
 .header-bar-contact,
 .header-bar-publish {
   display: flex;
@@ -160,20 +245,20 @@ const login = () => {
   color: #00aeec;
 }
 
-.header-banner {
-  position: relative;
-  z-index: 0;
-  display: flex;
-  justify-content: center;
-  margin: 0 auto;
-  width: 100%;
-  min-width: var(--header-min-width);
-  height: var(--header-banner-height);
-  max-height: var(--header-banner-max-height);
-  background-color: #e3e5e7;
-  background-position: center 0;
-  background-size: cover;
-  background-repeat: no-repeat;
+.iconMessage,
+.iconContact {
+  color: #fff;
+  transition: transform 0.3s ease;
+}
+
+.iconMessage:hover,
+.iconContact:hover {
+  transform: scale(1.2);
+}
+
+.header-bar.is-scrolled .iconMessage,
+.header-bar.is-scrolled .iconContact {
+  color: #222;
 }
 
 .el-switch {
@@ -185,5 +270,32 @@ const login = () => {
 :deep(.icon-dark),
 :deep(.icon-light) {
   color: #222;
+}
+
+.header-banner {
+  position: relative;
+  z-index: 0;
+  justify-content: center;
+  margin: 0 auto;
+  width: 100%;
+  min-width: var(--header-min-width);
+  height: var(--header-banner-height);
+  max-height: var(--header-banner-max-height);
+  background-color: #e3e5e7;
+  background-position: center 0;
+  background-size: cover;
+  background-repeat: no-repeat;
+  display: inline-block;
+}
+
+.header-banner-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  background-color: #00aeec;
+  opacity: 0;
 }
 </style>

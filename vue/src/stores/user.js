@@ -52,8 +52,11 @@ export const useUserStore = defineStore('user', () => {
         ElMessage.success('退出登录成功！')
     }
 
+    const register = async (registerData) => {
+        
+    }
 
-    return { userInfo, token, isLogin, login, getUserInfo, logout }
+    return { userInfo, token, isLogin, login, getUserInfo, logout, register}
 })
 
 
