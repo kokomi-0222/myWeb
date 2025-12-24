@@ -5,25 +5,88 @@
     v-model="uiStore.loginModalOpen"
     title=""
     destroy-on-close
-    width="350px"
-    custom-class="login-dialog"
-    @close="onClose"
+    width="400px"
+    :style="dialogStyle"
+    @closed="handleDialogClose"
   >
-    <el-form :model="form" :rules="rules" ref="formRef" @submit.prevent>
+    <!-- 登录界面 -->
+    <el-form
+      v-if="formType === 'login'"
+      :model="loginForm"
+      :rules="loginRules"
+      ref="loginFormRef"
+      @submit.prevent
+    >
       <div class="login-title">用 户 登 录</div>
-
       <el-form-item prop="username">
-        <InputLine v-model="form.username" placeholder="请输入账号" type="text" />
+        <InputLine
+          v-model="loginForm.username"
+          type="text"
+          label="请输入账号"
+          @focus="clearLoginError('username')"
+        />
       </el-form-item>
 
       <el-form-item prop="password">
-        <InputLine v-model="form.password" placeholder="请输入密码" type="password" />
+        <InputLine
+          v-model="loginForm.password"
+          label="请输入密码"
+          type="password"
+          @focus="clearLoginError('password')"
+        />
       </el-form-item>
 
       <div class="button-group">
-        <el-button style="width: 48%" size="large" @click="goToRegister">注册</el-button>
-        <el-button style="width: 48%" size="large" type="primary" @click="handleLogin"
-          >登录</el-button
+        <el-button class="login-button" @click="goToRegister">注册</el-button>
+        <el-button class="login-button" color="var(--blue1)" @click="handleLogin"
+          ><span style="color: white">登录</span></el-button
+        >
+      </div>
+
+      <div class="footer-link">
+        还没有账号? <a href="/register" style="color: #4173df">立即注册</a>
+      </div>
+    </el-form>
+
+    <!-- 注册界面 -->
+
+    <el-form
+      v-else
+      :model="registerForm"
+      :rules="registerRules"
+      ref="registerFormRef"
+      @submit.prevent
+    >
+      <div class="login-title">注 册 账 号</div>
+      <el-form-item prop="username" label="">
+        <InputLine
+          v-model="registerForm.username"
+          label="请输入账号"
+          type="text"
+          @focus="clearRegisterError('username')"
+        />
+      </el-form-item>
+
+      <el-form-item prop="password" label="">
+        <InputLine
+          v-model="registerForm.password"
+          label="请输入密码"
+          type="password"
+          @focus="clearRegisterError('password')"
+        />
+      </el-form-item>
+      <el-form-item prop="confirmPassword" label="">
+        <InputLine
+          v-model="registerForm.confirmPassword"
+          label="请确认密码"
+          type="password"
+          @focus="clearRegisterError('confirmPassword')"
+        />
+      </el-form-item>
+      <div class="button-group">
+        <el-button class="login-button" @click="goToLogin">返回登录</el-button>
+        <el-button class="login-button" color="var(--blue1)" @click="handleResigister"
+          ><span style="color: white">注册账号</span></el-button
         >
       </div>
 
@@ -35,74 +98,143 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from "vue";
+import { ref, reactive, nextTick } from "vue";
 import { useUIStore } from "@/stores/ui";
-import { useUserStore } from "@/stores/user"; // 假设你有 user store
+import { useUserStore } from "@/stores/user";
 import InputLine from "@/components/inputs/InputLine.vue";
+import { ElMessage } from "element-plus";
 
 const uiStore = useUIStore();
 const userStore = useUserStore();
+const formType = ref("login");
+
+const loginFormRef = ref();
+const registerFormRef = ref();
 
 // 表单数据
-const form = reactive({
+const loginForm = reactive({
   username: "",
   password: "",
 });
 
-const rules = {
-  username: [{ required: true, message: "请输入账号", trigger: "blur" }],
-  password: [{ required: true, message: "请输入密码", trigger: "blur" }],
+const loginRules = {
+  username: [{ required: true, message: "请输入账号" }],
+  password: [{ required: true, message: "请输入密码" }],
 };
 
-// 计算属性：同步 uiStore 的状态
+const registerForm = reactive({
+  username: "",
+  password: "",
+  confirmPassword: "",
+});
 
-// 监听外部关闭（比如点击遮罩）
-const onClose = () => {
-  uiStore.closeLoginModal();
+const validatePass = (rule, value, callback) => {
+  if (!value) {
+    callback(new Error("请再次输入密码"));
+  } else if (value !== registerForm.password) {
+    callback(new Error("两次输入的密码不一致！"));
+  } else {
+    callback();
+  }
+};
+
+// 注册规则
+const registerRules = {
+  username: [{ required: true, message: "请输入账号" }],
+  password: [
+    { required: true, message: "请输入密码" },
+    { min: 6, message: "密码至少6位" }, // 可选增强
+  ],
+  confirmPassword: [
+    { required: true, message: "请再次输入密码" },
+    { validator: validatePass },
+  ],
+};
+
+// 清除登录表单某字段错误
+const clearLoginError = (prop: string) => {
+  loginFormRef.value?.clearValidate(prop);
+};
+
+// 清除注册表单某字段错误
+const clearRegisterError = (prop: string) => {
+  registerFormRef.value?.clearValidate(prop);
+};
+
+const handleDialogClose = (done: () => void) => {
+  // 立即重置，避免闪现
+  formType.value = "login";
+  resetForms();
+
+  nextTick(() => {
+    done(); // 执行关闭动画
+  });
+};
+
+const resetForms = () => {
+  loginForm.username = "";
+  loginForm.password = "";
+  registerForm.username = "";
+  registerForm.password = "";
+  registerForm.confirmPassword = "";
 };
 
 // 登录
 const handleLogin = async () => {
-  try {
-    await userStore.login(form.username, form.password);
-    // 登录成功后自动关闭
-    uiStore.closeLoginModal();
-    // 可选：重置表单
-    form.username = "";
-    form.password = "";
-  } catch (error) {
-    // 登录失败，Element Plus 可以在这里 ElMessage.error(...)
-    console.error("登录失败:", error);
+  const valid = await loginFormRef.value?.validate();
+  if (valid) {
+    // 校验通过，执行登录
+    console.log("登录数据:", loginForm);
+    ElMessage.success("登录成功！");
+  }
+};
+
+//注册
+const handleResigister = async () => {
+  const valid = await registerFormRef.value?.validate();
+  if (valid) {
+    console.log("注册数据:", registerForm);
+    ElMessage.success("注册成功！");
   }
 };
 
 const goToRegister = () => {
-  /*  uiStore.closeLoginModal()
-  // 跳转注册页
-  window.location.href = '/register' */
+  formType.value = "register";
+};
+
+const goToLogin = () => {
+  formType.value = "login";
+};
+
+const dialogStyle = {
+  background: "#e7ecfd",
+  opacity: 0.9,
+  borderRadius: "10px",
+  boxShadow: "0 0 10px rgba(0, 0, 0, 0.24)",
+  padding: "40px 20px",
 };
 </script>
 
 <style scoped>
-.login-dialog {
-  background-color: #e7ecfd;
-  opacity: 0.9 !important;
-  border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.24);
-  padding: 40px 20px;
-}
-
 .login-title {
   margin-bottom: 40px;
   text-align: center;
   font-weight: bold;
   font-size: 25px;
+  user-select: none;
 }
 
 .button-group {
   display: flex;
-  justify-content: space-between;
-  margin: 20px 0;
+  justify-content: center;
+  align-items: center;
+}
+
+.login-button {
+  width: 100%;
+  width: 194px;
+  height: 40px;
+  border-radius: 8px;
 }
 
 .footer-link {

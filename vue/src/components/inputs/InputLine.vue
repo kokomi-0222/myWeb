@@ -1,11 +1,20 @@
 <!-- components/InputLine.vue -->
 <template>
   <div class="input-line-wrapper">
+    <label
+      v-if="props.label"
+      :for="id"
+      class="floating-label"
+      :class="{ focused: isLabelFloating }"
+    >
+      {{ props.label }}
+    </label>
     <input
       :id="id"
       :value="innerValue"
       @input="handleInput"
-      :placeholder="placeholder"
+      @focus="handleFocus"
+      @blur="handleBlur"
       :type="inputType"
       :disabled="disabled"
       class="input-line"
@@ -56,7 +65,7 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits, ref, computed, watch } from "vue";
+import { defineEmits, ref, computed, watch } from "vue";
 
 const props = defineProps({
   modelValue: {
@@ -76,13 +85,23 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  label: {
+    type: String,
+    default: "",
+  },
 });
 
-const emit = defineEmits(["update:modelValue"]);
+const emit = defineEmits(["update:modelValue",'blur','focus']);
 
 const innerValue = ref(props.modelValue);
 const isPasswordVisible = ref(false); // 是否显示明文
 const inputRef = ref(null);
+
+const isFocused = ref(false);
+
+const isLabelFloating = computed(() => {
+  return isFocused.value || innerValue.value?.toString().trim() !== "";
+});
 
 // 同步外部 modelValue 更新（父组件修改 v-model 时）
 watch(
@@ -117,6 +136,16 @@ const handleInput = (e) => {
   emit("update:modelValue", val);
 };
 
+const handleFocus = () => {
+  isFocused.value = true;
+  emit('focus');
+};
+
+const handleBlur = () => {
+  isFocused.value = false;
+  emit('blur')
+};
+
 const togglePasswordVisible = () => {
   isPasswordVisible.value = !isPasswordVisible.value;
   // 聚焦回输入框（体验更好）
@@ -127,21 +156,40 @@ const togglePasswordVisible = () => {
 <style scoped>
 .input-line-wrapper {
   position: relative;
-  margin-bottom: 12px;
+  margin-bottom: 2px;
   display: flex;
   align-items: center;
   width: 100%;
 }
 
+.floating-label {
+  position: absolute;
+  top: 14px; /* 调整到 input 文字的 baseline */
+  left: 2px;
+  font-size: 16px;
+  color: #6d6a6a; /* 和你原来的 placeholder 颜色一致 */
+  pointer-events: none; /* 点击穿透，不会抢 focus */
+  transition: all 0.3s ease;
+  transform-origin: left;
+}
+
+.floating-label.focused {
+  top: -14px;
+  font-size: 14px;
+  color: #007bff;
+  transform: scale(0.85);
+}
+
 .input-line {
   flex: 1;
-  padding: 10px 0;
+  padding: 20px 2px 5px 2px;
   border: none;
   border-bottom: 2px solid #ccc;
   outline: none;
   font-size: 16px;
   transition: border-color 0.3s ease-in-out;
   background: transparent;
+  color: #000; /* 确保输入文字颜色正常 */
 }
 
 .input-line-wrapper::after {

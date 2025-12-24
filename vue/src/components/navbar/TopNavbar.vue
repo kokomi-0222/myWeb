@@ -23,7 +23,7 @@
       <div class="header-bar-login">
         <el-button
           @click="handleLogin"
-          color="#00aeec"
+          color="var(--blue1)"
           style="
             height: 36px;
             width: 36px;
@@ -66,62 +66,8 @@
       src="@/assets/images/bgTop.jpg"
       style="height: 100%; width: 100%; object-fit: cover; display: block"
     />
-
     <div class="header-banner-overlay"></div>
   </div>
-
-  <!-- 登录表单 -->
-  <!-- <el-dialog
-    v-model="data.LoginFormVisible"
-    title=""
-    destroy-on-close
-    style="
-      width: 350px;
-      background-color: #e7ecfd;
-      opacity: 0.9;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.24);
-      padding: 40px 20px;
-    "
-  >
-    <el-form ref="formRef" :model="data.form" :rules="data.rules">
-      <div
-        style="
-          margin-bottom: 40px;
-          text-align: center;
-          font-weight: bold;
-          font-size: 25px;
-        "
-      >
-        用 户 登 录
-      </div>
-      <el-form-item prop="username" label="">
-        <InputLine v-model="data.form.username" placeholder="请输入账号" type="text"/>
-      </el-form-item>
-      <el-form-item prop="password" label="">
-        <InputLine v-model="data.form.password" placeholder="请输入密码" type="password"/>
-      </el-form-item>
-      <div style="display: flex; justify-content: center; align-items: center">
-        <el-button
-          style="width: 100%"
-          size="large"
-          color="#ccd1e6"
-          @click="userStore.register"
-          >注册
-        </el-button>
-        <el-button
-          style="width: 100%"
-          size="large"
-          color="#2244db"
-          @click="userStore.login"
-          >登录
-        </el-button>
-      </div>
-      <div style="margin-top: 20px; text-align: right">
-        还没有账号? <a style="color: #4173df" href="/register">立即注册</a>
-      </div>
-    </el-form>
-  </el-dialog> -->
 </template>
 <script setup>
 import { ref, reactive } from "vue";
@@ -242,7 +188,7 @@ function handleLogin() {
 }
 
 .iconHome {
-  color: #00aeec;
+  color: var(--blue1)
 }
 
 .iconMessage,
