@@ -167,7 +167,7 @@ const togglePasswordVisible = () => {
   top: 14px; /* 调整到 input 文字的 baseline */
   left: 2px;
   font-size: 16px;
-  color: #6d6a6a; /* 和你原来的 placeholder 颜色一致 */
+  color: var(--input-line-label); /* 和你原来的 placeholder 颜色一致 */
   pointer-events: none; /* 点击穿透，不会抢 focus */
   transition: all 0.3s ease;
   transform-origin: left;
@@ -176,7 +176,7 @@ const togglePasswordVisible = () => {
 .floating-label.focused {
   top: -14px;
   font-size: 14px;
-  color: #007bff;
+  color: var(--input-line-label-focus);
   transform: scale(0.85);
 }
 
@@ -184,12 +184,12 @@ const togglePasswordVisible = () => {
   flex: 1;
   padding: 20px 2px 5px 2px;
   border: none;
-  border-bottom: 2px solid #ccc;
+  border-bottom: 2px solid var(--input-line-border-bottom);
   outline: none;
   font-size: 16px;
   transition: border-color 0.3s ease-in-out;
   background: transparent;
-  color: #000; /* 确保输入文字颜色正常 */
+  color: var(--input-line-content); /* 确保输入文字颜色正常 */
 }
 
 .input-line-wrapper::after {
@@ -199,7 +199,7 @@ const togglePasswordVisible = () => {
   left: 0;
   width: 100%;
   height: 2px;
-  background-color: #007bff;
+  background-color: var(--input-line-wrapper-after);
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 0.7s ease;
@@ -211,7 +211,7 @@ const togglePasswordVisible = () => {
 }
 
 .input-line::placeholder {
-  color: #6d6a6a;
+  color: var(--input-line-placeholder);
 }
 
 /* 密码切换按钮样式 */
@@ -222,7 +222,7 @@ const togglePasswordVisible = () => {
   border: none;
   cursor: pointer;
   padding: 4px;
-  color: #888;
+  color: var(--input-line-password-toggle);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -231,7 +231,7 @@ const togglePasswordVisible = () => {
 }
 
 .password-toggle:hover {
-  color: #007bff;
+  color: var(--input-line-password-toggle-hover);
 }
 /* 不显示浏览器默认 */
 input.input-line::-ms-reveal,

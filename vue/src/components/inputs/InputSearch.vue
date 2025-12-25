@@ -110,16 +110,16 @@ function handleSearch() {
   position: relative;
   overflow: hidden;
   line-height: 38px;
-  border: 1px solid var(--border1);
+  border: 1px solid var(--input-search-border);
   height: 40px;
-  background-color: var(--bg4);
+  background-color: var(--input-search-bg);
   opacity: 0.9;
   transition: background-color 0.3s;
   border-radius: 8px;
 }
 
 .search-form:hover {
-  background-color: var(--bg1);
+  background-color: var(--input-search-bg-hover);
 }
 
 .search-content {
@@ -135,7 +135,7 @@ function handleSearch() {
 }
 
 .search-content.is-focused {
-  background-color: var(--bg5);
+  background-color: var(--input-search-content-focus);
 }
 
 .search-input {
@@ -145,14 +145,14 @@ function handleSearch() {
   border: none;
   background-color: transparent;
   box-shadow: none;
-  color: var(--text2);
+  color: var(--input-search);
   font-size: 14px;
   line-height: 20px;
 }
 
 .search-input:focus {
   outline: none;
-  color: var(--text1);
+  color: var(--input-search-focus);
 }
 
 .clear-btn {
@@ -166,12 +166,12 @@ function handleSearch() {
 }
 
 .clear-btn svg path {
-  fill: #c9ccd0;
+  fill: var(--input-search-clear-btn);
   transition: fill 0.2s;
 }
 
 .clear-btn:hover svg path {
-  fill: #111;
+  fill: var(--input-search-clear-btn-hover);
 }
 
 .search-btn {
@@ -187,13 +187,13 @@ function handleSearch() {
   height: 32px;
   border: none;
   border-radius: 6px;
-  color: var(--text1);
+  color: var(--input-search-btn);
   line-height: 32px;
   cursor: pointer;
   transition: background-color 0.3s;
 }
 
 .search-btn:hover {
-  background-color: var(--bg5);
+  background-color: var(--input-search-btn-hover);
 }
 </style>

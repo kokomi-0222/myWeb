@@ -44,7 +44,12 @@
       </div>
 
       <div class="footer-link">
-        还没有账号? <a href="/register" style="color: #4173df">立即注册</a>
+        还没有账号?
+        <span
+          @click="goToRegister"
+          style="color: #4173df; cursor: pointer; text-decoration: underline"
+          >立即注册</span
+        >
       </div>
     </el-form>
 
@@ -91,7 +96,12 @@
       </div>
 
       <div class="footer-link">
-        还没有账号? <a href="/register" style="color: #4173df">立即注册</a>
+        已有账号?
+        <span
+          @click="goToLogin"
+          style="color: #4173df; cursor: pointer; text-decoration: underline"
+          >返回登录</span
+        >
       </div>
     </el-form>
   </el-dialog>
@@ -165,10 +175,6 @@ const handleDialogClose = (done: () => void) => {
   // 立即重置，避免闪现
   formType.value = "login";
   resetForms();
-
-  nextTick(() => {
-    done(); // 执行关闭动画
-  });
 };
 
 const resetForms = () => {
@@ -207,7 +213,7 @@ const goToLogin = () => {
 };
 
 const dialogStyle = {
-  background: "#e7ecfd",
+  background: "var(--login-modal-bg)",
   opacity: 0.9,
   borderRadius: "10px",
   boxShadow: "0 0 10px rgba(0, 0, 0, 0.24)",

@@ -4,6 +4,7 @@ import { ref } from 'vue'
 
 export const useUIStore = defineStore('ui', () => {
     const loginModalOpen = ref(false)
+    const isDarkMode = ref(false)
 
     function openLoginModal() {
         loginModalOpen.value = true
@@ -12,5 +13,14 @@ export const useUIStore = defineStore('ui', () => {
     function closeLoginModal() {
         loginModalOpen.value = false
     }
-    return {loginModalOpen, openLoginModal, closeLoginModal }
+
+    function toggleTheme() {
+        isDarkMode.value = !isDarkMode.value
+    }
+
+
+    return {
+        loginModalOpen, openLoginModal, closeLoginModal, isDarkMode,
+        toggleTheme
+    }
 })

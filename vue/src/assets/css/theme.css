@@ -1,0 +1,69 @@
+/* 浅色主题（默认） */
+:root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --text-primary: #222222;
+    --text-secondary: #666666;
+    --border-color: #e0e0e0;
+    --primary-color: #409eff;
+
+
+
+    --header-bar-bg: transparent;
+    --header-bar-bg-scrolled: rgba(255, 255, 255, 0.9);
+    --header-bar-bg-scrolled-shadow:rgba(0, 0, 0, 0.1);  
+    --header-bar-logo:#5fd0f3;
+    --header-bar-icon:#fff;
+    --header-bar-icon-scrolled: #222;
+    --header-bar-icon-switch: #222;
+    --header-bar-button: #fff;
+    --header-bar-button-login-bg:#00aeec;
+    --header-bar-button-publish-bg: #fb7299;
+    --header-banner-bg: rgba(255, 255, 255, 0.9);
+
+
+
+    --header-title: #fff;
+    --header-title-scrolled: #222;
+
+
+    --input-line-label: #6d6a6a;
+    --input-line-label-focus: #007bff;
+    --input-line-border-bottom: #ccc;
+    --input-line-content: var(--text-primary);
+    --input-line-wrapper-after: var(--input-line-label-focus);
+    --input-line-placeholder: var(--input-line-label);
+    --input-line-password-toggle: #888;
+    --input-line-password-toggle-hover: #007bff;
+
+
+    --input-search-bg: #ebebeb;
+    --input-search-bg-hover: #ffffff;
+    --input-search-border: #ffffff;
+    --input-search-content-focus: #dddcdc;
+    --input-search: #61666D;
+    --input-search-focus: #18191C;
+    --input-search-btn: #18191C;
+    --input-search-btn-hover: #bdbdbd;
+    --input-search-clear-btn: #c4c5c7;
+    --input-search-clear-btn-hover: #111;
+
+    --login-modal-bg: #e7ecfd;
+
+}
+
+
+
+
+/* 深色主题 */
+:root.dark {
+    --bg-primary: #121212;
+    --bg-secondary: #1e1e1e;
+    --text-primary: #f0f0f0;
+    --text-secondary: #aaaaaa;
+    --border-color: #333333;
+    --primary-color: #66b1ff;
+    --header-bg: rgba(30, 30, 30, 0.95);
+    --header-title: #222;
+    --header-title-scrolled: #fff;
+}
