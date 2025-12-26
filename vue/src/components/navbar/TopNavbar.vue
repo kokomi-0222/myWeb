@@ -3,11 +3,6 @@
   <div class="header-bar" :class="{ 'is-scrolled': isScrolled }">
     <!-- 左侧：Logo + 标题 -->
     <div class="header-bar-left">
-      <!-- <img
-        src="@/assets/images/logo.png"
-        style="height: 50px; width: 179px; object-fit: cover; display: block"
-      /> -->
-      <!-- <span class="header-bar-logo">心海的小窝</span> -->
       <IconHome class="iconHome" :size="24" />
       <span class="header-bar-title">{{ $route.meta.title }}</span>
     </div>
@@ -19,13 +14,15 @@
     <div class="header-bar-right" v-show="!isMobile">
       <div class="header-bar-switch">
         <el-switch
-          v-model="styleSwitch"
-          :active-action-icon="IconLight"
-          :inactive-action-icon="IconDark"
+          v-model="uiStore.isDarkMode"
+          :active-action-icon="IconDark"
+          :inactive-action-icon="IconLight"
         />
       </div>
       <div class="header-bar-login">
-        <el-button @click="handleLogin" color="var(--header-bar-button-login-bg)"> 登录 </el-button>
+        <el-button @click="handleLogin" color="var(--header-bar-button-login-bg)">
+          登录
+        </el-button>
       </div>
       <div class="header-bar-message">
         <IconMessage class="iconMessage" :size="24" />
@@ -41,6 +38,24 @@
       </div>
     </div>
   </div>
+  <div class="header-bar-mobile">
+    <div class="mobile-menu-button" @click="toggleMobileMenu">
+      <el-icon size="24"><Expand /></el-icon>
+    </div>
+    <div class="mobile-bar-logo">
+      <img
+        src="@/assets/images/logo.png"
+        style="height: 50px; width: 179px; object-fit: cover; display: block"
+      />
+    </div>
+    <div class="mobile-search-button" @click="toggleSearchMenu">
+      <el-icon size="24"><Search /></el-icon>
+    </div>
+  </div>
+
+  <el-drawer class="moblie-menu" v-model="isMobileMenuOpen" :direction="'ltr'" resizable size="300px">
+    This is drawer content.
+  </el-drawer>
 
   <!-- 顶部宣传图 -->
   <div class="header-banner">
@@ -53,7 +68,7 @@
 </template>
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
-import { Message, UploadFilled, Promotion } from "@element-plus/icons-vue";
+import { Expand, Fold, UploadFilled, Promotion, Search } from "@element-plus/icons-vue";
 import IconHome from "@/components/icons/IconHome.vue";
 import IconLight from "@/components/icons/IconLight.vue";
 import IconDark from "@/components/icons/IconDark.vue";
@@ -77,21 +92,6 @@ const isMediumOrLarge = computed(() => windowWidth.value >= 1023);
 // 移动端菜单
 const isMobileMenuOpen = ref(false);
 
-const updateWindowWidth = () => {
-  windowWidth.value = window.innerWidth;
-  if (windowWidth.value >= 768) {
-    isMobileMenuOpen.value = false; // 回到大屏自动关闭菜单
-  }
-};
-
-onMounted(() => {
-  window.addEventListener("resize", updateWindowWidth);
-});
-onUnmounted(() => {
-  window.removeEventListener("resize", updateWindowWidth);
-});
-
-const styleSwitch = ref(true);
 const searchText = ref("");
 
 function onSearch(keyword) {
@@ -111,13 +111,13 @@ function toggleMobileMenu() {
   isMobileMenuOpen.value = !isMobileMenuOpen.value;
 }
 
-function closeMobileMenu() {
-  isMobileMenuOpen.value = false;
+function toggleSearchMenu() {
+  // TODO: 显示搜索框
+  console.log("显示搜索框");
 }
 
-function toggleTheme() {
-  styleSwitch.value = !styleSwitch.value;
-  closeMobileMenu();
+function closeMobileMenu() {
+  isMobileMenuOpen.value = false;
 }
 
 function goPublish() {
@@ -137,7 +137,6 @@ function goPublish() {
   padding: 0;
   width: 100%;
   background-color: var(--header-bar-bg);
-  /*   min-width: var(--header-min-width); */
   height: var(--header-bar-height);
   max-height: var(--header-bar-max-height);
 }
@@ -160,7 +159,7 @@ function goPublish() {
 }
 
 .header-bar.is-scrolled .header-bar-title {
-  color: var(--header-title-scrolled)
+  color: var(--header-title-scrolled);
 }
 
 .header-bar-left {
@@ -208,7 +207,7 @@ function goPublish() {
 }
 
 .iconHome {
-  color: var(--blue1);
+  color: var(--header-bar-logo);
 }
 
 .iconMessage,
@@ -228,9 +227,9 @@ function goPublish() {
 }
 
 .el-switch {
-  --el-switch-off-color: var(--bg3);
-  --el-switch-on-color: var(--bg3);
-  --el-switch-border-color: var(--border1);
+  --el-switch-off-color: var(--bg-primary);
+  --el-switch-on-color: var(--bg-secondary);
+  --el-switch-border-color: var(--border-color);
 }
 
 :deep(.icon-dark),
@@ -269,6 +268,7 @@ function goPublish() {
   background-size: cover;
   background-repeat: no-repeat;
   display: inline-block;
+  user-select: none;
 }
 
 .header-banner-overlay {
@@ -282,34 +282,54 @@ function goPublish() {
   opacity: 0;
 }
 
-/* 移动端导航栏按钮 */
-.header-bar-hamburger {
+/* 移动端导航栏 */
+.header-bar-mobile {
+  position: fixed;
+  top: 0;
+  z-index: 1002;
   display: none;
-  justify-content: center;
   align-items: center;
+  justify-content: space-between;
+  padding: 0;
+  width: 100%;
+  background-color: var(--header-bar-bg);
+  height: var(--header-bar-height);
+  max-height: var(--header-bar-max-height);
+  min-width: 350px;
+  background-color: var(--header-bar-bg-scrolled);
+  box-shadow: 0 2px 12px 0 var(--header-bar-bg-scrolled-shadow);
+}
+
+.mobile-menu-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 40px;
+  margin-left: 10px;
+  cursor: pointer;
+}
+
+/* 移动端导航logo*/
+.mobile-bar-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 100%;
-  font-size: 24px;
+}
+
+.mobile-search-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 40px;
+  margin-right: 10px;
   cursor: pointer;
-  padding: 0 20px;
-  color: #222;
 }
 
-.header-bar.is-scrolled .header-bar-hamburger {
-  color: #222;
-}
 
-/* ===== 移动端下拉菜单 ===== */
-.mobile-menu {
-  position: fixed;
-  top: var(--header-bar-height);
-  left: 0;
-  right: 0;
-  background: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  z-index: 1001;
-  padding: 16px 0;
-}
 
 .mobile-menu-item {
   display: flex;
@@ -342,20 +362,14 @@ function goPublish() {
 
 /* 小屏 (<768px) */
 @media (max-width: 767px) {
-  .header-bar-right {
+  .header-bar {
     display: none !important;
   }
-
-  .header-bar-center {
+  .header-banner {
     display: none !important;
   }
-
-  .header-bar-hamburger {
-    display: block;
-  }
-
-  .header-bar-title {
-    font-size: 16px;
+  .header-bar-mobile {
+    display: flex;
   }
 }
 

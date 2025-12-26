@@ -1,25 +1,38 @@
 <script setup></script>
 
 <template>
-  <div id="myWebApp" >
+  <div id="myWebApp">
     <router-view />
   </div>
 </template>
 
 <script setup>
+import { watch } from 'vue'
+import { useUIStore } from "@/stores/ui";
+const ui = useUIStore();
+
+watch(
+  () => ui.isDarkMode,
+  (isDark) => {
+    document.documentElement.classList.toggle('dark', isDark)
+  },
+  { immediate: true } // 组件挂载时立即执行一次
+)
+
+
 let styleTitle1 = `
 font-size: 20px;
 font-weight: 600;
 color: rgb(244,167,89);
-`
+`;
 let styleTitle2 = `
 font-size:12px;
 color: #F4A759;
-`
+`;
 let styleContent = `
 color: rgb(30,152,255);
-`
-let title1 = 'kokomi的小窝'
+`;
+let title1 = "kokomi的小窝";
 let title2 = `
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⠻⢿⣿⣿⣿⣿⣟⣯⣿⣿⣿⣿⣿⣿⣷⣯⣽⡻⢿⣿⣻⣽⣿⣿⠿⢿⣟⣛⣻⣿⣿⣿⡎⠛⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣄⠄⠉⠉⠛⢫⣾⣿⡿⣹⣶⣾⣿⣭⣛⠿⠿⠿⣟⣛⡛⠻⠿⢷⣿⣿⣿⣿⣿⡎⣿⣿⡇⠄⠈⠙⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
@@ -52,15 +65,17 @@ let title2 = `
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣇⢿⣿⣿⣿⣿⣬⣻⠿⣯⣻⣿⣿⠿⢿⠟⠉⠄⠉⠃⠄⠄⠚⠛⠉⠄⢀⣰⣿⣿⣿⣿⣶⢽⣿⣿⣿⣿⣿⣿⡷⣫⣿⣿⣿⣿⣿⣿
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡸⣿⣿⣿⣿⣿⣿⣷⣮⣝⣮⣱⠿⣿⣷⣴⣶⣧⡄⠐⣤⣤⣾⣷⣾⣿⣿⣿⣿⣿⣿⢟⣾⣿⣿⣿⡿⣟⣽⣸⣿⣿⣿⣿⣿⣿⣿
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣧⣻⣿⣿⣿⣿⣿⣿⣸⡻⡾⡿⣿⣿⣿⣿⣿⣿⣧⣾⣿⣿⣿⣿⣿⣿⣿⣿⠿⣯⡲⠿⠿⠟⠻⠋⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-`
+`;
 let content = `
   欢迎来到kokomi的小窝！
-`
-console.log(`%c${title1} %c${title2}
-%c${content}`, styleTitle1, styleTitle2, styleContent)
+`;
+console.log(
+  `%c${title1} %c${title2}
+%c${content}`,
+  styleTitle1,
+  styleTitle2,
+  styleContent
+);
 </script>
 
-
-<style scoped>
-
-</style>
+<style scoped></style>

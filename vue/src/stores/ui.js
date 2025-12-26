@@ -17,7 +17,7 @@ export const useUIStore = defineStore('ui', () => {
     function toggleTheme() {
         isDarkMode.value = !isDarkMode.value
     }
-
+    
 
     return {
         loginModalOpen, openLoginModal, closeLoginModal, isDarkMode,

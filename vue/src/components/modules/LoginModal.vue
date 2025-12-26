@@ -38,7 +38,7 @@
 
       <div class="button-group">
         <el-button class="login-button" @click="goToRegister">注册</el-button>
-        <el-button class="login-button" color="var(--blue1)" @click="handleLogin"
+        <el-button class="login-button" color="var(--login-button-bg)" @click="handleLogin"
           ><span style="color: white">登录</span></el-button
         >
       </div>
@@ -90,7 +90,7 @@
       </el-form-item>
       <div class="button-group">
         <el-button class="login-button" @click="goToLogin">返回登录</el-button>
-        <el-button class="login-button" color="var(--blue1)" @click="handleResigister"
+        <el-button class="login-button" color="var(--login-button-bg)" @click="handleResigister"
           ><span style="color: white">注册账号</span></el-button
         >
       </div>
@@ -172,7 +172,6 @@ const clearRegisterError = (prop: string) => {
 };
 
 const handleDialogClose = (done: () => void) => {
-  // 立即重置，避免闪现
   formType.value = "login";
   resetForms();
 };
@@ -227,7 +226,6 @@ const dialogStyle = {
   text-align: center;
   font-weight: bold;
   font-size: 25px;
-  user-select: none;
 }
 
 .button-group {

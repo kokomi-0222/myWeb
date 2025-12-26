@@ -8,37 +8,30 @@ body,
 html {
     margin: 0;
     padding: 0;
-    color: #222;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
     font-family: 'Open Sans', sans-serif;
     font-size: 16px;
 }
 
 :root {
-    --bg1:#ffffff;
-    --bg2: #fafafa;
-    --bg3: #f5f5f5;
-    --bg4: #ebebeb;
-    --bg5: #dcdcdc;
-
-    --border1:#ccc;
-    --border2: #bdbdbd;
-    --border3: #a9a9a9;
-   
-    --text1: #18191C;
-    --text2: #61666D;
-
-    --blue1:#00aeec;
-}
-
-:root {
-    --header-bar-min-height:50px;
+    --header-bar-min-height: 50px;
     --header-bar-height: 55px;
-    --header-bar-max-height:60px;
+    --header-bar-max-height: 60px;
 
     --header-banner-min-height: 200px;
     --header-banner-height: 300px;
     --header-banner-max-height: 400px;
 
     --header-min-width: 1000px;
+
+}
+
+
+
+/* 移动菜单 */
+.moblie-menu.el-drawer.ltr.open {
+    background: #121212;
+    color: #f0f0f0;
 
 }
