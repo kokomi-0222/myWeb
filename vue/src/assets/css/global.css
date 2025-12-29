@@ -15,6 +15,9 @@ html {
 }
 
 :root {
+
+    --body-min-width: 350px;
+
     --header-bar-min-height: 50px;
     --header-bar-height: 55px;
     --header-bar-max-height: 60px;

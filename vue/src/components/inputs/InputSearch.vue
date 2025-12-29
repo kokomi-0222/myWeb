@@ -1,6 +1,19 @@
 <template>
   <div class="search-input-wrapper">
-    <form class="search-form">
+    <form class="search-form" @submit.prevent="handleSearch">
+      <div v-if="searchTypes.length > 0" class="search-type-select">
+        <select
+          ref="selectRef"
+          v-model="innerSearchType"
+          class="search-type-dropdown"
+          aria-label="选择搜索类型"
+        >
+          <option v-for="type in searchTypes" :key="type.value" :value="type.value">
+            {{ type.label }}
+          </option>
+        </select>
+      </div>
+
       <div class="search-content" :class="{ 'is-focused': isFocused }">
         <input
           ref="inputRef"
@@ -50,12 +63,27 @@ const props = defineProps({
     type: String,
     default: "请输入关键词...",
   },
+
+  searchTypes: {
+    type: Array,
+    default: () => [],
+    validator(value) {
+      return value.every(
+        (item) => typeof item === "object" && "label" in item && "value" in item
+      );
+    },
+  },
+  searchType: {
+    type: String,
+    default: "",
+  },
 });
 
-const emit = defineEmits(["update:modelValue", "search"]);
+const emit = defineEmits(["update:modelValue", "search", "update:searchType"]);
 
 // 内部值（用于 v-model）
 const innerValue = ref(props.modelValue);
+const innerSearchType = ref("");
 
 // 同步外部 modelValue 变化
 watch(
@@ -70,10 +98,24 @@ watch(innerValue, (newVal) => {
   emit("update:modelValue", newVal);
 });
 
+watch(() => props.searchTypes, (types) => {
+  if (types.length > 0 && !innerSearchType.value) {
+    innerSearchType.value = types[0].value;
+  }
+}, { immediate: true });
+
+watch(innerSearchType, (newVal) => {
+  emit("update:searchType", newVal);
+});
+
+watch(() => props.searchType, (newVal) => {
+  if (newVal) innerSearchType.value = newVal;
+}, { immediate: true });
+
 // 聚焦状态（用于控制 clear 按钮显示）
 const isFocused = ref(false);
 const inputRef = ref(null);
-
+const selectRef = ref(null);
 // 是否显示清空按钮：有内容 + （聚焦 或 鼠标悬停）
 const showClear = computed(() => {
   return innerValue.value.trim();
@@ -87,12 +129,9 @@ function clearInput() {
 
 // 触发搜索
 function handleSearch() {
-  if (innerValue.value.trim() !== "") {
-    emit("search", innerValue.value.trim());
-  } else {
-    // 即使为空也触发，让父组件决定行为（比如“显示全部”）
-    emit("search", "");
-  }
+  const keyword = innerValue.value.trim();
+  const type = innerSearchType.value || (props.searchTypes[0]?.value ?? "");
+  emit("search", { keyword, type });
 }
 </script>
 
@@ -120,6 +159,29 @@ function handleSearch() {
 
 .search-form:hover {
   background-color: var(--input-search-bg-hover);
+}
+
+.search-type-select {
+  margin-right: 8px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.search-type-dropdown {
+  height: 100%;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  color: var(--input-search);
+  font-size: 14px;
+  border-radius: 4px;
+  appearance: none; /* 隐藏默认箭头（可选） */
+  cursor: pointer;
+}
+
+.search-type-dropdown:focus {
+  outline: none;
 }
 
 .search-content {

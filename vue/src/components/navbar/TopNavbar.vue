@@ -11,7 +11,7 @@
       <InputSearch v-model="searchText" placeholder="搜索..." @search="onSearch" />
     </div>
     <!-- 右侧：大中屏功能区 -->
-    <div class="header-bar-right" v-show="!isMobile">
+    <div class="header-bar-right">
       <div class="header-bar-switch">
         <el-switch
           v-model="uiStore.isDarkMode"
@@ -27,7 +27,7 @@
       <div class="header-bar-message">
         <IconMessage class="iconMessage" :size="24" />
       </div>
-      <div class="header-bar-contact" v-if="isMediumOrLarge">
+      <div class="header-bar-contact">
         <el-icon :size="24" class="iconContact"><Promotion /></el-icon>
       </div>
       <div class="header-bar-publish">
@@ -38,25 +38,6 @@
       </div>
     </div>
   </div>
-  <div class="header-bar-mobile">
-    <div class="mobile-menu-button" @click="toggleMobileMenu">
-      <el-icon size="24"><Expand /></el-icon>
-    </div>
-    <div class="mobile-bar-logo">
-      <img
-        src="@/assets/images/logo.png"
-        style="height: 50px; width: 179px; object-fit: cover; display: block"
-      />
-    </div>
-    <div class="mobile-search-button" @click="toggleSearchMenu">
-      <el-icon size="24"><Search /></el-icon>
-    </div>
-  </div>
-
-  <el-drawer class="moblie-menu" v-model="isMobileMenuOpen" :direction="'ltr'" resizable size="300px">
-    This is drawer content.
-  </el-drawer>
-
   <!-- 顶部宣传图 -->
   <div class="header-banner">
     <img
@@ -84,18 +65,12 @@ const { isScrolled } = useScroll(navbarHeight);
 const userStore = useUserStore();
 const uiStore = useUIStore();
 
-// 响应式状态
-const windowWidth = ref(window.innerWidth);
-const isMobile = computed(() => windowWidth.value < 768);
-const isMediumOrLarge = computed(() => windowWidth.value >= 1023);
-
-// 移动端菜单
-const isMobileMenuOpen = ref(false);
 
 const searchText = ref("");
 
-function onSearch(keyword) {
-  console.log("执行搜索:", keyword);
+function onSearch({ keyword, type }) {
+  console.log('搜索关键词:', keyword, '类型:', type);
+  // 调用 API
 }
 
 //导航栏上的登录按键处理
@@ -107,18 +82,6 @@ function handleLogin() {
   }
 }
 
-function toggleMobileMenu() {
-  isMobileMenuOpen.value = !isMobileMenuOpen.value;
-}
-
-function toggleSearchMenu() {
-  // TODO: 显示搜索框
-  console.log("显示搜索框");
-}
-
-function closeMobileMenu() {
-  isMobileMenuOpen.value = false;
-}
 
 function goPublish() {
   // TODO: 跳转发布页或打开发布弹窗
@@ -282,83 +245,6 @@ function goPublish() {
   opacity: 0;
 }
 
-/* 移动端导航栏 */
-.header-bar-mobile {
-  position: fixed;
-  top: 0;
-  z-index: 1002;
-  display: none;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0;
-  width: 100%;
-  background-color: var(--header-bar-bg);
-  height: var(--header-bar-height);
-  max-height: var(--header-bar-max-height);
-  min-width: 350px;
-  background-color: var(--header-bar-bg-scrolled);
-  box-shadow: 0 2px 12px 0 var(--header-bar-bg-scrolled-shadow);
-}
-
-.mobile-menu-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  width: 40px;
-  margin-left: 10px;
-  cursor: pointer;
-}
-
-/* 移动端导航logo*/
-.mobile-bar-logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-}
-
-.mobile-search-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  width: 40px;
-  margin-right: 10px;
-  cursor: pointer;
-}
-
-
-
-.mobile-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 20px;
-  font-size: 16px;
-  color: #333;
-  cursor: pointer;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.mobile-menu-item:hover {
-  background: #f9f9f9;
-}
-
-.mobile-menu-item.publish-btn {
-  background: #fb7299;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  margin: 0 20px;
-}
-
-.mobile-menu-item.publish-btn:hover {
-  background: #e95a88;
-}
-
-/* ===== 响应式断点 ===== */
 
 /* 小屏 (<768px) */
 @media (max-width: 767px) {
@@ -367,9 +253,6 @@ function goPublish() {
   }
   .header-banner {
     display: none !important;
-  }
-  .header-bar-mobile {
-    display: flex;
   }
 }
 
@@ -381,6 +264,10 @@ function goPublish() {
 
   .header-bar-publish span {
     display: none; /* 隐藏“发布”文字，只留图标 */
+  }
+
+  .header-bar-contact{
+    display: none;   
   }
 }
 </style>
