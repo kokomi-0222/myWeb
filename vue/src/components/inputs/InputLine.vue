@@ -160,6 +160,8 @@ const togglePasswordVisible = () => {
   display: flex;
   align-items: center;
   width: 100%;
+  transform: translateZ(0);
+  user-select: none;
 }
 
 .floating-label {
@@ -171,6 +173,7 @@ const togglePasswordVisible = () => {
   pointer-events: none; /* 点击穿透，不会抢 focus */
   transition: all 0.3s ease;
   transform-origin: left;
+
 }
 
 .floating-label.focused {
@@ -182,7 +185,7 @@ const togglePasswordVisible = () => {
 
 .input-line {
   flex: 1;
-  padding: 20px 2px 5px 2px;
+  padding: 20px 2px 4px 2px;
   border: none;
   border-bottom: 2px solid var(--input-line-border-bottom);
   outline: none;
@@ -202,12 +205,19 @@ const togglePasswordVisible = () => {
   background-color: var(--input-line-wrapper-after);
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform 0.7s ease;
+  transition: transform 0.7s ease, box-shadow 0.7s ease;
+  pointer-events: none; 
 }
 
-.input-line-wrapper:hover::after,
-.input-line:focus::after {
+.input-line-wrapper:hover::after{
   transform: scaleX(1);
+}
+
+
+.input-line-wrapper:focus-within::after {
+  transform: scaleX(1);
+  box-shadow: 0 -2px 4px var(--input-line-password-toggle-hover);
+
 }
 
 .input-line::placeholder {

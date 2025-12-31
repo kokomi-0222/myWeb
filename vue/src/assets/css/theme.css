@@ -28,14 +28,14 @@
 
 
     --input-line-label: #6d6a6a;
-    --input-line-label-focus: #007bff;
+    --input-line-label-focus: #00aeec;
     --input-line-border-bottom: #ccc;
     --input-line-content: var(--text-primary);
     --input-line-wrapper-after: var(--input-line-label-focus);
     --input-line-placeholder: var(--input-line-label);
     --input-line-password-toggle: #888;
-    --input-line-password-toggle-hover: #007bff;
-
+    --input-line-password-toggle-hover: #00aeec;
+    --input-line-wrapper-focus:rgba(31, 146, 199, 0.9);
 
     --input-search-bg: #ebebeb;
     --input-search-bg-hover: #ffffff;

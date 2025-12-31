@@ -2,16 +2,30 @@
   <div class="search-input-wrapper">
     <form class="search-form" @submit.prevent="handleSearch">
       <div v-if="searchTypes.length > 0" class="search-type-select">
-        <select
-          ref="selectRef"
-          v-model="innerSearchType"
-          class="search-type-dropdown"
-          aria-label="选择搜索类型"
-        >
-          <option v-for="type in searchTypes" :key="type.value" :value="type.value">
-            {{ type.label }}
-          </option>
-        </select>
+        <el-dropdown trigger="click" @command="handleCommand">
+          <span class="el-dropdown-link">
+            <div style="">{{ currentLabel }}</div>
+            <div class="select-arrow">
+              <svg
+                width="12"
+                height="16"
+                viewBox="0 0 12 16"
+                fill="currentColor"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="M6 3 L1 7 L11 7 Z" />
+                <path d="M6 13 L1 9 L11 9 Z" />
+              </svg>
+            </div>
+          </span>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item v-for="type in searchTypes" :command="type">{{
+                type.label
+              }}</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
 
       <div class="search-content" :class="{ 'is-focused': isFocused }">
@@ -19,7 +33,7 @@
           ref="inputRef"
           v-model="innerValue"
           type="text"
-          id="search-input"
+          :id="id"
           class="search-input"
           :placeholder="placeholder"
           @focus="isFocused = true"
@@ -52,7 +66,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onUnmounted, onMounted, nextTick } from "vue";
 import { Search } from "@element-plus/icons-vue";
 const props = defineProps({
   modelValue: {
@@ -64,26 +78,18 @@ const props = defineProps({
     default: "请输入关键词...",
   },
 
-  searchTypes: {
-    type: Array,
-    default: () => [],
-    validator(value) {
-      return value.every(
-        (item) => typeof item === "object" && "label" in item && "value" in item
-      );
-    },
-  },
-  searchType: {
-    type: String,
-    default: "",
-  },
+  searchTypes: { type: Array, default: [] },
 });
 
 const emit = defineEmits(["update:modelValue", "search", "update:searchType"]);
-
+const id = `input-search-${Math.random().toString(36).substring(2, 11)}`;
 // 内部值（用于 v-model）
 const innerValue = ref(props.modelValue);
-const innerSearchType = ref("");
+const innerSearchType = ref(props.searchTypes[0]?.value || "");
+
+const currentLabel = computed(() => {
+  return props.searchTypes.find((o) => o.value === innerSearchType.value)?.label;
+});
 
 // 同步外部 modelValue 变化
 watch(
@@ -98,24 +104,10 @@ watch(innerValue, (newVal) => {
   emit("update:modelValue", newVal);
 });
 
-watch(() => props.searchTypes, (types) => {
-  if (types.length > 0 && !innerSearchType.value) {
-    innerSearchType.value = types[0].value;
-  }
-}, { immediate: true });
-
-watch(innerSearchType, (newVal) => {
-  emit("update:searchType", newVal);
-});
-
-watch(() => props.searchType, (newVal) => {
-  if (newVal) innerSearchType.value = newVal;
-}, { immediate: true });
-
 // 聚焦状态（用于控制 clear 按钮显示）
 const isFocused = ref(false);
 const inputRef = ref(null);
-const selectRef = ref(null);
+
 // 是否显示清空按钮：有内容 + （聚焦 或 鼠标悬停）
 const showClear = computed(() => {
   return innerValue.value.trim();
@@ -133,13 +125,18 @@ function handleSearch() {
   const type = innerSearchType.value || (props.searchTypes[0]?.value ?? "");
   emit("search", { keyword, type });
 }
+
+function handleCommand(type) {
+  innerSearchType.value = type.value;
+}
 </script>
 
 <style scoped>
 .search-input-wrapper {
   flex: 1 auto;
   height: 38px;
-  max-width: 300px;
+  width: 100%;
+  max-width: 400px;
 }
 
 .search-form {
@@ -147,7 +144,6 @@ function handleSearch() {
   align-items: center;
   padding: 2px 48px 2px 2px;
   position: relative;
-  overflow: hidden;
   line-height: 38px;
   border: 1px solid var(--input-search-border);
   height: 40px;
@@ -163,25 +159,31 @@ function handleSearch() {
 
 .search-type-select {
   margin-right: 8px;
+  padding: 4px;
   height: 32px;
   display: flex;
   align-items: center;
-}
-
-.search-type-dropdown {
-  height: 100%;
-  padding: 0 8px;
+  justify-content: center;
   border: none;
-  background: transparent;
-  color: var(--input-search);
-  font-size: 14px;
-  border-radius: 4px;
-  appearance: none; /* 隐藏默认箭头（可选） */
-  cursor: pointer;
+  border-radius: 6px;
+  background-color: var(--input-search-bg);
 }
 
-.search-type-dropdown:focus {
-  outline: none;
+.search-type-select:hover {
+  background-color: var(--input-search-btn-hover);
+}
+
+/* 自定义箭头 */
+.select-arrow {
+  margin-left: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.5;
+}
+
+.select-arrow svg {
+  display: block;
 }
 
 .search-content {
@@ -222,6 +224,7 @@ function handleSearch() {
   cursor: pointer;
   height: 20px;
   width: 20px;
+
   display: flex;
   align-items: center;
   justify-content: center;
@@ -257,5 +260,28 @@ function handleSearch() {
 
 .search-btn:hover {
   background-color: var(--input-search-btn-hover);
+}
+
+.search-type-select .el-dropdown-link {
+  cursor: pointer;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  width: 100%;
+  white-space: nowrap; 
+}
+
+.el-dropdown-menu {
+  background-color: var(--bg-primary);
+}
+
+:deep(.el-dropdown-menu__item) {
+  color: var(--text-secondary);
+  background-color: var(--bg-primary);
+}
+
+:deep(.el-dropdown-menu__item:hover),:deep(.el-dropdown-menu__item:focus) {
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
 }
 </style>

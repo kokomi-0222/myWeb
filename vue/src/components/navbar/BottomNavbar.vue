@@ -4,7 +4,7 @@
 <template>
   <nav v-if="showBottomNav" class="bottom-nav">
     <a href="/home">首页</a>
-    <a href="/search">搜索</a>
+    <a href="/search">发布</a>
     <a href="/profile">我的</a>
   </nav>
 </template>
