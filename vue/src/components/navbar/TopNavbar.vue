@@ -38,14 +38,6 @@
       </div>
     </div>
   </div>
-  <!-- 顶部宣传图 -->
-  <div class="header-banner">
-    <img
-      src="@/assets/images/bgTop.jpg"
-      style="height: 100%; width: 100%; object-fit: cover; display: block"
-    />
-    <div class="header-banner-overlay"></div>
-  </div>
 </template>
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
@@ -217,41 +209,10 @@ function goPublish() {
   border-radius: 10px;
 }
 
-.header-banner {
-  position: relative;
-  z-index: 0;
-  justify-content: center;
-  margin: 0 auto;
-  width: 100%;
-  min-width: var(--header-min-width);
-  height: var(--header-banner-height);
-  max-height: var(--header-banner-max-height);
-  background-color: var(--header-banner-bg);
-  background-position: center 0;
-  background-size: cover;
-  background-repeat: no-repeat;
-  display: inline-block;
-  user-select: none;
-}
-
-.header-banner-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: transparent;
-  background-color: var(--bg-primary);
-  opacity: 0;
-}
-
 
 /* 小屏 (<768px) */
 @media (max-width: 767px) {
   .header-bar {
-    display: none !important;
-  }
-  .header-banner {
     display: none !important;
   }
 }

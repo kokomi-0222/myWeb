@@ -33,38 +33,47 @@
     <div class="search-overlay" @click="closeSearchMenu"></div>
     <div class="search-content">
       <div class="search-bar">
-        <!--         <el-select v-model="value" placeholder="文章" style="width: 80px">
-          <el-option
-            v-for="item in searchOptions"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          />
-        </el-select> -->
-        <InputSearch
-          v-model:searchType="selectedType"
-          :search-types="searchOptions"
+        <InputLine
+          ref="searchInputRef"
           v-model="searchText"
-          placeholder="搜索..."
+          type="text"
+          label="开启搜索..."
           @search="onSearch"
+          :search-types="searchOptions"
         />
+      </div>
+      <div v-if="hotSearchTags.length > 0" class="hot-search-section">
+        <div class="hot-search-title">热门搜索</div>
+        <div class="hot-tags">
+          <button
+            v-for="tag in hotSearchTags"
+            :key="tag"
+            class="hot-tag"
+            @click="handleHotTagClick(tag)"
+          >
+            {{ tag }}
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 <script setup>
-import { ref, reactive } from "vue";
+import { ref, reactive, nextTick } from "vue";
 import { Search } from "@element-plus/icons-vue";
 import InputSearch from "@/components/inputs/InputSearch.vue";
+import InputLine from "../inputs/InputLine.vue";
 const drawerVisible = ref(false);
 const searchVisible = ref(false);
-const selectedType = ref("");
 const searchText = ref("");
+const searchInputRef = ref(null);
 const searchOptions = reactive([
-  { label: "用户", value: "user" },
   { label: "标题", value: "title" },
+  { label: "用户", value: "user" },
   { label: "分类", value: "category" },
 ]);
+
+const hotSearchTags = ref(["鬼泣5", "鬼泣", "尼禄", "但丁", "维吉尔"]);
 
 const toggleDrawer = () => {
   drawerVisible.value = !drawerVisible.value;
@@ -76,6 +85,11 @@ const closeDrawer = () => {
 
 function toggleSearchMenu() {
   searchVisible.value = !searchVisible.value;
+  if (searchVisible.value) {
+    nextTick(() => {
+      searchInputRef.value?.focus();
+    });
+  }
 }
 
 const closeSearchMenu = () => {
@@ -85,6 +99,12 @@ const closeSearchMenu = () => {
 function onSearch(keyword) {
   console.log("执行搜索:", keyword);
 }
+
+// 点击热门标签
+const handleHotTagClick = (tag) => {
+  searchText.value = tag;
+  console.log("执行搜索:", tag);
+};
 </script>
 <style scoped>
 /* 移动端导航栏 */
@@ -285,7 +305,7 @@ function onSearch(keyword) {
   position: absolute;
   top: -200px;
   width: 100%;
-  height: 200px;
+  height: 40wh;
   background: var(--bg-secondary);
   color: var(--text-primary);
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
@@ -294,7 +314,9 @@ function onSearch(keyword) {
   padding: 20px;
   overflow-y: auto;
   display: flex;
+  flex-direction: column;
   justify-content: center;
+  align-items: center;
 }
 
 .search-bar {
@@ -315,6 +337,38 @@ function onSearch(keyword) {
 }
 .mobile-search.open .search-content {
   transform: translateY(calc(200px + var(--header-bar-height))); /* 滑入 */
+}
+
+.hot-search-section {
+  margin-top: 24px;
+  padding: 0 16px;
+}
+
+.hot-search-title {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.hot-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hot-tag {
+  padding: 6px 12px;
+  background-color: var(--bg-nomarl);
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.hot-tag:hover {
+  background-color: var(--bg-hover);
 }
 
 @media (max-width: 767px) {
