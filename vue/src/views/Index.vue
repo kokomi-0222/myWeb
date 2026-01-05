@@ -14,14 +14,33 @@
         <!-- 导航、分类、快捷入口 -->
       </aside>
       <main class="main-content">
+      <!-- 排序 -->
         <div class="sort-bar">
           <div class="sort-title">排序</div>
-          <div class="sort-content">
-            <span>更新</span>
-            <span>浏览</span>
-            <span>点赞</span>
-            <span>评论</span>
-          </div>
+          <ul class="sort-content">
+            <li
+              v-for="(option, index) in sortOptions"
+              :key="index"
+              :class="{ active: currentSort === option.sortBy }"
+            >
+              <a href="#" @click.prevent="applySort(option)">
+                <span>{{ option.label }}</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <!-- 帖子 -->
+        <div class="posts-content">
+          <PostCard
+            v-for="post in posts"
+            :post="post"
+            @like="handleLike"
+            @comment="handleComment"
+            @reply="handleReply"
+            @edit="handleEdit"
+            @delete="handleDelete"
+          />
         </div>
       </main>
       <aside class="sidebar-right">
@@ -40,10 +59,10 @@ import { Search } from "@element-plus/icons-vue";
 import TopNavbar from "@/components/navbar/TopNavbar.vue";
 import { useUserStore } from "@/stores/user";
 import LoginModal from "@/components/modules/LoginModal.vue";
-import { watch } from "vue";
+import { ref, reactive, watch } from "vue";
 import MobileNavbar from "@/components/navbar/MobileNavbar.vue";
 import BottomNavbar from "@/components/navbar/BottomNavbar.vue";
-
+import PostCard from "@/components/cards/PostCard.vue";
 const userStore = useUserStore();
 
 watch(
@@ -54,6 +73,41 @@ watch(
     }
   }
 );
+
+const sortOptions = reactive([
+  { label: "更新", sortBy: "update" },
+  { label: "浏览", sortBy: "views" },
+  { label: "点赞", sortBy: "likes" },
+  { label: "评论", sortBy: "comments" },
+]);
+
+const currentSort = ref(null);
+
+const applySort = (option) => {
+  currentSort.value = option.sortBy;
+  console.log(`Sorting by ${option.sortBy}`);
+};
+
+const post = {
+  id: "1",
+  title: "今天去爬山了",
+  content: "<p>云海太美了！</p>",
+  mediaUrls: [new URL('@/assets/images/kokomi001.jpg', import.meta.url).href,new URL('@/assets/images/kokomi002.jpg', import.meta.url).href],
+  author: { id: "u1", name: "张三", avatar: "..." },
+  createdAt: "2026-01-05T10:00:00Z",
+  views: 1200,
+  likes: 89,
+  commentsCount: 24,
+  likedByMe: false,
+};
+
+const posts = [
+  post,
+  post,
+  post,
+];
+
+const handleLike = (postId) => {};
 </script>
 
 <style scoped>
@@ -126,18 +180,39 @@ watch(
   font-size: 14px;
 }
 
-.sort-title{
-  opacity: 0.5;
+.sort-title {
   padding-right: 5px;
-  border-right: 1px solid var(--input-line-label);
 }
 
-.sort-content{
+.sort-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-left: 10px;
+  padding-left: 10px;
   gap: 10px;
+  margin-right: 10px;
+  border-left: 1px solid var(--border-color);
+}
+
+.sort-content a {
+  text-decoration: none;
+  opacity: 0.5;
+  color: var(--text-primary);
+}
+
+.sort-content .active a,
+.sort-content a:hover {
+  opacity: 1;
+  color: var(--primary-color);
+}
+
+.sort-content li {
+  list-style: none;
+}
+
+.posts-content{
+  padding: 10px 20px;
+
 }
 
 /* 小屏 (<768px) */
