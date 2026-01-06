@@ -2,38 +2,44 @@
   <article class="post-card">
     <!-- 帖子头部 -->
     <header class="post-card__header">
-      <img
-        :src="post.author.avatar || defaultAvatar"
-        alt="头像"
-        class="post-card__avatar"
-        @error="handleAvatarError"
+      <Avatar
+        :src="post.author.avatar"
+        :alt="post.author.name"
+        :size="48"
+        :badge="post.author.isVip ? 'vip' : post.author.isLive ? 'live' : null"
       />
+
       <div class="post-card__author-info">
         <span class="post-card__author-name">{{ post.author.name }}</span>
         <span class="post-card__time">{{ formatTime(post.createdAt) }}</span>
       </div>
-      <button
-        v-if="isAuthorOrAdmin"
-        class="post-card__more-btn"
-        @click="showMoreActions = !showMoreActions" 
-      >
-        ⋯
-      </button>
 
-      <!-- 更多操作菜单（简单示例） -->
-      <div v-if="showMoreActions" class="post-card__more-menu">
-        <button @click="onEdit">编辑</button>
-        <button @click="onDelete">删除</button>
+      <div class="post-card__more">
+        <el-dropdown @command="handleCommand">
+          <span class="el-dropdown-link">
+            <div class="post-card__more-icon">
+              <IconMore style="width: 24px; height: 28px" />
+            </div>
+          </span>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-for="action in moreActions"
+                :key="action.key"
+                :command="action"
+                :class="{ 'danger-item': action.danger }"
+                >{{ action.label }}</el-dropdown-item
+              >
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </header>
 
     <!-- 帖子主体 -->
     <div class="post-card__body">
       <h3 v-if="post.title" class="post-card__title">{{ post.title }}</h3>
-      <div
-        class="post-card__content"
-        v-html="sanitizeContent(post.content)"
-      ></div>
+      <div class="post-card__content" v-html="sanitizeContent(post.content)"></div>
 
       <!-- 图片展示（如果 mediaUrls 存在） -->
       <div v-if="post.mediaUrls && post.mediaUrls.length" class="post-card__media">
@@ -63,11 +69,9 @@
           :class="{ 'post-card__action-btn--liked': post.likedByMe }"
           @click="toggleLike"
         >
-          👍 {{ post.likedByMe ? '已赞' : '点赞' }}
+          👍 {{ post.likedByMe ? "已赞" : "点赞" }}
         </button>
-        <button class="post-card__action-btn" @click="focusCommentInput">
-          💬 评论
-        </button>
+        <button class="post-card__action-btn" @click="focusCommentInput">💬 评论</button>
         <button class="post-card__action-btn">🔗 分享</button>
       </div>
     </footer>
@@ -93,11 +97,7 @@
 
       <!-- 评论列表 -->
       <ul class="post-card__comment-list">
-        <li
-          v-for="comment in comments"
-          :key="comment.id"
-          class="post-card__comment-item"
-        >
+        <li v-for="comment in comments" :key="comment.id" class="post-card__comment-item">
           <img
             :src="comment.author.avatar || defaultAvatar"
             class="post-card__comment-avatar"
@@ -105,11 +105,10 @@
           <div class="post-card__comment-body">
             <div class="post-card__comment-header">
               <span class="post-card__comment-author">{{ comment.author.name }}</span>
-              <span class="post-card__comment-time">{{ formatTime(comment.createdAt) }}</span>
-              <button
-                class="post-card__reply-btn"
-                @click="toggleReplyInput(comment.id)"
-              >
+              <span class="post-card__comment-time">{{
+                formatTime(comment.createdAt)
+              }}</span>
+              <button class="post-card__reply-btn" @click="toggleReplyInput(comment.id)">
                 回复
               </button>
             </div>
@@ -124,7 +123,9 @@
               >
                 <span class="post-card__reply-author">@{{ reply.author.name }}</span>
                 <span>{{ reply.content }}</span>
-                <span class="post-card__reply-time">{{ formatTime(reply.createdAt) }}</span>
+                <span class="post-card__reply-time">{{
+                  formatTime(reply.createdAt)
+                }}</span>
               </li>
             </ul>
 
@@ -156,9 +157,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useUserStore } from '@/stores/user'
-import DOMPurify from 'dompurify' // 防 XSS
+import { ref, computed, onMounted } from "vue";
+import { useUserStore } from "@/stores/user";
+import DOMPurify from "dompurify"; // 防 XSS
+import Avatar from "@/components/modules/Avatar.vue";
+import IconMore from "../icons/IconMore.vue";
+import { usePermission } from "@/utils/usePermission";
+import { ALL_ACTIONS } from "@/utils/postActions";
 
 // Props
 const props = defineProps({
@@ -166,129 +171,162 @@ const props = defineProps({
     type: Object,
     required: true,
     validator(value) {
-      return value.id && value.author && value.content !== undefined
-    }
-  }
-})
+      return value.id && value.author && value.content !== undefined;
+    },
+  },
+});
 
 // Emits
-const emit = defineEmits(['like', 'comment', 'reply', 'edit', 'delete'])
+const emit = defineEmits(["like", "comment", "reply", "edit", "delete"]);
 
 // Store
-const userStore = useUserStore()
+const userStore = useUserStore();
 
 // Refs
-const commentInputRef = ref(null)
-const newComment = ref('')
-const replyInputs = ref({})
-const showReplyInputId = ref(null)
-const showMoreActions = ref(false)
+const commentInputRef = ref(null);
+const newComment = ref("");
+const replyInputs = ref({});
+const showReplyInputId = ref(null);
 
 // Constants
-const defaultAvatar = new URL('@/assets/images/kokomi.jpg', import.meta.url).href
+const defaultAvatar = new URL("@/assets/images/kokomi.jpg", import.meta.url).href;
 
 // Computed
-const isAuthorOrAdmin = computed(() => {
-  return (
-    userStore.userInfo?.id === props.post.author.id ||
-    userStore.role === 'admin'
-  )
-})
+const isAuthor = computed(() => {
+  return userStore.currentUser?.id === props.post.author.id;
+});
+
+const currentUser = computed(() => userStore.currentUser);
+
+// 是否是自己的帖子
+const isOwnPost = computed(() => {
+  return currentUser.value && props.post.author.id === currentUser.value.id;
+});
+
+// 动态过滤操作项
+const moreActions = computed(() => {
+  const { hasPermission } = usePermission();
+
+  return ALL_ACTIONS.filter((action) => {
+    const req = action.requiredPermission;
+
+    if (typeof req === "function") {
+      return req({ isOwnPost: isOwnPost.value, post: props.post });
+    } else if (Array.isArray(req)) {
+      return req.every((p) => hasPermission(p));
+    } else if (typeof req === "string") {
+      return hasPermission(req);
+    } else {
+      return true; // 无限制
+    }
+  });
+});
+
+// 处理点击
+const handleCommand = (action) => {
+  // 临时 hack：把 emit 传给 handler（更优雅的方式是让 handler 返回 promise 或回调）
+  const wrappedHandler = action.handler.toString();
+  if (wrappedHandler.includes("emit")) {
+    // 不推荐，建议重构 handler 为接收上下文
+  }
+
+  // 更好的方式：在 handler 内部调用 API，成功后再 emit
+  // 这里我们简单调用，并手动处理 delete
+  if (action.key === "delete") {
+    import("element-plus").then(({ ElMessageBox }) => {
+      ElMessageBox.confirm("确定删除这条帖子？", "提示", {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+      }).then(() => {
+        emit("delete", props.post.id);
+      });
+    });
+  } else {
+    action.handler(props.post);
+  }
+};
 
 // Methods
 const formatTime = (dateStr) => {
-  const date = new Date(dateStr)
-  const now = new Date()
-  const diff = now - date
-  const seconds = Math.floor(diff / 1000)
-  if (seconds < 60) return '刚刚'
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}分钟前`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}小时前`
-  return date.toLocaleDateString('zh-CN')
-}
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diff = now - date;
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return "刚刚";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}小时前`;
+  return date.toLocaleDateString("zh-CN");
+};
 
 const formatNumber = (num) => {
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'k'
-  return num
-}
+  if (num >= 1000) return (num / 1000).toFixed(1) + "k";
+  return num;
+};
 
 const sanitizeContent = (html) => {
-  return DOMPurify.sanitize(html)
-}
-
-const handleAvatarError = (e) => {
-  e.target.src = defaultAvatar
-}
+  return DOMPurify.sanitize(html);
+};
 
 const toggleLike = () => {
-  emit('like', props.post.id)
-}
+  emit("like", props.post.id);
+};
 
 const focusCommentInput = () => {
   if (userStore.isLogin && commentInputRef.value) {
-    commentInputRef.value.focus()
+    commentInputRef.value.focus();
   }
-}
+};
 
 const submitComment = () => {
-  if (!newComment.value.trim()) return
-  emit('comment', { postId: props.post.id, content: newComment.value })
-  newComment.value = ''
-}
+  if (!newComment.value.trim()) return;
+  emit("comment", { postId: props.post.id, content: newComment.value });
+  newComment.value = "";
+};
 
 const toggleReplyInput = (commentId) => {
   if (showReplyInputId.value === commentId) {
-    showReplyInputId.value = null
+    showReplyInputId.value = null;
   } else {
-    showReplyInputId.value = commentId
+    showReplyInputId.value = commentId;
     if (!replyInputs.value[commentId]) {
-      replyInputs.value[commentId] = ''
+      replyInputs.value[commentId] = "";
     }
   }
-}
+};
 
 const submitReply = (commentId) => {
-  const content = replyInputs.value[commentId]?.trim()
-  if (!content) return
-  emit('reply', { commentId, content })
-  replyInputs.value[commentId] = ''
-  showReplyInputId.value = null
-}
-
-const onEdit = () => {
-  emit('edit', props.post.id)
-}
-
-const onDelete = () => {
-  if (confirm('确定删除此帖子？')) {
-    emit('delete', props.post.id)
-  }
-}
+  const content = replyInputs.value[commentId]?.trim();
+  if (!content) return;
+  emit("reply", { commentId, content });
+  replyInputs.value[commentId] = "";
+  showReplyInputId.value = null;
+};
 
 // Mock comments (实际应从 API 获取)
 const comments = ref([
   {
-    id: 'c1',
-    content: '写得真好！',
-    author: { name: '李四', avatar: '' },
-    createdAt: '2026-01-04T10:00:00Z',
+    id: "c1",
+    content: "写得真好！",
+    author: { name: "李四", avatar: "" },
+    createdAt: "2026-01-04T10:00:00Z",
     replies: [
       {
-        id: 'r1',
-        content: '谢谢！',
-        author: { name: '张三', avatar: '' },
-        createdAt: '2026-01-04T10:05:00Z'
-      }
-    ]
-  }
-])
+        id: "r1",
+        content: "谢谢！",
+        author: { name: "张三", avatar: "" },
+        createdAt: "2026-01-04T10:05:00Z",
+      },
+    ],
+  },
+]);
 
-const hasMoreComments = ref(false)
+const hasMoreComments = ref(false);
 const loadMoreComments = () => {
   // 实际调用 API
-}
+};
 </script>
 
 <style scoped>
@@ -331,22 +369,68 @@ const loadMoreComments = () => {
   margin-left: 10px;
 }
 
-.post-card__more-btn {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
-  cursor: pointer;
-  color: var(--text-secondary);
+.post-card__more {
+  margin-right: 8px;
+  padding: 4px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.post-card__more-menu {
-  position: absolute;
-  top: 30px;
-  right: 0;
-  background: white;
-  border: 1px solid #eee;
-  border-radius: 6px;
-  z-index: 10;
+.post-card__more .el-dropdown-link {
+  cursor: pointer;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  width: 100%;
+  white-space: nowrap;
+  background-color: transparent;
+}
+
+.post-card__more .el-dropdown-link:hover {
+  background-color: var(--bg-hover);
+}
+
+.post-card__more-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.3;
+}
+
+.el-dropdown-menu {
+  background-color: var(--bg-primary);
+}
+
+:deep(.el-dropdown-menu__item) {
+  color: var(--text-secondary);
+  background-color: var(--bg-primary);
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+
+
+:deep(.el-dropdown-menu__item:hover),
+:deep(.el-dropdown-menu__item:focus) {
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
+}
+
+
+
+:deep(.el-dropdown-link:focus) {
+  outline: none !important;
+}
+
+
+.danger-item {
+  color: #ff4d4f !important;
+}
+.danger-item:hover {
+  background-color: #fff2f2 !important;
 }
 
 .post-card__body {

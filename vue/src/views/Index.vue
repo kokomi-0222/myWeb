@@ -93,7 +93,7 @@ const post = {
   title: "今天去爬山了",
   content: "<p>云海太美了！</p>",
   mediaUrls: [new URL('@/assets/images/kokomi001.jpg', import.meta.url).href,new URL('@/assets/images/kokomi002.jpg', import.meta.url).href],
-  author: { id: "u1", name: "张三", avatar: "..." },
+  author: { id: "u1", name: "张三", avatar: "..." , isVip:true},
   createdAt: "2026-01-05T10:00:00Z",
   views: 1200,
   likes: 89,
