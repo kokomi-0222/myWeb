@@ -20,7 +20,10 @@
         />
       </div>
       <div class="header-bar-login">
-        <el-button @click="handleLogin" color="var(--header-bar-button-login-bg)">
+        <el-button v-if="userStore.isLogin" color="var(--header-bar-button-login-bg)">
+          <Avatar :src="userStore.user.avatar" :alt="userStore.user.name" :size="36" />
+        </el-button>
+        <el-button v-else @click="handleLogin" color="var(--header-bar-button-login-bg)">
           登录
         </el-button>
       </div>
@@ -50,6 +53,7 @@ import InputSearch from "@/components/inputs/InputSearch.vue";
 import { useScroll } from "@/utils/useScroll";
 import { useUserStore } from "@/stores/user";
 import { useUIStore } from "@/stores/ui";
+import Avatar from "../modules/Avatar.vue";
 
 const navbar = document.querySelector(".header-bar");
 const navbarHeight = navbar?.offsetHeight || 55;
@@ -57,11 +61,10 @@ const { isScrolled } = useScroll(navbarHeight);
 const userStore = useUserStore();
 const uiStore = useUIStore();
 
-
 const searchText = ref("");
 
 function onSearch({ keyword, type }) {
-  console.log('搜索关键词:', keyword, '类型:', type);
+  console.log("搜索关键词:", keyword, "类型:", type);
   // 调用 API
 }
 
@@ -73,7 +76,6 @@ function handleLogin() {
     uiStore.openLoginModal();
   }
 }
-
 
 function goPublish() {
   // TODO: 跳转发布页或打开发布弹窗
@@ -209,7 +211,6 @@ function goPublish() {
   border-radius: 10px;
 }
 
-
 /* 小屏 (<768px) */
 @media (max-width: 767px) {
   .header-bar {
@@ -227,8 +228,8 @@ function goPublish() {
     display: none; /* 隐藏“发布”文字，只留图标 */
   }
 
-  .header-bar-contact{
-    display: none;   
+  .header-bar-contact {
+    display: none;
   }
 }
 </style>

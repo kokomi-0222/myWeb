@@ -1,12 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getUserInfo as apiGetUserInfo, Login as apiLogin } from '@/api/user'
+import { getUserInfo as apiGetUserInfo, login as apiLogin } from '@/api/user'
 import setting from '@/config/setting'
 import { getAccessToken, setAccessToken, removeAccessToken } from '@/utils/accessToken'
 import { initPermissions } from '@/utils/usePermission.js'
-import { ElMessage } from 'element-plus'
+
+
 /**
- * currentUser 用户信息
+ * user 用户信息
  *    id 用户id
  *    username 用户名 
  *    age 年龄
@@ -24,63 +25,71 @@ token:
   "sub": "1001",                     // 用户唯一 ID（标准字段）
   "username": "alice",               // 用户名（用于展示）
   "role": "admin",                   // 角色标识（可选，但建议保留）
-  "permissions": [                   // 【关键】前端权限控制的核心！
+  "permissions": [        
+    //帖子模块           
     "post:create",
     "post:edit",
     "post:delete",
+    //用户模块
     "user:block",
+    //评论模块
     "comment:report"
   ],
   "iat": 1735689600,                 // 签发时间（标准）
   "exp": 1735693200                  // 过期时间（标准）
 }
  */
-//选项式API
+
 export const useUserStore = defineStore('user', () => {
-    const currentUser = ref(null)
+    const user = ref(null)
     const token = ref(getAccessToken())
-    const isLogin = computed(() => !!currentUser.value)
+    const isLogin = computed(() => !!user.value)
 
     const login = async (loginData) => {
-        const res = await apiLogin(loginData)
-        if (setting.successCode.includes(res.code)) {
-            // 保存到stores
-            token.value = res.data.token
-            currentUser.value = res.data.currentUser
-            //持久化存储
-            setAccessToken(res.data.token)
-            initPermissions(res.data.token)
-            ElMessage.success('登录成功！')
-        } else {
-            ElMessage.error(res.message)
+        try {
+            const res = await apiLogin(loginData)
+            console.log(res)
+            if (setting.successCode.includes(res.code)) {
+                console.log(res.data)
+                // 更新状态
+                token.value = res.data.token
+                user.value = res.data.user
+                setAccessToken(res.data.token)
+                initPermissions(res.data.permissions)
+                return { success: true, data: res.data }
+            }
+            return { success: false, message: res.message }
+        } catch (error) {
+            return { success: false, message: '网络错误' }
         }
     }
 
-    const getUserInfo = () => {
-        apiGetUserInfo().then(res => {
+    const getUserInfo = async () => {
+        try {
+            const res = await apiGetUserInfo()
             if (setting.successCode.includes(res.code)) {
-                currentUser.value = res.data.currentUser
+                user.value = res.data.user
+                return { success: true, data: res.data }
             } else {
-                ElMessage.error(res.message)
+               return { success: false, message: res.message }
             }
-        })
+        } catch (err) {
+            return { success: false, message: '获取用户信息失败' }
+        }
     }
 
     const logout = () => {
         removeAccessToken()
-        currentUser.value = null
+        user.value = null
         token.value = null
         initPermissions('')
-        ElMessage.success('退出登录成功！')
+        return { success: true }
     }
 
     const register = async (registerData) => {
 
     }
 
-    return { currentUser, token, isLogin, login, getUserInfo, logout, register }
+    return { user, token, isLogin, login, getUserInfo, logout, register }
 })
-
-
-
 

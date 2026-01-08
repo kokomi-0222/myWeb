@@ -2,10 +2,13 @@
 import axios from 'axios'
 import setting from '@/config/setting'
 import { getAccessToken, removeAccessToken } from '@/utils/accessToken'
-import { ElMessage } from 'element-plus' // 如果你用 Element Plus
-// import { message } from 'ant-design-vue' // 如果你用 Ant Design Vue
-// 1. 创建 axios 实例
-const service = axios.create({
+import { ElMessage } from 'element-plus'
+import {handleMockRequest} from '@/mocks/index'
+
+// ======================
+// 1. 真实请求实例（仅在非 mock 时使用）
+// ======================
+const realService = axios.create({
   baseURL: setting.baseURL,
   timeout: setting.requestTimeout,
   headers: {
@@ -13,46 +16,32 @@ const service = axios.create({
   }
 })
 
-// 2. 请求拦截器
-service.interceptors.request.use(
+// 请求拦截器（只对真实请求生效）
+realService.interceptors.request.use(
   (config) => {
-    // 获取 token（从 store 或 localStorage）
-    let token = getAccessToken()
-    // 白名单路由不加 token（如登录）
     const isWhiteList = setting.routesWhiteList.some(path =>
       config.url?.startsWith(path)
     )
-
+    const token = getAccessToken()
     if (token && !isWhiteList) {
-      config.headers.Authorization = `Bearer ${token}` // 或根据后端要求调整
+      config.headers.Authorization = `Bearer ${token}`
     }
-
     return config
   },
-  (error) => {
-    console.error('请求拦截错误:', error)
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
-// 3. 响应拦截器
-service.interceptors.response.use(
+// 响应拦截器（只对真实请求生效）
+realService.interceptors.response.use(
   (response) => {
     const res = response.data
-
-    // 判断业务逻辑是否成功（根据 successCode）
     if (setting.successCode.includes(res.code)) {
-      return res // 直接返回 data
+      return res
     }
 
-    // 特殊状态码处理
     if (res.code === setting.invalidCode) {
-      // 登录失效：清空用户信息并跳转登录页
       removeAccessToken()
-      // 这里可以调用 Pinia 的 clearUser()
-      // 但为解耦，我们只做跳转（或通过事件通知）
       ElMessage.error('登录已过期，请重新登录')
-      //window.location.href = '/login'
       return Promise.reject(new Error('登录失效'))
     }
 
@@ -61,12 +50,10 @@ service.interceptors.response.use(
       return Promise.reject(new Error('无权限'))
     }
 
-    // 其他业务错误
     ElMessage.error(res.message || '请求失败')
     return Promise.reject(new Error(res.message || 'Error'))
   },
   (error) => {
-    // 网络错误 / 超时等
     if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
       ElMessage.error('请求超时')
     } else if (!window.navigator.onLine) {
@@ -78,18 +65,29 @@ service.interceptors.response.use(
   }
 )
 
-// 4. 导出 request 方法（支持泛型，TS 友好）
+
+// ======================
+// 3. 智能请求入口（根据 setting.mock 自动选择）
+// ======================
 /**
  * 通用请求方法
- * @template T - 响应数据类型
+ * @template T
  * @param {import('axios').AxiosRequestConfig} config
  * @returns {Promise<T>}
  */
 export default function request(config) {
-  return service(config)
+  if (setting.mock) {
+    // 🔸 Mock 模式：不走网络，直接返回模拟数据
+    return handleMockRequest(config)
+  } else {
+    // 🔸 真实模式：走 axios + 拦截器
+    return realService(config)
+  }
 }
 
-// 5. 快捷方法（可选）
+// ======================
+// 4. 快捷方法（保持兼容）
+// ======================
 export const get = (url, params = {}) => request({ method: 'GET', url, params })
 export const post = (url, data = {}) => request({ method: 'POST', url, data })
 export const put = (url, data = {}) => request({ method: 'PUT', url, data })

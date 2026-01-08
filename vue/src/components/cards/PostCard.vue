@@ -15,7 +15,7 @@
       </div>
 
       <div class="post-card__more">
-        <el-dropdown @command="handleCommand">
+        <el-dropdown  @command="handleCommand" placement="bottom-end">
           <span class="el-dropdown-link">
             <div class="post-card__more-icon">
               <IconMore style="width: 24px; height: 28px" />
@@ -161,7 +161,7 @@ import { ref, computed, onMounted } from "vue";
 import { useUserStore } from "@/stores/user";
 import DOMPurify from "dompurify"; // 防 XSS
 import Avatar from "@/components/modules/Avatar.vue";
-import IconMore from "../icons/IconMore.vue";
+import IconMore from "@/components/icons/IconMore.vue";
 import { usePermission } from "@/utils/usePermission";
 import { ALL_ACTIONS } from "@/utils/postActions";
 
@@ -193,10 +193,10 @@ const defaultAvatar = new URL("@/assets/images/kokomi.jpg", import.meta.url).hre
 
 // Computed
 const isAuthor = computed(() => {
-  return userStore.currentUser?.id === props.post.author.id;
+  return userStore.user?.id === props.post.author.id;
 });
 
-const currentUser = computed(() => userStore.currentUser);
+const currentUser = computed(() => userStore.user);
 
 // 是否是自己的帖子
 const isOwnPost = computed(() => {
@@ -406,12 +406,8 @@ const loadMoreComments = () => {
 :deep(.el-dropdown-menu__item) {
   color: var(--text-secondary);
   background-color: var(--bg-primary);
-  outline: none !important;
-  border: none !important;
-  box-shadow: none !important;
+  width: 100px;
 }
-
-
 
 :deep(.el-dropdown-menu__item:hover),
 :deep(.el-dropdown-menu__item:focus) {
@@ -419,12 +415,9 @@ const loadMoreComments = () => {
   background-color: var(--bg-secondary);
 }
 
-
-
 :deep(.el-dropdown-link:focus) {
   outline: none !important;
 }
-
 
 .danger-item {
   color: #ff4d4f !important;

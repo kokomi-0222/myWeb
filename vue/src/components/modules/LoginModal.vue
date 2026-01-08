@@ -38,7 +38,10 @@
 
       <div class="button-group">
         <el-button class="login-button" @click="goToRegister">注册</el-button>
-        <el-button class="login-button" color="var(--login-button-bg)" @click="handleLogin"
+        <el-button
+          class="login-button"
+          color="var(--login-button-bg)"
+          @click="handleLogin"
           ><span style="color: white">登录</span></el-button
         >
       </div>
@@ -90,7 +93,10 @@
       </el-form-item>
       <div class="button-group">
         <el-button class="login-button" @click="goToLogin">返回登录</el-button>
-        <el-button class="login-button" color="var(--login-button-bg)" @click="handleResigister"
+        <el-button
+          class="login-button"
+          color="var(--login-button-bg)"
+          @click="handleResigister"
           ><span style="color: white">注册账号</span></el-button
         >
       </div>
@@ -186,13 +192,21 @@ const resetForms = () => {
 
 // 登录
 const handleLogin = async () => {
-  const valid = await loginFormRef.value?.validate();
+  const valid = await loginFormRef.value?.validate().catch(() => false)
   if (valid) {
     // 校验通过，执行登录
     console.log("登录数据:", loginForm);
-    ElMessage.success("登录成功！");
+    const res = await userStore.login(loginForm);
+    if (res.success) {
+      ElMessage.success("登录成功！");
+      uiStore.closeLoginModal();
+    } else {
+      ElMessage.error(res.message);
+    }
   }
 };
+
+
 
 //注册
 const handleResigister = async () => {

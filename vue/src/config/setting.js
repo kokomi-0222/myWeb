@@ -1,4 +1,6 @@
 const setting = {
+
+    mock:true,
     //app名称
     appName: 'my-web-app',
     //接口地址
@@ -18,7 +20,7 @@ const setting = {
 
 
     //不经过token校验的路由
-    routesWhiteList: ['/login', '/register', '/404', '/401'],
+    routesWhiteList: ['/user/login', '/user/register', '/404', '/401'],
     //token名称
     tokenName: 'accessToken',
     //token存储位置localStorage sessionStorage
@@ -28,7 +30,7 @@ const setting = {
     //是否开启登录拦截
     loginInterception: true,
     //是否开启登录RSA加密
-    loginRSA: true,
+    loginRSA: false,
 
 }
 
