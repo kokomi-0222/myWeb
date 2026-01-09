@@ -9,8 +9,17 @@
     --bg-nomarl:#f0f2f5;
     --bg-hover:#e4e7eb;
     
+    --button-bg0: #ffffff;
+    --button-bg0-hover: #f8f8f8;
+    --button-text0: #333;
+    --button-text0-hover: #333;
+    
+    --button-bg1: #00aeec;
+    --button-bg1-hover: #04bcff;
+    --button-text1: #ddd;
+    --button-text1-hover: #fff;
 
-
+    
     --header-bar-bg: transparent;
     --header-bar-bg-scrolled: rgba(255, 255, 255, 0.9);
     --header-bar-bg-scrolled-shadow:rgba(0, 0, 0, 0.1);  
@@ -21,6 +30,7 @@
     --header-bar-button: #fff;
     --header-bar-button-login-bg:#00aeec;
     --header-bar-button-publish-bg: #fb7299;
+    --header-bar-button-publish-bg-hover: #f55a86;
     --header-banner-bg: rgba(255, 255, 255, 0.9);
 
 
@@ -52,6 +62,7 @@
 
     --login-modal-bg: #e7ecfd;
     --login-button-bg: #00aeec;
+    --login-button-bg2: #fff;
 }
 
 
@@ -108,4 +119,5 @@
     --input-search-clear-btn-hover: #111;
 
     --login-modal-bg: #e7ecfd;
+    --login-button-bg: #00aeec;
 }

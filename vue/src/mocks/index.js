@@ -5,8 +5,10 @@ import { getAccessToken} from '@/utils/accessToken'
 
 // 🗺️ 路由映射表：URL + Method → 对应的 mock 函数
 const MOCK_ROUTES = [
-    // 认证
+    // 用户
     { url: '/user/login', method: 'post', handler: user.mockLogin },
+    { url: '/user/register', method: 'post', handler: user.mockRegister },
+    { url: '/user/info', method: 'post', handler: user.mockGetUserInfo },
     { url: '/user/logout', method: 'post', handler: user.mockLogout },
     { url: '/user/permissions', method: 'get', handler: user.mockGetUserPermissions },
 

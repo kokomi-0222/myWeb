@@ -25,16 +25,6 @@ token:
   "sub": "1001",                     // 用户唯一 ID（标准字段）
   "username": "alice",               // 用户名（用于展示）
   "role": "admin",                   // 角色标识（可选，但建议保留）
-  "permissions": [        
-    //帖子模块           
-    "post:create",
-    "post:edit",
-    "post:delete",
-    //用户模块
-    "user:block",
-    //评论模块
-    "comment:report"
-  ],
   "iat": 1735689600,                 // 签发时间（标准）
   "exp": 1735693200                  // 过期时间（标准）
 }
@@ -42,6 +32,7 @@ token:
 
 export const useUserStore = defineStore('user', () => {
     const user = ref(null)
+    const roles = ref([])
     const token = ref(getAccessToken())
     const isLogin = computed(() => !!user.value)
 
@@ -54,12 +45,13 @@ export const useUserStore = defineStore('user', () => {
                 // 更新状态
                 token.value = res.data.token
                 user.value = res.data.user
+                roles.value = res.data?.roles || []
                 setAccessToken(res.data.token)
-                initPermissions(res.data.permissions)
+                initPermissions(res.data?.permissions || [])
                 return { success: true, data: res.data }
             }
             return { success: false, message: res.message }
-        } catch (error) {
+        } catch (err) {
             return { success: false, message: '网络错误' }
         }
     }
@@ -69,19 +61,23 @@ export const useUserStore = defineStore('user', () => {
             const res = await apiGetUserInfo()
             if (setting.successCode.includes(res.code)) {
                 user.value = res.data.user
+                roles.value = res.data?.roles || []
+                initPermissions(res.data?.permissions || [])
                 return { success: true, data: res.data }
             } else {
-               return { success: false, message: res.message }
+                return { success: false, message: res.message }
             }
         } catch (err) {
             return { success: false, message: '获取用户信息失败' }
         }
     }
 
+
     const logout = () => {
         removeAccessToken()
         user.value = null
         token.value = null
+        roles.value = []
         initPermissions('')
         return { success: true }
     }
@@ -90,6 +86,6 @@ export const useUserStore = defineStore('user', () => {
 
     }
 
-    return { user, token, isLogin, login, getUserInfo, logout, register }
+    return { user, roles, token, isLogin, login, getUserInfo, logout, register }
 })
 

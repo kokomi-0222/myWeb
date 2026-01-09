@@ -16,7 +16,7 @@ export async function login(data) {
 
 export function getUserInfo(accessToken) {
   return request({
-    url: '/user/userInfo',
+    url: '/user/info',
     method: 'post',
     data: {
       [setting.tokenName]: accessToken,

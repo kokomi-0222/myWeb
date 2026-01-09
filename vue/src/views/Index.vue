@@ -11,10 +11,10 @@
     </div>
     <div class="app-main">
       <aside class="sidebar-left">
-        <!-- 导航、分类、快捷入口 -->
+
       </aside>
       <main class="main-content">
-      <!-- 排序 -->
+
         <div class="sort-bar">
           <div class="sort-title">排序</div>
           <ul class="sort-content">
@@ -30,7 +30,7 @@
           </ul>
         </div>
 
-        <!-- 帖子 -->
+
         <div class="posts-content">
           <PostCard
             v-for="post in posts"
@@ -44,7 +44,7 @@
         </div>
       </main>
       <aside class="sidebar-right">
-        <!-- 热门帖子、广告、在线用户等（桌面端显示） -->
+
       </aside>
     </div>
 
@@ -54,8 +54,6 @@
 </template>
 
 <script setup>
-import { ElMessage } from "element-plus";
-import { Search } from "@element-plus/icons-vue";
 import TopNavbar from "@/components/navbar/TopNavbar.vue";
 import { useUserStore } from "@/stores/user";
 import LoginModal from "@/components/modules/LoginModal.vue";

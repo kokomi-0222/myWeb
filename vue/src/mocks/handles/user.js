@@ -57,7 +57,7 @@ const mockToken = {
   'token-admin': { username: 'admin', sub: 2 }
 }
 
-export function mockLogin({data}) {
+export function mockLogin({ data }) {
   const { username, password } = data
   const userItem = mockData.find(item =>
     item.user.username === username //&&item.user.password === password
@@ -77,13 +77,55 @@ export function mockLogin({data}) {
   return { code: "401", message: '用户名或密码错误' }
 }
 
+
+
+export function mockGetUserInfo({ headers, data }) {
+
+  let token = null;
+  if (headers?.authorization && headers.authorization.startsWith('Bearer ')) {
+    token = headers.authorization.substring(7);
+  }
+  else if (data?.token) {
+    token = data.token;
+  }
+  if (!token) {
+    return {
+      code: "401",
+      message: "未提供有效凭证"
+    };
+  }
+
+  if (!mockToken[token]) {
+    return { code: "401", message: '无效的 token' };
+  }
+
+  const userItem = mockData.find(item =>
+    item.user.id === mockToken[token].sub
+  );
+
+  if (!userItem) {
+    return { code: "401", message: '用户信息缺失' };
+  }
+
+  return {
+    code: "200",
+    data: {
+      user: userItem.user,
+      roles: userItem.roles,
+      permissions: userItem.permissions
+    },
+    message: 'success'
+  };
+}
+
+
 export function mockLogout() {
   return { code: "200", message: '退出成功' }
 }
 
 export function mockGetUserPermissions({ headers }) {
   const auth = headers?.authorization;
-  
+
   if (!auth || !auth.startsWith('Bearer ')) {
     return { code: "401", message: '请先登录' };
   }
@@ -93,9 +135,9 @@ export function mockGetUserPermissions({ headers }) {
   if (!mockToken[token]) {
     return { code: "401", message: '无效的 token' };
   }
-  
+
   const userItem = mockData.find(item =>
-    item.user.id === mockToken[token].sub 
+    item.user.id === mockToken[token].sub
   );
 
 

@@ -1,5 +1,3 @@
-<script setup></script>
-
 <template>
   <div id="myWebApp">
     <router-view />
@@ -7,18 +5,25 @@
 </template>
 
 <script setup>
-import { watch } from 'vue'
+import { onMounted, watch } from "vue";
 import { useUIStore } from "@/stores/ui";
+import { useUserStore } from "@/stores/user";
 const ui = useUIStore();
+const userStore = useUserStore();
+
+onMounted(() => {
+  if (userStore.token) {
+    userStore.getUserInfo();
+  }
+});
 
 watch(
   () => ui.isDarkMode,
   (isDark) => {
-    document.documentElement.classList.toggle('dark', isDark)
+    document.documentElement.classList.toggle("dark", isDark);
   },
   { immediate: true } // 组件挂载时立即执行一次
-)
-
+);
 
 let styleTitle1 = `
 font-size: 20px;

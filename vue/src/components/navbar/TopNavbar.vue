@@ -20,12 +20,32 @@
         />
       </div>
       <div class="header-bar-login">
-        <el-button v-if="userStore.isLogin" color="var(--header-bar-button-login-bg)">
-          <Avatar :src="userStore.user.avatar" :alt="userStore.user.name" :size="36" />
-        </el-button>
-        <el-button v-else @click="handleLogin" color="var(--header-bar-button-login-bg)">
-          登录
-        </el-button>
+        <el-dropdown v-if="userStore.isLogin" @command="handleCommand">
+          <span class="el-dropdown-link">
+            <div class="login-avatar">
+              <Avatar
+                :src="userStore.user.avatar"
+                :alt="userStore.user.name"
+                :size="36"
+              />
+            </div>
+          </span>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item>个人中心</el-dropdown-item>
+              <el-dropdown-item @click="handleLogout">退出登录</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+
+        <Button
+          v-else-if="!userStore.isLogin"
+          type="bilibili"
+          class="login-button"
+          @click="handleLogin"
+        >
+          <span>登录</span>
+        </Button>
       </div>
       <div class="header-bar-message">
         <IconMessage class="iconMessage" :size="24" />
@@ -34,17 +54,21 @@
         <el-icon :size="24" class="iconContact"><Promotion /></el-icon>
       </div>
       <div class="header-bar-publish">
-        <el-button color="var(--header-bar-button-publish-bg)">
+        <Button
+          class="publish-button"
+          backgroundColor="var(--header-bar-button-publish-bg)"
+          hoverBackgroundColor="var(--header-bar-button-publish-bg-hover)"
+        >
           <el-icon size="large" color="#fff"><UploadFilled /></el-icon>
           <span style="margin-left: 5px; color: white">发布</span>
-        </el-button>
+        </Button>
       </div>
     </div>
   </div>
 </template>
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
-import { Expand, Fold, UploadFilled, Promotion, Search } from "@element-plus/icons-vue";
+import { UploadFilled, Promotion } from "@element-plus/icons-vue";
 import IconHome from "@/components/icons/IconHome.vue";
 import IconLight from "@/components/icons/IconLight.vue";
 import IconDark from "@/components/icons/IconDark.vue";
@@ -54,9 +78,10 @@ import { useScroll } from "@/utils/useScroll";
 import { useUserStore } from "@/stores/user";
 import { useUIStore } from "@/stores/ui";
 import Avatar from "../modules/Avatar.vue";
+import Button from "../buttons/Button.vue";
 
 const navbar = document.querySelector(".header-bar");
-const navbarHeight = navbar?.offsetHeight || 55;
+const navbarHeight = navbar?.offsetHeight || 54;
 const { isScrolled } = useScroll(navbarHeight);
 const userStore = useUserStore();
 const uiStore = useUIStore();
@@ -75,6 +100,10 @@ function handleLogin() {
   } else {
     uiStore.openLoginModal();
   }
+}
+
+function handleLogout() {
+  userStore.logout();
 }
 
 function goPublish() {
@@ -163,6 +192,54 @@ function goPublish() {
   justify-content: center;
 }
 
+.login-button {
+  height: 36px;
+  width: 36px;
+  border-radius: 50%;
+  font-size: 14px;
+  padding: 0px;
+}
+
+.header-bar-login .el-dropdown-link {
+  cursor: pointer;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  width: 100%;
+  white-space: nowrap;
+  background-color: transparent;
+}
+
+.header-bar-login .el-dropdown-link:hover {
+  transform: scale(1.2);
+}
+
+.login-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.el-dropdown-menu {
+  background-color: var(--bg-primary);
+}
+
+:deep(.el-dropdown-menu__item) {
+  color: var(--text-secondary);
+  background-color: var(--bg-primary);
+  width: 100px;
+}
+
+:deep(.el-dropdown-menu__item:hover),
+:deep(.el-dropdown-menu__item:focus) {
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
+}
+
+:deep(.el-dropdown-link:focus) {
+  outline: none !important;
+}
+
 .iconHome {
   color: var(--header-bar-logo);
 }
@@ -194,21 +271,15 @@ function goPublish() {
   color: var(--header-bar-icon-switch);
 }
 
-.header-bar-login .el-button {
-  height: 36px;
-  width: 36px;
-  border-radius: 50%;
-  color: var(--header-bar-button);
-  font-size: 14px;
-}
-
-.header-bar-publish .el-button {
+.header-bar-publish .publish-button {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  height: 100%;
-  width: 100%;
+  justify-content: center;
+  height: 34px;
+  width: 68px;
   border-radius: 10px;
+  font-weight: 500;
+  font-size: 14px;
 }
 
 /* 小屏 (<768px) */

@@ -224,7 +224,6 @@ defineExpose({
 <style scoped>
 .input-line-wrapper {
   position: relative;
-  padding-bottom: 2px;
   display: flex;
   align-items: center;
   width: 100%;
@@ -254,7 +253,7 @@ defineExpose({
 
 .floating-label {
   position: absolute;
-  top: 0px;
+  top: -2px;
   left: 2px;
   font-size: 14px;
   color: var(--input-line-label);

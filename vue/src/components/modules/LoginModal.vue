@@ -37,12 +37,16 @@
       </el-form-item>
 
       <div class="button-group">
-        <el-button class="login-button" @click="goToRegister">注册</el-button>
-        <el-button
+        <Button
           class="login-button"
-          color="var(--login-button-bg)"
+          @click="goToRegister"
+          ><span style="">注册</span></Button
+        >
+        <Button
+          class="login-button"
+          type="bilibili"
           @click="handleLogin"
-          ><span style="color: white">登录</span></el-button
+          ><span>登录</span></Button
         >
       </div>
 
@@ -92,12 +96,12 @@
         />
       </el-form-item>
       <div class="button-group">
-        <el-button class="login-button" @click="goToLogin">返回登录</el-button>
-        <el-button
+        <Button class="login-button" @click="goToLogin">返回登录</Button>
+        <Button
           class="login-button"
-          color="var(--login-button-bg)"
+          type="bilibili"
           @click="handleResigister"
-          ><span style="color: white">注册账号</span></el-button
+          ><span style="color: white">注册账号</span></Button
         >
       </div>
 
@@ -118,7 +122,7 @@ import { ref, reactive, nextTick } from "vue";
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
 import InputLine from "@/components/inputs/InputLine.vue";
-import { ElMessage } from "element-plus";
+import Button from "../buttons/Button.vue";
 
 const uiStore = useUIStore();
 const userStore = useUserStore();
@@ -192,7 +196,7 @@ const resetForms = () => {
 
 // 登录
 const handleLogin = async () => {
-  const valid = await loginFormRef.value?.validate().catch(() => false)
+  const valid = await loginFormRef.value?.validate().catch(() => false);
   if (valid) {
     // 校验通过，执行登录
     console.log("登录数据:", loginForm);
@@ -205,8 +209,6 @@ const handleLogin = async () => {
     }
   }
 };
-
-
 
 //注册
 const handleResigister = async () => {
@@ -246,13 +248,14 @@ const dialogStyle = {
   display: flex;
   justify-content: center;
   align-items: center;
+  gap: 20px;
 }
 
 .login-button {
-  width: 100%;
   width: 194px;
   height: 40px;
   border-radius: 8px;
+  font-weight: 500;
 }
 
 .footer-link {
