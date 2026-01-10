@@ -13,14 +13,22 @@
     <!-- 右侧：大中屏功能区 -->
     <div class="header-bar-right">
       <div class="header-bar-switch">
-        <el-switch
+        <!--  <el-switch
           v-model="uiStore.isDarkMode"
           :active-action-icon="IconDark"
           :inactive-action-icon="IconLight"
-        />
+        /> -->
+        <!-- <Button class="theme-button">
+          
+         </Button> -->
+        <ThemeToggle />
       </div>
       <div class="header-bar-login">
-        <el-dropdown v-if="userStore.isLogin" @command="handleCommand">
+        <el-dropdown
+          v-if="userStore.isLogin"
+          @command="handleCommand"
+          :show-arrow="false"
+        >
           <span class="el-dropdown-link">
             <div class="login-avatar">
               <Avatar
@@ -32,8 +40,14 @@
           </span>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item>个人中心</el-dropdown-item>
-              <el-dropdown-item @click="handleLogout">退出登录</el-dropdown-item>
+              <el-dropdown-item>
+                <IconUser class="iconUser" :size="18" />
+                <span>个人中心</span>
+              </el-dropdown-item>
+              <el-dropdown-item @click="handleLogout">
+                <IconLogout class="iconLogout" :size="18" />
+                <span> 退出登录 </span>
+              </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -51,7 +65,7 @@
         <IconMessage class="iconMessage" :size="24" />
       </div>
       <div class="header-bar-contact">
-        <el-icon :size="24" class="iconContact"><Promotion /></el-icon>
+        <IconContact class="iconContact" :size="24" />
       </div>
       <div class="header-bar-publish">
         <Button
@@ -59,7 +73,7 @@
           backgroundColor="var(--header-bar-button-publish-bg)"
           hoverBackgroundColor="var(--header-bar-button-publish-bg-hover)"
         >
-          <el-icon size="large" color="#fff"><UploadFilled /></el-icon>
+          <IconUpload size="18px" color="#fff" />
           <span style="margin-left: 5px; color: white">发布</span>
         </Button>
       </div>
@@ -68,17 +82,9 @@
 </template>
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
-import { UploadFilled, Promotion } from "@element-plus/icons-vue";
-import IconHome from "@/components/icons/IconHome.vue";
-import IconLight from "@/components/icons/IconLight.vue";
-import IconDark from "@/components/icons/IconDark.vue";
-import IconMessage from "@/components/icons/IconMessage.vue";
-import InputSearch from "@/components/inputs/InputSearch.vue";
 import { useScroll } from "@/utils/useScroll";
 import { useUserStore } from "@/stores/user";
 import { useUIStore } from "@/stores/ui";
-import Avatar from "../modules/Avatar.vue";
-import Button from "../buttons/Button.vue";
 
 const navbar = document.querySelector(".header-bar");
 const navbarHeight = navbar?.offsetHeight || 54;
@@ -125,6 +131,7 @@ function goPublish() {
   background-color: var(--header-bar-bg);
   height: var(--header-bar-height);
   max-height: var(--header-bar-max-height);
+  transition: background-color 0.7s ease, color 0.7s ease;
 }
 
 .header-bar.is-scrolled {
@@ -190,6 +197,7 @@ function goPublish() {
   display: flex;
   align-items: center;
   justify-content: center;
+  user-select: none;
 }
 
 .login-button {
@@ -222,18 +230,31 @@ function goPublish() {
 
 .el-dropdown-menu {
   background-color: var(--bg-primary);
+  width: 200px;
+  border-radius: 8px;
+  padding: 10px;
 }
 
 :deep(.el-dropdown-menu__item) {
   color: var(--text-secondary);
-  background-color: var(--bg-primary);
-  width: 100px;
+  background-color: transparent;
+  height: 40px;
+  margin: 10px, 0;
+  padding: 10px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+}
+
+:deep(.el-dropdown-menu__item span) {
+  margin-left: 12px;
+  font-weight: 500;
 }
 
 :deep(.el-dropdown-menu__item:hover),
 :deep(.el-dropdown-menu__item:focus) {
   color: var(--text-primary);
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-hover);
 }
 
 :deep(.el-dropdown-link:focus) {
@@ -292,11 +313,15 @@ function goPublish() {
 /* 中屏 (768px ~ 1023px) */
 @media (min-width: 768px) and (max-width: 1023px) {
   .header-bar-right {
-    gap: 12px; /* 减小间距 */
+    gap: 14px; /* 减小间距 */
   }
 
   .header-bar-publish span {
     display: none; /* 隐藏“发布”文字，只留图标 */
+  }
+
+  .header-bar-publish .publish-button {
+    width: 48px;
   }
 
   .header-bar-contact {

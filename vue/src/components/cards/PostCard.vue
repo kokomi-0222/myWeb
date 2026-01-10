@@ -15,7 +15,7 @@
       </div>
 
       <div class="post-card__more">
-        <el-dropdown  @command="handleCommand" placement="bottom-end">
+        <el-dropdown  @command="handleCommand" placement="bottom-end" >
           <span class="el-dropdown-link">
             <div class="post-card__more-icon">
               <IconMore style="width: 24px; height: 28px" />
@@ -160,8 +160,6 @@
 import { ref, computed, onMounted } from "vue";
 import { useUserStore } from "@/stores/user";
 import DOMPurify from "dompurify"; // 防 XSS
-import Avatar from "@/components/modules/Avatar.vue";
-import IconMore from "@/components/icons/IconMore.vue";
 import { usePermission } from "@/utils/usePermission";
 import { ALL_ACTIONS } from "@/utils/postActions";
 

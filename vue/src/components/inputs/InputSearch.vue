@@ -2,20 +2,11 @@
   <div class="search-input-wrapper">
     <form class="search-form" @submit.prevent="handleSearch">
       <div v-if="searchTypes.length > 0" class="search-type-select">
-        <el-dropdown trigger="click" @command="handleCommand">
+        <el-dropdown trigger="click" @command="handleCommand" :show-arrow="false">
           <span class="el-dropdown-link">
             <div style="">{{ currentLabel }}</div>
             <div class="select-arrow">
-              <svg
-                width="12"
-                height="16"
-                viewBox="0 0 12 16"
-                fill="currentColor"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path d="M6 3 L1 7 L11 7 Z" />
-                <path d="M6 13 L1 9 L11 9 Z" />
-              </svg>
+            <IconDoubleArrow size="12"/>
             </div>
           </span>
           <template #dropdown>
@@ -42,24 +33,12 @@
         />
         <!-- 清空按钮（仅在有内容且聚焦/悬停时显示） -->
         <div v-if="showClear" class="clear-btn" @click="clearInput">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              fill-rule="evenodd"
-              clip-rule="evenodd"
-              d="M8 14.75C11.7279 14.75 14.75 11.7279 14.75 8C14.75 4.27208 11.7279 1.25 8 1.25C4.27208 1.25 1.25 4.27208 1.25 8C1.25 11.7279 4.27208 14.75 8 14.75ZM9.64999 5.64303C9.84525 5.44777 10.1618 5.44777 10.3571 5.64303C10.5524 5.83829 10.5524 6.15487 10.3571 6.35014L8.70718 8.00005L10.3571 9.64997C10.5524 9.84523 10.5524 10.1618 10.3571 10.3571C10.1618 10.5523 9.84525 10.5523 9.64999 10.3571L8.00007 8.70716L6.35016 10.3571C6.15489 10.5523 5.83831 10.5523 5.64305 10.3571C5.44779 10.1618 5.44779 9.84523 5.64305 9.64997L7.29296 8.00005L5.64305 6.35014C5.44779 6.15487 5.44779 5.83829 5.64305 5.64303C5.83831 5.44777 6.15489 5.44777 6.35016 5.64303L8.00007 7.29294L9.64999 5.64303Z"
-            ></path>
-          </svg>
+          <IconClearButton size="16"/>
         </div>
       </div>
       <!-- 搜索图标 -->
       <button class="search-btn" type="button" @click="handleSearch" aria-label="搜索">
-        <el-icon :size="20"><Search /></el-icon>
+        <IconSearch :size="20"/>
       </button>
     </form>
   </div>
@@ -67,7 +46,6 @@
 
 <script setup>
 import { ref, computed, watch, onUnmounted, onMounted, nextTick } from "vue";
-import { Search } from "@element-plus/icons-vue";
 const props = defineProps({
   modelValue: {
     type: String,
@@ -142,10 +120,10 @@ function handleCommand(type) {
 .search-form {
   display: flex;
   align-items: center;
-  padding: 2px 48px 2px 2px;
+  padding: 2px 48px 2px 4px;
   position: relative;
   line-height: 38px;
-  border: 1px solid var(--input-search-border);
+/*   border: 1px solid var(--input-search-border); */
   height: 40px;
   background-color: var(--input-search-bg);
   opacity: 0.9;
@@ -182,9 +160,6 @@ function handleCommand(type) {
   opacity: 0.5;
 }
 
-.select-arrow svg {
-  display: block;
-}
 
 .search-content {
   display: flex;
@@ -224,20 +199,16 @@ function handleCommand(type) {
   cursor: pointer;
   height: 20px;
   width: 20px;
-
+  color:var(--input-search-clear-btn);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.clear-btn svg path {
-  fill: var(--input-search-clear-btn);
-  transition: fill 0.2s;
+.clear-btn:hover {
+  color: var(--input-search-clear-btn-hover);
 }
 
-.clear-btn:hover svg path {
-  fill: var(--input-search-clear-btn-hover);
-}
 
 .search-btn {
   position: absolute;
@@ -282,6 +253,6 @@ function handleCommand(type) {
 
 :deep(.el-dropdown-menu__item:hover),:deep(.el-dropdown-menu__item:focus) {
   color: var(--text-primary);
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-hover);
 }
 </style>

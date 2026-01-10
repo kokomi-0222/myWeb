@@ -41,17 +41,14 @@ realService.interceptors.response.use(
 
     if (res.code === setting.invalidCode) {
       removeAccessToken()
-      ElMessage.error('登录已过期，请重新登录')
-      return Promise.reject(new Error('登录失效'))
+      return Promise.reject(new Error('登录已过期，请重新登录'))
     }
 
     if (res.code === setting.noPermissionCode) {
-      ElMessage.error('权限不足')
-      return Promise.reject(new Error('无权限'))
+      return Promise.reject(new Error('权限不足'))
     }
 
-    ElMessage.error(res.message || '请求失败')
-    return Promise.reject(new Error(res.message || 'Error'))
+    return Promise.reject(new Error(res.message || '请求失败'))
   },
   (error) => {
     if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {

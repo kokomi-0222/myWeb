@@ -15,7 +15,7 @@
     
     <!-- 加载占位 -->
     <div v-if="loading" class="avatar-placeholder">
-     <el-icon><UserFilled /></el-icon>
+      <IconUser />
     </div>
 
     <!-- 角标（完整显示，不被裁） -->
@@ -25,7 +25,8 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { UserFilled } from "@element-plus/icons-vue";
+
+
 const props = defineProps({
   src: { type: String, default: '' },
   alt: { type: String, default: '头像' },

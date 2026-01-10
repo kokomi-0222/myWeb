@@ -12,7 +12,7 @@
       <img src="@/assets/images/logo.png" />
     </div>
     <div class="mobile-search-button" @click="toggleSearchMenu">
-      <el-icon size="20" color="#4e5358"><Search /></el-icon>
+      <IconSearch size="20" color="#4e5358"/> 
     </div>
   </div>
   <!-- 移动端左侧菜单 -->
@@ -60,9 +60,6 @@
 </template>
 <script setup>
 import { ref, reactive, nextTick } from "vue";
-import { Search } from "@element-plus/icons-vue";
-import InputSearch from "@/components/inputs/InputSearch.vue";
-import InputLine from "../inputs/InputLine.vue";
 const drawerVisible = ref(false);
 const searchVisible = ref(false);
 const searchText = ref("");

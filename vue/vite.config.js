@@ -16,6 +16,10 @@ export default defineConfig({
     }),
     Components({
       resolvers: [ElementPlusResolver()],
+      dirs: ['src/components'], // 组件目录
+      extensions: ['vue'],
+      dts: true, // 自动生成 components.d.ts（TypeScript 用户强烈建议开启）
+      include: [/\.vue$/, /\.vue\?vue/],
     }),
   ],
 

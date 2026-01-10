@@ -25,7 +25,7 @@
     --header-bar-bg-scrolled-shadow:rgba(0, 0, 0, 0.1);  
     --header-bar-logo:#5fd0f3;
     --header-bar-icon:#fff;
-    --header-bar-icon-scrolled: #222;
+    --header-bar-icon-scrolled: #333;
     --header-bar-icon-switch: #222;
     --header-bar-button: #fff;
     --header-bar-button-login-bg:#00aeec;
@@ -58,7 +58,7 @@
     --input-search-btn: #18191C;
     --input-search-btn-hover: #bdbdbd;
     --input-search-clear-btn: #c4c5c7;
-    --input-search-clear-btn-hover: #111;
+    --input-search-clear-btn-hover: #666;
 
     --login-modal-bg: #e7ecfd;
     --login-button-bg: #00aeec;
@@ -77,7 +77,8 @@
     --border-color: #333333;
     --primary-color: #66b1ff;
 
-
+    --bg-nomarl:#2d2d2e;
+    --bg-hover:#505050;
     
     --header-bar-bg: transparent;
     --header-bar-bg-scrolled: rgba(22, 22, 22, 0.9);
@@ -116,7 +117,7 @@
     --input-search-btn: #18191C;
     --input-search-btn-hover: #bdbdbd;
     --input-search-clear-btn: #c4c5c7;
-    --input-search-clear-btn-hover: #111;
+    --input-search-clear-btn-hover: #666;
 
     --login-modal-bg: #e7ecfd;
     --login-button-bg: #00aeec;

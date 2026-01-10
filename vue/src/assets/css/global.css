@@ -12,6 +12,9 @@ html {
     color: var(--text-primary);
     font-family: 'Open Sans', sans-serif;
     font-size: 16px;
+    transition:
+        background-color 0.7s ease,
+        color 0.7s ease;
 }
 
 :root {
