@@ -1,9 +1,13 @@
 import request from '@/utils/request'
 
-export function getPosts() {
+export function getPosts(pageNum, pageSize) {
   return request({
-    url: '/posts/selectAll',
-    method: 'get'
+    url: '/posts/selectPage',
+    method: 'get',
+    params: {
+      pageNum,
+      pageSize
+    }
   })
 }
 

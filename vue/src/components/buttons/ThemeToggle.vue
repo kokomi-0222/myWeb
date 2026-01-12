@@ -61,7 +61,7 @@ const toggleTheme = () => {
   height: 24px;
   border-radius: 50%;
   border: none;
-  background-color: var(--bg-nomarl);
+  background-color: #afafaf;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -86,7 +86,7 @@ const toggleTheme = () => {
 }
 
 .theme-icon {
-  color: #1f2937;
+  color: #ffffff;
   display: block; /* 避免 inline 元素的基线问题 */
 }
 

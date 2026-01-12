@@ -1,5 +1,5 @@
 <template>
-  <div class="app">
+  <div class="kokomi-app">
     <TopNavbar />
     <MobileNavbar />
     <div class="header-banner">
@@ -10,11 +10,8 @@
       <div class="header-banner-overlay"></div>
     </div>
     <div class="app-main">
-      <aside class="sidebar-left">
-
-      </aside>
+      <aside class="sidebar-left"></aside>
       <main class="main-content">
-
         <div class="sort-bar">
           <div class="sort-title">排序</div>
           <ul class="sort-content">
@@ -30,10 +27,10 @@
           </ul>
         </div>
 
-
         <div class="posts-content">
           <PostCard
-            v-for="post in posts"
+            v-for="post in posts.list"
+            :key="post.id"
             :post="post"
             @like="handleLike"
             @comment="handleComment"
@@ -41,13 +38,39 @@
             @edit="handleEdit"
             @delete="handleDelete"
           />
+
+          <!-- 无限滚动：加载提示 -->
+          <div v-if="!setting.showPagination && posts.loading && hasMore" class="loading">
+            加载中...
+          </div>
+
+          <!-- 无限滚动：无更多 -->
+          <div
+            v-if="!setting.showPagination && !hasMore && posts.list.length > 0"
+            class="no-more"
+          >
+            已经到底啦！
+          </div>
+
+          <!-- 初始无数据 -->
+          <div v-if="posts.list.length === 0 && !posts.loading" class="no-data">
+            暂无帖子
+          </div>
+        </div>
+
+        <!-- 分页器（仅分页模式） -->
+        <div v-if="setting.showPagination" class="posts-pagination">
+          <Pagination
+            :totalItems="posts.total"
+            :pageSize="posts.pageSize"
+            v-model="posts.pageNum"
+            @change="handlePageChange"
+          />
         </div>
       </main>
-      <aside class="sidebar-right">
-
-      </aside>
+      <aside class="sidebar-right"></aside>
     </div>
-
+    <div class="kokomi-footer"></div>
     <BottomNavbar />
     <LoginModal />
   </div>
@@ -55,68 +78,135 @@
 
 <script setup>
 import TopNavbar from "@/components/navbar/TopNavbar.vue";
-import { useUserStore } from "@/stores/user";
-import LoginModal from "@/components/modules/LoginModal.vue";
-import { ref, reactive, watch } from "vue";
 import MobileNavbar from "@/components/navbar/MobileNavbar.vue";
 import BottomNavbar from "@/components/navbar/BottomNavbar.vue";
 import PostCard from "@/components/cards/PostCard.vue";
-const userStore = useUserStore();
+import LoginModal from "@/components/modules/LoginModal.vue";
+import { getPosts } from "@/api/posts";
+import setting from "@/config/setting";
 
-watch(
-  () => userStore.isLogin,
-  (newVal) => {
-    if (newVal) {
-      // 登录成功后
-    }
-  }
-);
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from "vue";
 
-const sortOptions = reactive([
+// ========== 状态 ==========
+const sortOptions = [
   { label: "更新", sortBy: "update" },
   { label: "浏览", sortBy: "views" },
   { label: "点赞", sortBy: "likes" },
   { label: "评论", sortBy: "comments" },
-]);
+];
 
 const currentSort = ref(null);
 
+const posts = reactive({
+  list: [],
+  total: 0,
+  pageNum: 1,
+  pageSize: setting.postsPageSize || 10,
+  loading: false,
+});
+
+// 是否还能加载更多（用于无限滚动）
+const hasMore = computed(() => {
+  return posts.list.length < posts.total;
+});
+
+// ========== 加载逻辑 ==========
+const loadPosts = async (isLoadMore = false) => {
+  //  关键：只有“加载更多”才检查 hasMore 和 loading
+  if (isLoadMore) {
+    if (posts.loading || !hasMore.value) return;
+  }
+
+  posts.loading = true;
+
+  try {
+    const res = await getPosts(posts.pageNum, posts.pageSize, currentSort.value);
+
+    if (setting.successCode.includes(res.code)) {
+      const newPosts = res.data.list || [];
+      const newTotal = res.data.total || 0;
+
+      if (isLoadMore) {
+        // 无限滚动：追加
+        posts.list.push(...newPosts);
+        posts.pageNum += 1;
+      } else {
+        // 首次 or 分页切换 or 排序：覆盖
+        posts.list = newPosts;
+        posts.total = newTotal;
+      }
+    }
+  } catch (error) {
+    console.error("加载失败:", error);
+  } finally {
+    posts.loading = false;
+  }
+};
+
+// ========== 排序 ==========
 const applySort = (option) => {
   currentSort.value = option.sortBy;
-  console.log(`Sorting by ${option.sortBy}`);
+  posts.pageNum = 1;
+  posts.list = []; // 清空避免闪现旧数据
+  loadPosts(); // 重新加载第一页
 };
 
-const post = {
-  id: "1",
-  title: "今天去爬山了",
-  content: "<p>云海太美了！</p>",
-  mediaUrls: [new URL('@/assets/images/kokomi001.jpg', import.meta.url).href,new URL('@/assets/images/kokomi002.jpg', import.meta.url).href],
-  author: { id: "u1", name: "张三", avatar: "..." , isVip:true},
-  createdAt: "2026-01-05T10:00:00Z",
-  views: 1200,
-  likes: 89,
-  commentsCount: 24,
-  likedByMe: false,
+// ========== 分页器 ==========
+const handlePageChange = (page) => {
+  posts.pageNum = page;
+  loadPosts();
 };
 
-const posts = [
-  post,
-  post,
-  post,
-];
+// ========== Window 滚动监听（仅无限滚动模式） ==========
+let ticking = false;
+const onScroll = () => {
+  if (!ticking && !setting.showPagination) {
+    requestAnimationFrame(() => {
+      const scrollTop = window.scrollY;
+      const scrollHeight = document.documentElement.scrollHeight;
+      const clientHeight = window.innerHeight;
 
+      // 距离底部 < 200px 触发加载（比 100 更宽松，体验更好）
+      if (scrollHeight - scrollTop - clientHeight < 200) {
+        loadPosts(true); // isLoadMore = true
+      }
+      ticking = false;
+    });
+    ticking = true;
+  }
+};
+
+// ========== 生命周期 ==========
+onMounted(() => {
+  // 首次加载（不分页模式还是无限滚动都走这里）
+  loadPosts();
+
+  // 只有无限滚动模式才监听 window scroll
+  if (!setting.showPagination) {
+    window.addEventListener("scroll", onScroll);
+  }
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("scroll", onScroll);
+});
+
+// ========== 事件处理 ==========
 const handleLike = (postId) => {};
+const handleComment = (postId) => {};
+const handleReply = (postId, commentId) => {};
+const handleEdit = (postId) => {};
+const handleDelete = (postId) => {};
 </script>
 
 <style scoped>
-.app {
+.kokomi-app {
   width: 100%;
   height: 100%;
 }
 
 .header-banner {
   position: relative;
-  z-index: 0;
   justify-content: center;
   margin: 0 auto;
   width: 100%;
@@ -147,7 +237,7 @@ const handleLike = (postId) => {};
   position: relative;
   display: flex;
   margin-top: -100px;
-  height: 1024px;
+  height: 100%;
   padding: 0 16px;
 }
 
@@ -164,7 +254,6 @@ const handleLike = (postId) => {};
 .main-content {
   position: relative;
   flex: 8;
-  z-index: 2;
   height: 100%;
   background-color: var(--bg-secondary);
   box-shadow: 0px -2px 6px rgba(0, 0, 0, 0.3);
@@ -208,9 +297,26 @@ const handleLike = (postId) => {};
   list-style: none;
 }
 
-.posts-content{
+.posts-content {
   padding: 10px 20px;
+}
 
+.posts-pagination {
+  padding: 12px;
+}
+
+.loading,
+.no-more,
+.no-data {
+  text-align: center;
+  padding: 16px;
+  color: #888;
+}
+
+.kokomi-footer {
+  position: relative;
+  width: 100%;
+  height: 300px;
 }
 
 /* 小屏 (<768px) */

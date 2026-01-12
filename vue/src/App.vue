@@ -1,5 +1,5 @@
 <template>
-  <div id="myWebApp">
+  <div id="kokomi">
     <router-view />
   </div>
 </template>

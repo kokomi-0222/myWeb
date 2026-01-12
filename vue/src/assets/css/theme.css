@@ -6,29 +6,33 @@
     --text-secondary: #666666;
     --border-color: #e0e0e0;
     --primary-color: #00aeec;
-    --bg-nomarl:#f0f2f5;
-    --bg-hover:#e4e7eb;
-    
+    --bg-nomarl: #f0f2f5;
+    --bg-hover: #e4e7eb;
+
+    --input-bg: #ffffff;
+    --input-border: #999;
+
+    --button-border: #ddd;
     --button-bg0: #ffffff;
     --button-bg0-hover: #f8f8f8;
     --button-text0: #333;
     --button-text0-hover: #333;
-    
+
     --button-bg1: #00aeec;
     --button-bg1-hover: #04bcff;
     --button-text1: #ddd;
     --button-text1-hover: #fff;
 
-    
+
     --header-bar-bg: transparent;
     --header-bar-bg-scrolled: rgba(255, 255, 255, 0.9);
-    --header-bar-bg-scrolled-shadow:rgba(0, 0, 0, 0.1);  
-    --header-bar-logo:#5fd0f3;
-    --header-bar-icon:#fff;
+    --header-bar-bg-scrolled-shadow: rgba(0, 0, 0, 0.1);
+    --header-bar-logo: #5fd0f3;
+    --header-bar-icon: #fff;
     --header-bar-icon-scrolled: #333;
     --header-bar-icon-switch: #222;
     --header-bar-button: #fff;
-    --header-bar-button-login-bg:#00aeec;
+    --header-bar-button-login-bg: #00aeec;
     --header-bar-button-publish-bg: #fb7299;
     --header-bar-button-publish-bg-hover: #f55a86;
     --header-banner-bg: rgba(255, 255, 255, 0.9);
@@ -47,7 +51,7 @@
     --input-line-placeholder: var(--input-line-label);
     --input-line-password-toggle: #888;
     --input-line-password-toggle-hover: #00aeec;
-    --input-line-wrapper-focus:rgba(31, 146, 199, 0.9);
+    --input-line-wrapper-focus: rgba(31, 146, 199, 0.9);
 
     --input-search-bg: #ebebeb;
     --input-search-bg-hover: #ffffff;
@@ -77,18 +81,18 @@
     --border-color: #333333;
     --primary-color: #66b1ff;
 
-    --bg-nomarl:#2d2d2e;
-    --bg-hover:#505050;
-    
+    --bg-nomarl: #2d2d2e;
+    --bg-hover: #505050;
+
     --header-bar-bg: transparent;
     --header-bar-bg-scrolled: rgba(22, 22, 22, 0.9);
-    --header-bar-bg-scrolled-shadow:rgba(0, 0, 0, 0.1);  
-    --header-bar-logo:#5fd0f3;
-    --header-bar-icon:#fff;
+    --header-bar-bg-scrolled-shadow: rgba(0, 0, 0, 0.1);
+    --header-bar-logo: #5fd0f3;
+    --header-bar-icon: #fff;
     --header-bar-icon-scrolled: #fff;
     --header-bar-icon-switch: #222;
     --header-bar-button: #fff;
-    --header-bar-button-login-bg:#00aeec;
+    --header-bar-button-login-bg: #00aeec;
     --header-bar-button-publish-bg: #fb7299;
     --header-banner-bg: rgba(255, 255, 255, 0.9);
 

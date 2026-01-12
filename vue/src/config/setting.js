@@ -1,3 +1,4 @@
+
 const setting = {
 
     mock:true,
@@ -31,7 +32,10 @@ const setting = {
     loginInterception: true,
     //是否开启登录RSA加密
     loginRSA: false,
-
+    //是否分页显示
+    showPagination: false,
+    //一次加载多少个帖子
+    postsPageSize: 1,
 }
 
 export default setting

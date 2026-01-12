@@ -13,20 +13,15 @@
     <!-- 右侧：大中屏功能区 -->
     <div class="header-bar-right">
       <div class="header-bar-switch">
-        <!--  <el-switch
+        <el-switch
           v-model="uiStore.isDarkMode"
           :active-action-icon="IconDark"
           :inactive-action-icon="IconLight"
-        /> -->
-        <!-- <Button class="theme-button">
-          
-         </Button> -->
-        <ThemeToggle />
+        />
       </div>
       <div class="header-bar-login">
         <el-dropdown
           v-if="userStore.isLogin"
-          @command="handleCommand"
           :show-arrow="false"
         >
           <span class="el-dropdown-link">
@@ -85,6 +80,8 @@ import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
 import { useScroll } from "@/utils/useScroll";
 import { useUserStore } from "@/stores/user";
 import { useUIStore } from "@/stores/ui";
+import IconLight from "@/components/icons/IconLight.vue";
+import IconDark from "@/components/icons/IconDark.vue";
 
 const navbar = document.querySelector(".header-bar");
 const navbarHeight = navbar?.offsetHeight || 54;

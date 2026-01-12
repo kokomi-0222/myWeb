@@ -17,7 +17,7 @@ const showBottomNav = ref(false)
 
 onMounted(() => {
   // 只有真手机才显示底部菜单
-  showBottomNav.value = true;//isMobileDevice()
+  showBottomNav.value = isMobileDevice()
 })
 </script>
 

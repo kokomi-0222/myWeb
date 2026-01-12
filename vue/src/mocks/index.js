@@ -13,7 +13,7 @@ const MOCK_ROUTES = [
     { url: '/user/permissions', method: 'get', handler: user.mockGetUserPermissions },
 
     // 帖子
-    { url: '/posts/selectAll', method: 'get', handler: post.mockGetPosts },
+    { url: '/posts/selectPage', method: 'get', handler: post.mockGetPosts },
     { url: '/posts/createPost', method: 'post', handler: post.mockCreatePost },
     { url: '/posts/deleteById/', method: 'delete', handler: post.mockDeletePost, extractIdFromUrl: true },
 ]
@@ -57,6 +57,7 @@ export function handleMockRequest(config) {
             data
         })
         // 模拟网络延迟
+        //console.log(`response:` , mockData)
         return new Promise(resolve => {
             setTimeout(() => resolve(mockData), 200)
         })
