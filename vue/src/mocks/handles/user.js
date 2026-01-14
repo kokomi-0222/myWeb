@@ -8,7 +8,43 @@ const mockData = [
       id: 1,
       name: "kokomi",
       username: "kokomi",
+      nameColor: "#e966b2",
+      primaryRole: "moderator",
       avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
+      badge: "",
+      ornament: "",
+      age: 18,
+      email: "1063627264@qq.com",
+      sex: 0,
+      phone: 18579204655,
+    },
+    roles: [     // 角色表
+      'admin',
+      'moderator',
+      'editor',
+      'vip',
+      'member',
+      'guest'
+    ],
+    permissions: [
+      'post:create',
+      'post:edit',
+      'post:delete',
+      'user:block',
+      'comment:report'
+    ]
+  },
+  {
+    token: "token-admin",
+    user: {
+      id: 2,
+      name: "admin",
+      username: "admin",
+      nameColor: "#cf0e0e",
+      primaryRole: "admin",
+      avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
+      badge: "",
+      ornament: "",
       age: 18,
       email: "1063627264@qq.com",
       sex: 0,
@@ -26,26 +62,76 @@ const mockData = [
     ]
   },
   {
-    token: "token-admin",
+    token: "token-张三",
     user: {
-      id: 2,
-      name: "admin",
-      username: "admin",
+      id: 3,
+      name: "张三",
+      username: "张三",
+      nameColor: "#636161",
+      primaryRole: "guest",
       avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
+      badge: "",
+      ornament: "",
       age: 18,
       email: "1063627264@qq.com",
       sex: 0,
       phone: 18579204655,
     },
     roles: [
-      "admin"
+      "guest"
     ],
     permissions: [
-      'post:create',
-      'post:edit',
-      'post:delete',
-      'user:block',
       'comment:report'
+    ]
+  },
+  {
+    token: "token-李四",
+    user: {
+      id: 4,
+      name: "李四",
+      username: "李四",
+      nameColor: "#242323",
+      primaryRole: "member",
+      avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
+      badge: "",
+      ornament: "",
+      age: 18,
+      email: "1063627264@qq.com",
+      sex: 0,
+      phone: 18579204655,
+    },
+    roles: [
+      "member"
+    ],
+    permissions: [
+      'comment:report',
+      'post:create',
+      'user:block',
+    ]
+  },
+  {
+    token: "token-王五",
+    user: {
+      id: 5,
+      name: "王五",
+      username: "王五",
+      nameColor: "#ff6699",
+      primaryRole: "vip",
+      avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
+      badge: "",
+      ornament: "",
+      age: 18,
+      email: "1063627264@qq.com",
+      sex: 0,
+      phone: 18579204655,
+    },
+    roles: [
+      "vip"
+    ],
+    permissions: [
+      'comment:report',
+      'post:create',
+      'user:block',
     ]
   },
 ]
@@ -54,7 +140,10 @@ const mockData = [
 
 const mockToken = {
   'token-kokomi': { username: 'kokomi', sub: 1 },
-  'token-admin': { username: 'admin', sub: 2 }
+  'token-admin': { username: 'admin', sub: 2 },
+  'token-张三': { username: '张三', sub: 3 },
+  'token-李四': { username: '李四', sub: 4 },
+  'token-王五': { username: '王五', sub: 5 },
 }
 
 export function mockLogin({ data }) {

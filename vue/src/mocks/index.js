@@ -13,7 +13,7 @@ const MOCK_ROUTES = [
     { url: '/user/permissions', method: 'get', handler: user.mockGetUserPermissions },
 
     // 帖子
-    { url: '/posts/selectPage', method: 'get', handler: post.mockGetPosts },
+    { url: '/posts/getPosts', method: 'get', handler: post.mockGetPosts },
     { url: '/posts/createPost', method: 'post', handler: post.mockCreatePost },
     { url: '/posts/deleteById/', method: 'delete', handler: post.mockDeletePost, extractIdFromUrl: true },
 ]

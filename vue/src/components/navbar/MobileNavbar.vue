@@ -261,7 +261,7 @@ const handleHotTagClick = (tag) => {
   position: absolute;
   top: 16px;
   right: 16px;
-  font-size: 24px;
+  font-size: 1.5rem;
   background: none;
   border: none;
   color: var(--text-primary);
@@ -282,7 +282,7 @@ const handleHotTagClick = (tag) => {
   padding: 12px 0;
   text-decoration: none;
   color: var(--text-primary);
-  font-size: 18px;
+  font-size: 1.1rem;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
@@ -342,7 +342,7 @@ const handleHotTagClick = (tag) => {
 }
 
 .hot-search-title {
-  font-size: 14px;
+  font-size: 0.9rem;
   color: var(--text-secondary);
   margin-bottom: 12px;
 }
@@ -358,7 +358,7 @@ const handleHotTagClick = (tag) => {
   background-color: var(--bg-nomarl);
   border: none;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 0.8rem;
   color: var(--text-secondary);
   cursor: pointer;
   transition: background-color 0.2s;

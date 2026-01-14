@@ -189,7 +189,7 @@ button {
   padding: 5px 10px;
 
   border-radius: 4px;
-  font-size: 14px;
+  font-size: 0.9rem;
   height: 38px;
   min-width: 34px;
   border: 1px solid var(--button-border);
@@ -210,7 +210,7 @@ button.disabled {
 
 .pagination-info {
   position: relative;
-  font-size: 12px;
+  font-size: 0.8rem;
   opacity: 0.5;
   margin-left: 20px;
   height: 38px;

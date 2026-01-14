@@ -90,9 +90,11 @@ const userStore = useUserStore();
 const uiStore = useUIStore();
 
 const searchText = ref("");
+const emit = defineEmits(['search']); // 声明 emit 事件
 
 function onSearch({ keyword, type }) {
   console.log("搜索关键词:", keyword, "类型:", type);
+  emit('search', { keyword, type }); 
   // 调用 API
 }
 
@@ -138,13 +140,13 @@ function goPublish() {
 }
 
 .header-bar-logo {
-  font-size: 20px;
+  font-size: 1.2rem;
   font-family: "Ma Shan Zheng", sans-serif;
   color: var(--header-bar-logo);
 }
 
 .header-bar-title {
-  font-size: 14px;
+  font-size: 0.9rem;
   color: var(--header-title);
 }
 
@@ -201,7 +203,7 @@ function goPublish() {
   height: 36px;
   width: 36px;
   border-radius: 50%;
-  font-size: 14px;
+  font-size: 0.9rem;
   padding: 0px;
 }
 
@@ -297,7 +299,7 @@ function goPublish() {
   width: 68px;
   border-radius: 10px;
   font-weight: 500;
-  font-size: 14px;
+  font-size: 0.9rem;
 }
 
 /* 小屏 (<768px) */

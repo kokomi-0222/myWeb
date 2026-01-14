@@ -1,6 +1,6 @@
 <template>
   <div class="kokomi-app">
-    <TopNavbar />
+    <TopNavbar @search="handleGlobalSearch" />
     <MobileNavbar />
     <div class="header-banner">
       <img
@@ -9,7 +9,7 @@
       />
       <div class="header-banner-overlay"></div>
     </div>
-    <div class="app-main">
+    <div ref="mainView" class="app-main">
       <aside class="sidebar-left"></aside>
       <main class="main-content">
         <div class="sort-bar">
@@ -59,11 +59,11 @@
         </div>
 
         <!-- 分页器（仅分页模式） -->
-        <div v-if="setting.showPagination" class="posts-pagination">
+        <div v-if="shouldShowPagination" class="posts-pagination">
           <Pagination
             :totalItems="posts.total"
             :pageSize="posts.pageSize"
-            v-model="posts.pageNum"
+            v-model="posts.currentPage"
             @change="handlePageChange"
           />
         </div>
@@ -85,7 +85,15 @@ import LoginModal from "@/components/modules/LoginModal.vue";
 import { getPosts } from "@/api/posts";
 import setting from "@/config/setting";
 
-import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from "vue";
+import {
+  ref,
+  reactive,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+  nextTick,
+} from "vue";
 
 // ========== 状态 ==========
 const sortOptions = [
@@ -96,11 +104,43 @@ const sortOptions = [
 ];
 
 const currentSort = ref(null);
+const mainView = ref(null);
+const shouldShowPagination = computed(
+  () => setting.showPagination && !posts.loading && posts.list.length > 0
+);
+
+// ========== 处理全局搜索 ==========
+const searchParams = reactive({
+  keyword: "",
+  type: "",
+});
+
+// 暴露给 loadPosts 使用
+const getSearchParams = () => ({
+  keyword: searchParams.keyword.trim(),
+  type: searchParams.type,
+});
+
+// 搜索触发函数
+const handleGlobalSearch = ({ keyword, type }) => {
+  // 更新搜索参数
+  searchParams.keyword = keyword?.trim() || "";
+  searchParams.type = type || "";
+
+  // 重置分页状态
+  posts.currentPage = 1;
+  posts.list = [];
+  posts.total = 0;
+
+  // 重新加载（带搜索参数）
+  loadPosts();
+
+};
 
 const posts = reactive({
   list: [],
   total: 0,
-  pageNum: 1,
+  currentPage: 1,
   pageSize: setting.postsPageSize || 10,
   loading: false,
 });
@@ -112,28 +152,34 @@ const hasMore = computed(() => {
 
 // ========== 加载逻辑 ==========
 const loadPosts = async (isLoadMore = false) => {
-  //  关键：只有“加载更多”才检查 hasMore 和 loading
   if (isLoadMore) {
     if (posts.loading || !hasMore.value) return;
   }
 
   posts.loading = true;
+  //下一页
+  const targetPage = isLoadMore ? posts.currentPage + 1 : posts.currentPage;
 
   try {
-    const res = await getPosts(posts.pageNum, posts.pageSize, currentSort.value);
+    const res = await getPosts(
+      targetPage,
+      posts.pageSize,
+      currentSort.value,
+      getSearchParams().keyword,
+      getSearchParams().type
+    );
 
     if (setting.successCode.includes(res.code)) {
       const newPosts = res.data.list || [];
       const newTotal = res.data.total || 0;
 
       if (isLoadMore) {
-        // 无限滚动：追加
         posts.list.push(...newPosts);
-        posts.pageNum += 1;
+        posts.currentPage += 1; // 已成功加载下一页
       } else {
-        // 首次 or 分页切换 or 排序：覆盖
         posts.list = newPosts;
         posts.total = newTotal;
+        posts.currentPage = 1; // 重置为第 1 页
       }
     }
   } catch (error) {
@@ -146,15 +192,18 @@ const loadPosts = async (isLoadMore = false) => {
 // ========== 排序 ==========
 const applySort = (option) => {
   currentSort.value = option.sortBy;
-  posts.pageNum = 1;
+  posts.currentPage = 1;
   posts.list = []; // 清空避免闪现旧数据
   loadPosts(); // 重新加载第一页
 };
 
 // ========== 分页器 ==========
 const handlePageChange = (page) => {
-  posts.pageNum = page;
+  posts.currentPage = page;
   loadPosts();
+  nextTick(() => {
+    mainView.value?.scrollIntoView({ behavior: "smooth" });
+  });
 };
 
 // ========== Window 滚动监听（仅无限滚动模式） ==========
@@ -255,6 +304,7 @@ const handleDelete = (postId) => {};
   position: relative;
   flex: 8;
   height: 100%;
+  min-height: 100vh;
   background-color: var(--bg-secondary);
   box-shadow: 0px -2px 6px rgba(0, 0, 0, 0.3);
 }
@@ -264,7 +314,7 @@ const handleDelete = (postId) => {};
   align-items: center;
   justify-content: flex-end;
   padding: 10px;
-  font-size: 14px;
+  font-size: 0.9rem;
 }
 
 .sort-title {

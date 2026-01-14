@@ -91,7 +91,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
+  font-size: 0.6rem;
   font-weight: bold;
   color: white;
 }

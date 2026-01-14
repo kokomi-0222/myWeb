@@ -159,7 +159,7 @@ onMounted(() => {
 
 .code-highlighted-container :deep(code.hljs) {
   font-family: Consolas, Monaco, Andale Mono, Ubuntu Mono, monospace;
-  font-size: 14px;
+  font-size: 0.8rem
   line-height: 1.4;
 }
 

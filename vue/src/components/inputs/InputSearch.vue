@@ -185,7 +185,7 @@ function handleCommand(type) {
   background-color: transparent;
   box-shadow: none;
   color: var(--input-search);
-  font-size: 14px;
+  font-size: 0.9rem;
   line-height: 20px;
 }
 

@@ -213,7 +213,7 @@ defineExpose({
   position: absolute;
   top: -2px;
   left: 2px;
-  font-size: 14px;
+  font-size: 0.9rem;
   color: var(--input-line-label);
   pointer-events: none;
   transition: all 0.3s ease;
@@ -222,7 +222,7 @@ defineExpose({
 
 .floating-label.focused {
   top: -20px;
-  font-size: 12px;
+  font-size: 0.8rem;
   color: var(--input-line-label-focus);
   transform: scale(0.85);
 }
@@ -234,7 +234,7 @@ defineExpose({
   align-items: flex-end;
   /*   border-bottom: 2px solid var(--input-line-border-bottom); */
   outline: none;
-  font-size: 14px;
+  font-size: 0.9rem;
   transition: border-color 0.3s ease-in-out;
   background: transparent;
   color: var(--input-line-content); /* 确保输入文字颜色正常 */

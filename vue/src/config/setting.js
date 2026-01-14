@@ -33,9 +33,9 @@ const setting = {
     //是否开启登录RSA加密
     loginRSA: false,
     //是否分页显示
-    showPagination: false,
+    showPagination: true,
     //一次加载多少个帖子
-    postsPageSize: 1,
+    postsPageSize: 3,
 }
 
 export default setting

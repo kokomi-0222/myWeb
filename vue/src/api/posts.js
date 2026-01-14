@@ -1,12 +1,15 @@
 import request from '@/utils/request'
 
-export function getPosts(pageNum, pageSize) {
+export function getPosts(pageNum, pageSize, sort, keyword, type) {
   return request({
-    url: '/posts/selectPage',
+    url: '/posts/getPosts',
     method: 'get',
     params: {
       pageNum,
-      pageSize
+      pageSize,
+      sort,
+      keyword,
+      type
     }
   })
 }

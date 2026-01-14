@@ -240,7 +240,7 @@ const dialogStyle = {
   margin-bottom: 40px;
   text-align: center;
   font-weight: bold;
-  font-size: 25px;
+  font-size: 1.5rem;
 }
 
 .button-group {

@@ -3,19 +3,28 @@
     <!-- 帖子头部 -->
     <header class="post-card__header">
       <Avatar
+        class="post-card__avatar"
         :src="post.author.avatar"
         :alt="post.author.name"
         :size="48"
-        :badge="post.author.isVip ? 'vip' : post.author.isLive ? 'live' : null"
+        :badge="post.author.badge"
       />
 
       <div class="post-card__author-info">
-        <span class="post-card__author-name">{{ post.author.name }}</span>
-        <span class="post-card__time">{{ formatTime(post.createdAt) }}</span>
+        <div class="post-card__author-name">
+          <span :style="{ color: post.author.nameColor }">{{ post.author.name }}</span>
+        </div>
+        <div class="post-card__time">
+          <span>{{ formatTime(post.createdAt) }}</span>
+        </div>
+      </div>
+
+      <div class="post-card__ornament">
+        <!-- <span>一个平平无奇的人</span> -->
       </div>
 
       <div class="post-card__more">
-        <el-dropdown  @command="handleCommand" placement="bottom-end" >
+        <el-dropdown @command="handleCommand" placement="bottom-end">
           <span class="el-dropdown-link">
             <div class="post-card__more-icon">
               <IconMore style="width: 24px; height: 28px" />
@@ -207,7 +216,6 @@ const moreActions = computed(() => {
 
   return ALL_ACTIONS.filter((action) => {
     const req = action.requiredPermission;
-
     if (typeof req === "function") {
       return req({ isOwnPost: isOwnPost.value, post: props.post });
     } else if (Array.isArray(req)) {
@@ -345,10 +353,6 @@ const loadMoreComments = () => {
 }
 
 .post-card__avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
   margin-right: 12px;
 }
 
@@ -357,14 +361,25 @@ const loadMoreComments = () => {
 }
 
 .post-card__author-name {
+  font-size: 1.2rem;
   font-weight: bold;
   color: var(--text-primary);
+  cursor: pointer;
+}
+
+.post-card__author-name:hover{
+  opacity: 0.8;
 }
 
 .post-card__time {
   font-size: 0.875rem;
   color: var(--text-secondary);
-  margin-left: 10px;
+}
+
+.post-card__ornament {
+  height: 36px;
+  /*   width: 36px; */
+  margin-right: 30px;
 }
 
 .post-card__more {

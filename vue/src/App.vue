@@ -26,12 +26,12 @@ watch(
 );
 
 let styleTitle1 = `
-font-size: 20px;
+font-size: 1.5rem;
 font-weight: 600;
 color: rgb(244,167,89);
 `;
 let styleTitle2 = `
-font-size:12px;
+font-size:0.8rem;
 color: #F4A759;
 `;
 let styleContent = `
