@@ -3,6 +3,9 @@ let posts = [
   {
     id: "1",
     title: "今天去爬山了",
+    tag: [
+      "爬山", "旅游"
+    ],
     content: "<p>云海太美了！</p>",
     mediaUrls: [
       new URL("@/assets/images/kokomi001.jpg", import.meta.url).href,
@@ -20,6 +23,9 @@ let posts = [
   {
     id: "2",
     title: "今天去爬山了",
+    tag: [
+      "爬山", "旅游"
+    ],
     content: "<p>住在大山里针不戳</p>",
     mediaUrls: [
       new URL("@/assets/images/kokomi002.jpg", import.meta.url).href,
@@ -37,6 +43,9 @@ let posts = [
   {
     id: "3",
     title: "今天去爬山了",
+    tag: [
+      "爬山", "旅游"
+    ],
     content: "<p>住在大山里针不戳</p>",
     mediaUrls: [
       new URL("@/assets/images/kokomi003.jpg", import.meta.url).href,
@@ -55,6 +64,9 @@ let posts = [
   {
     id: "4",
     title: "今天去爬山了",
+    tag: [
+      "爬山", "旅游"
+    ],
     content: "<p>住在大山里针不戳</p>",
     mediaUrls: [
       new URL("@/assets/images/kokomi004.jpg", import.meta.url).href,
@@ -73,6 +85,9 @@ let posts = [
   {
     id: "5",
     title: "今天去爬山了",
+    tag: [
+      "爬山", "旅游"
+    ],
     content: "<p>住在大山里针不戳</p>",
     mediaUrls: [
       new URL("@/assets/images/kokomi005.jpg", import.meta.url).href,
@@ -90,6 +105,9 @@ let posts = [
   {
     id: "6",
     title: "今天去爬山了",
+    tag: [
+      "爬山", "旅游"
+    ],
     content: "<p>住在大山里针不戳</p>",
     mediaUrls: [
       new URL("@/assets/images/kokomi006.jpg", import.meta.url).href,
@@ -112,7 +130,7 @@ export function mockGetPosts({ params }) {
   console.log(`[MOCK] 分页参数: pageNum=${pageNum}, pageSize=${pageSize}`)
   console.log(`[MOCK] 排序参数: sort=${sort}`)
   console.log(`[MOCK] 关键字参数: keyword=${keyword}`)
-  console.log(`[MOCK] 类型参数: type=${type}`)  
+  console.log(`[MOCK] 类型参数: type=${type}`)
   const total = posts.length
   const list = posts.slice((pageNum - 1) * pageSize, pageNum * pageSize)
   return {

@@ -15,7 +15,7 @@
           <span :style="{ color: post.author.nameColor }">{{ post.author.name }}</span>
         </div>
         <div class="post-card__time">
-          <span>{{ formatTime(post.createdAt) }}</span>
+          <span>{{ formatRelativeTime(post.createdAt) }}</span>
         </div>
       </div>
 
@@ -115,7 +115,7 @@
             <div class="post-card__comment-header">
               <span class="post-card__comment-author">{{ comment.author.name }}</span>
               <span class="post-card__comment-time">{{
-                formatTime(comment.createdAt)
+                formatAbsoluteTime(comment.createdAt)
               }}</span>
               <button class="post-card__reply-btn" @click="toggleReplyInput(comment.id)">
                 回复
@@ -133,7 +133,7 @@
                 <span class="post-card__reply-author">@{{ reply.author.name }}</span>
                 <span>{{ reply.content }}</span>
                 <span class="post-card__reply-time">{{
-                  formatTime(reply.createdAt)
+                  formatAbsoluteTime(reply.createdAt)
                 }}</span>
               </li>
             </ul>
@@ -171,7 +171,7 @@ import { useUserStore } from "@/stores/user";
 import DOMPurify from "dompurify"; // 防 XSS
 import { usePermission } from "@/utils/usePermission";
 import { ALL_ACTIONS } from "@/utils/postActions";
-
+import { formatRelativeTime, formatAbsoluteTime } from "@/utils/time";
 // Props
 const props = defineProps({
   post: {
@@ -253,20 +253,6 @@ const handleCommand = (action) => {
   }
 };
 
-// Methods
-const formatTime = (dateStr) => {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diff = now - date;
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return "刚刚";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}分钟前`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}小时前`;
-  return date.toLocaleDateString("zh-CN");
-};
-
 const formatNumber = (num) => {
   if (num >= 1000) return (num / 1000).toFixed(1) + "k";
   return num;
@@ -343,6 +329,7 @@ const loadMoreComments = () => {
   padding: 16px;
   margin-bottom: 24px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: background-color 0.7s ease, color 0.7s ease;
 }
 
 .post-card__header {
@@ -361,13 +348,15 @@ const loadMoreComments = () => {
 }
 
 .post-card__author-name {
+  display: inline-block;
   font-size: 1.2rem;
   font-weight: bold;
   color: var(--text-primary);
   cursor: pointer;
+  transition: opacity 0.2s ease-in-out;
 }
 
-.post-card__author-name:hover{
+.post-card__author-name:hover {
   opacity: 0.8;
 }
 

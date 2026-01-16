@@ -15,6 +15,7 @@ declare module 'vue' {
     BottomNavbar: typeof import('./src/components/navbar/BottomNavbar.vue')['default']
     Button: typeof import('./src/components/buttons/Button.vue')['default']
     CodeHighlighted: typeof import('./src/components/articles/CodeHighlighted.vue')['default']
+    Dropdown: typeof import('./src/components/modules/Dropdown.vue')['default']
     ElDialog: typeof import('element-plus/es')['ElDialog']
     ElDropdown: typeof import('element-plus/es')['ElDropdown']
     ElDropdownItem: typeof import('element-plus/es')['ElDropdownItem']

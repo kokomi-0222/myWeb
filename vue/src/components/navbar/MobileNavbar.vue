@@ -12,7 +12,7 @@
       <img src="@/assets/images/logo.png" />
     </div>
     <div class="mobile-search-button" @click="toggleSearchMenu">
-      <IconSearch size="20" color="#4e5358"/> 
+      <IconSearch size="20" color="#4e5358" />
     </div>
   </div>
   <!-- 移动端左侧菜单 -->
@@ -69,8 +69,10 @@ const searchOptions = reactive([
   { label: "用户", value: "user" },
   { label: "分类", value: "category" },
 ]);
-
-const hotSearchTags = ref(["鬼泣5", "鬼泣", "尼禄", "但丁", "维吉尔"]);
+const emit = defineEmits(['search']); // 声明 emit 事件
+const hotSearchTags = ref(["鬼泣5", "鬼泣", "尼禄", "但丁", "维吉尔","尤里曾","真魔人","二段跳",
+  "二段跳从入门到入土"
+]);
 
 const toggleDrawer = () => {
   drawerVisible.value = !drawerVisible.value;
@@ -93,14 +95,17 @@ const closeSearchMenu = () => {
   searchVisible.value = false;
 };
 
-function onSearch(keyword) {
-  console.log("执行搜索:", keyword);
+function onSearch({keyword, type}) {
+  console.log("搜索关键词:", keyword, "类型:", type);
+  emit("search", { keyword, type });
 }
 
 // 点击热门标签
 const handleHotTagClick = (tag) => {
   searchText.value = tag;
+  const keyword = tag;
   console.log("执行搜索:", tag);
+  emit("search", {keyword});
 };
 </script>
 <style scoped>
@@ -345,6 +350,7 @@ const handleHotTagClick = (tag) => {
   font-size: 0.9rem;
   color: var(--text-secondary);
   margin-bottom: 12px;
+
 }
 
 .hot-tags {

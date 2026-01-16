@@ -2,21 +2,35 @@
 <template>
   <div class="input-line-wrapper">
     <div v-if="searchTypes.length > 0" class="search-type-select">
-      <el-dropdown trigger="click" @command="handleCommand" :show-arrow="false">
-        <div class="el-dropdown-link">
-          <span style="margin-bottom: 2px;">{{ currentLabel }}</span>
-          <div class="select-arrow">
-            <IconDoubleArrow  size="12"/>
+      <Dropdown
+        v-model:visible="dropdownVisible"
+        trigger="click"
+        menuClass="dropdown-menu--inputLine"
+        placement="bottom"
+      >
+        <template #trigger>
+          <div style="display: inline-flex">
+            <span style="margin-bottom: 2px; font-size: 0.9rem">{{ currentLabel }} </span>
+            <div class="select-arrow">
+              <IconDoubleArrow size="12" />
+            </div>
           </div>
-        </div>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item v-for="type in searchTypes" :command="type">{{
-              type.label
-            }}</el-dropdown-item>
-          </el-dropdown-menu>
         </template>
-      </el-dropdown>
+        <template #menu="{ close }">
+          <div
+            class="dropdown-item"
+            v-for="type in searchTypes"
+            @click="
+              () => {
+                handleCommand(type);
+                close();
+              }
+            "
+          >
+            {{ type.label }}
+          </div>
+        </template>
+      </Dropdown>
     </div>
     <div class="input-field">
       <label
@@ -46,7 +60,7 @@
         class="password-toggle"
         @click="togglePasswordVisible"
       >
-        <IconEye :size="16" :open="isPasswordVisible"/>
+        <IconEye :size="16" :open="isPasswordVisible" />
       </span>
       <button
         v-if="searchTypes.length > 0"
@@ -55,7 +69,7 @@
         @click="handleSearch"
         aria-label="搜索"
       >
-        <IconSearch :size="18"/>
+        <IconSearch :size="18" />
       </button>
     </div>
   </div>
@@ -63,7 +77,7 @@
 
 <script setup>
 import { ref, computed, watch } from "vue";
-
+import Dropdown from "../modules/Dropdown.vue";
 const props = defineProps({
   modelValue: {
     type: [String, Number],
@@ -89,18 +103,12 @@ const props = defineProps({
   searchTypes: { type: Array, default: [] },
 });
 
-const emit = defineEmits([
-  "update:modelValue",
-  "blur",
-  "focus",
-  "search",
-  "update:searchType",
-]);
+const emit = defineEmits(["update:modelValue", "blur", "focus", "search"]);
 
 const innerValue = ref(props.modelValue);
 const isPasswordVisible = ref(false); // 是否显示明文
 const inputRef = ref(null);
-
+const dropdownVisible = ref(false);
 const isFocused = ref(false);
 
 const isLabelFloating = computed(() => {
@@ -173,10 +181,9 @@ function handleCommand(type) {
 
 defineExpose({
   focus() {
-    inputRef.value?.focus()
-  }
-})
-
+    inputRef.value?.focus();
+  },
+});
 </script>
 
 <style scoped>
@@ -196,7 +203,7 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
- /*  border-left: 1px solid var(--input-line-label); */
+  /*  border-left: 1px solid var(--input-line-label); */
 }
 
 .right-button {
@@ -283,8 +290,6 @@ defineExpose({
   background-color: transparent;
 }
 
-
-
 .search-type-select .el-dropdown-link {
   cursor: pointer;
   color: var(--text-primary);
@@ -295,23 +300,20 @@ defineExpose({
   white-space: nowrap;
 }
 
-.search-type-select .el-dropdown-link:hover{
+.search-type-select .el-dropdown-link:hover {
   color: var(--primary-color);
 }
-
 
 /* 自定义箭头 */
 .select-arrow {
   margin-left: 5px;
   padding-right: 5px;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   opacity: 0.5;
   border-right: 1px solid var(--input-line-label);
 }
-
-
 
 .el-dropdown-menu {
   background-color: var(--bg-primary);
@@ -324,6 +326,24 @@ defineExpose({
 
 :deep(.el-dropdown-menu__item:hover),
 :deep(.el-dropdown-menu__item:focus) {
+  color: var(--primary-color);
+  background-color: var(--bg-secondary);
+}
+
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 500;
+  height: 32px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  background-color: var(--bg-primary);
+}
+
+.dropdown-item:hover {
   color: var(--primary-color);
   background-color: var(--bg-secondary);
 }
@@ -380,5 +400,16 @@ input.input-line::-webkit-credentials-auto-fill-button,
 input.input-line::-webkit-caps-lock-indicator {
   display: none !important;
   visibility: hidden !important;
+}
+</style>
+
+<style>
+.dropdown-menu--inputLine {
+  width: 64px;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 8px 0px;
+  background-color: var(--bg-primary);
 }
 </style>

@@ -1,7 +1,7 @@
 <template>
   <div class="kokomi-app">
     <TopNavbar @search="handleGlobalSearch" />
-    <MobileNavbar />
+    <MobileNavbar @search="handleGlobalSearch" />
     <div class="header-banner">
       <img
         src="@/assets/images/bgTop.jpg"
@@ -134,7 +134,6 @@ const handleGlobalSearch = ({ keyword, type }) => {
 
   // 重新加载（带搜索参数）
   loadPosts();
-
 };
 
 const posts = reactive({
@@ -288,6 +287,7 @@ const handleDelete = (postId) => {};
   margin-top: -100px;
   height: 100%;
   padding: 0 16px;
+   transition: background-color 0.7s ease, color 0.7s ease;
 }
 
 .sidebar-left {
@@ -307,6 +307,7 @@ const handleDelete = (postId) => {};
   min-height: 100vh;
   background-color: var(--bg-secondary);
   box-shadow: 0px -2px 6px rgba(0, 0, 0, 0.3);
+
 }
 
 .sort-bar {
