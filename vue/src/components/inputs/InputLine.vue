@@ -6,10 +6,11 @@
         v-model:visible="dropdownVisible"
         trigger="click"
         menuClass="dropdown-menu--inputLine"
-        placement="bottom"
+        :offsetY="5"
+        :arrow="false"
       >
         <template #trigger>
-          <div style="display: inline-flex">
+          <div class="dropdown-trigger">
             <span style="margin-bottom: 2px; font-size: 0.9rem">{{ currentLabel }} </span>
             <div class="select-arrow">
               <IconDoubleArrow size="12" />
@@ -290,18 +291,9 @@ defineExpose({
   background-color: transparent;
 }
 
-.search-type-select .el-dropdown-link {
+.dropdown-trigger {
+  display: inline-flex;
   cursor: pointer;
-  color: var(--text-primary);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  width: 100%;
-  white-space: nowrap;
-}
-
-.search-type-select .el-dropdown-link:hover {
-  color: var(--primary-color);
 }
 
 /* 自定义箭头 */
@@ -314,22 +306,6 @@ defineExpose({
   opacity: 0.5;
   border-right: 1px solid var(--input-line-label);
 }
-
-.el-dropdown-menu {
-  background-color: var(--bg-primary);
-}
-
-:deep(.el-dropdown-menu__item) {
-  color: var(--text-secondary);
-  background-color: var(--bg-primary);
-}
-
-:deep(.el-dropdown-menu__item:hover),
-:deep(.el-dropdown-menu__item:focus) {
-  color: var(--primary-color);
-  background-color: var(--bg-secondary);
-}
-
 
 .dropdown-item {
   display: flex;

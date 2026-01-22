@@ -10,23 +10,37 @@
   </div>
 
   <Teleport to="body">
-    <div
-      v-show="localVisible"
-      ref="menuRef"
-      :class="['global-dropdown-menu', props.menuClass]"
-      :style="menuStyle"
-      @mouseenter="onMenuMouseEnter"
-      @mouseleave="onMenuMouseLeave"
+    <Transition
+      :css="false"
+      @before-enter="onBeforeEnter"
+      @enter="onEnter"
+      @before-leave="onBeforeLeave"
+      @leave="onLeave"
+      @after-leave="onAfterLeave"
     >
-      <slot name="menu" :visible="localVisible" :close="hide" />
-      <div class="global-dropdown-arrow" :class="arrowClass" :style="arrowStyle"></div>
-    </div>
+      <div
+        v-show="localVisible"
+        ref="menuRef"
+        :class="['global-dropdown-menu', props.menuClass]"
+        :style="menuStyle"
+        @mouseenter="onMenuMouseEnter"
+        @mouseleave="onMenuMouseLeave"
+      >
+        <slot name="menu" :visible="localVisible" :close="hide" />
+        <div
+          v-if="props.arrow"
+          class="global-dropdown-arrow"
+          :class="arrowClass"
+          :style="arrowStyle"
+        ></div>
+      </div>
+    </Transition>
   </Teleport>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
-
+import { useUIStore } from "@/stores/ui";
 const props = defineProps({
   visible: { type: Boolean, default: false },
   "onUpdate:visible": Function,
@@ -41,6 +55,9 @@ const props = defineProps({
   },
   menuClass: { type: String, default: "" },
   delay: { type: Number, default: 200 },
+  offsetY: { type: Number, default: 0 },
+  offsetX: { type: Number, default: 0 },
+  arrow: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(["update:visible"]);
@@ -57,6 +74,14 @@ watch(
   () => props.visible,
   (val) => {
     localVisible.value = val;
+  }
+);
+//监听外部屏幕尺寸变化时关闭
+const uiStore = useUIStore();
+watch(
+  () => uiStore.screenSize,
+  (size) => {
+    hide();
   }
 );
 
@@ -115,50 +140,6 @@ function hide() {
 }
 
 // 定位计算
-/* function updatePosition() {
-  if (!triggerRef.value || !menuRef.value) return
-
-  const triggerRect = triggerRef.value.getBoundingClientRect()
-  const menuRect = menuRef.value.getBoundingClientRect()
-
-  let top = 0
-  let left = 0
-
-  const [vertical, horizontal] = props.placement.split('-')
-
-  // 垂直定位
-  if (vertical === 'bottom') {
-    top = triggerRect.bottom + window.scrollY
-  } else if (vertical === 'top') {
-    top = triggerRect.top - menuRect.height + window.scrollY
-  }
-
-  // 水平定位
-  if (horizontal === 'start') {
-    left = triggerRect.left + window.scrollX
-  } else if (horizontal === 'end') {
-    left = triggerRect.right - menuRect.width + window.scrollX
-  } else {
-    // 居中对齐（placement 为 'top' 或 'bottom'）
-    left = triggerRect.left + (triggerRect.width - menuRect.width) / 2 + window.scrollX
-  }
-
-  // 边界检测（简化版，可扩展）
-  if (left < window.scrollX) left = window.scrollX
-  if (left + menuRect.width > window.innerWidth + window.scrollX) {
-    left = window.innerWidth - menuRect.width + window.scrollX
-  }
-  if (top < window.scrollY) top = window.scrollY
-  if (top + menuRect.height > window.innerHeight + window.scrollY) {
-    if (vertical === 'bottom') {
-      top = triggerRect.top - menuRect.height + window.scrollY
-    }
-  }
-
-  menuStyle.value.top = `${top}px`
-  menuStyle.value.left = `${left}px`
-} */
-
 function updatePosition() {
   if (!triggerRef.value || !menuRef.value) return;
 
@@ -172,18 +153,22 @@ function updatePosition() {
 
   // 垂直
   if (vertical === "bottom") {
-    top = triggerRect.bottom;
+    top = triggerRect.bottom + props.offsetY;
   } else if (vertical === "top") {
-    top = triggerRect.top - menuRect.height;
+    top = triggerRect.top - menuRect.height - props.offsetY;
   }
 
   // 水平
   if (horizontal === "start") {
-    left = triggerRect.left;
+    left = triggerRect.left + props.offsetX;
   } else if (horizontal === "end") {
-    left = triggerRect.right - menuRect.width;
+    left = triggerRect.right - menuRect.width + props.offsetX;
   } else {
-    left = triggerRect.left + (triggerRect.width - menuRect.width) / 2;
+    if (triggerRect.width >= menuRect.width) {
+      left = triggerRect.left + (triggerRect.width - menuRect.width) / 2 + props.offsetX;
+    } else {
+      left = triggerRect.left - (menuRect.width - triggerRect.width) / 2 + props.offsetX;
+    }
   }
 
   // 边界校正
@@ -280,16 +265,84 @@ onUnmounted(() => {
   window.removeEventListener("scroll", debouncedUpdate);
   if (resizeObserver) resizeObserver.disconnect();
 });
+
+// ====== 动画钩子（加在 script 最后） ======
+function onBeforeEnter(el) {
+  // 动画开始前：隐藏内容，设置初始状态
+  el.style.opacity = "0";
+  el.style.transform = "scaleY(0.8)";
+  el.style.transformOrigin = isTop.value ? "bottom center" : "top center";
+  el.style.transition = "none"; // 先禁用过渡
+}
+
+function onEnter(el, done) {
+  // 强制重排，确保获取到真实尺寸
+  const { height } = el.getBoundingClientRect();
+
+  // 立即开启过渡
+  requestAnimationFrame(() => {
+    el.style.transition = "opacity 0.3s ease, transform 0.3s ease";
+    el.style.opacity = "1";
+    el.style.transform = "scaleY(1)";
+  });
+
+  // 动画结束后回调
+  const onTransitionEnd = () => {
+    el.removeEventListener("transitionend", onTransitionEnd);
+    done();
+  };
+  el.addEventListener("transitionend", onTransitionEnd);
+}
+
+function onAfterLeave(el) {
+  // 动画结束后清理样式
+  el.style.opacity = "";
+  el.style.transform = "";
+  el.style.transition = "";
+}
+
+function onBeforeLeave(el) {
+  // 收起前：确保元素处于“完全显示”状态，然后设置初始动画值
+  el.style.opacity = '1'
+  el.style.transform = 'scaleY(1)'
+  el.style.transformOrigin = isTop.value ? 'bottom center' : 'top center'
+  el.style.transition = 'none' // 先禁用过渡，避免闪跳
+}
+
+function onLeave(el, done) {
+  // 强制重排，确保样式生效
+  el.offsetHeight
+
+  // 开启动画：缩小 + 淡出
+  requestAnimationFrame(() => {
+    el.style.transition = 'opacity 0.25s ease, transform 0.25s ease'
+    el.style.opacity = '0'
+    el.style.transform = 'scaleY(0.8)'
+  })
+
+  // 监听 transition 结束
+  const onTransitionEnd = () => {
+    el.removeEventListener('transitionend', onTransitionEnd)
+    done() // 通知 Vue：可以安全隐藏了（v-show=false 生效）
+  }
+
+  el.addEventListener('transitionend', onTransitionEnd)
+
+  // 防止极端情况不触发（比如 duration=0）
+  setTimeout(() => {
+    if (el.style.opacity !== '0') {
+      done()
+    }
+  }, 300)
+}
+
 </script>
 
 <style>
 .global-dropdown-menu {
   position: fixed;
   z-index: 2000;
-  /*  background: white; */
-  /*  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); */
-  opacity: 0;
+  /* opacity: 0; */
   transition: opacity 0.2s ease;
   pointer-events: none;
 }
@@ -333,5 +386,21 @@ onUnmounted(() => {
   right: 8px;
   left: auto;
   transform: none;
+}
+
+/* 动画 */
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: scale(0.98);
+}
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.dropdown-enter-to,
+.dropdown-leave-from {
+  opacity: 1;
+  transform: scale(1);
 }
 </style>

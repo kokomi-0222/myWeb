@@ -20,10 +20,45 @@
         />
       </div>
       <div class="header-bar-login">
-        <el-dropdown
-          v-if="userStore.isLogin"
-          :show-arrow="false"
-        >
+        <Dropdown menuClass="dropdown-menu--login" :offsetY="10" :arrow="false">
+          <template #trigger>
+            <div class="dropdown-trigger">
+              <div v-if="userStore.isLogin">
+                <div class="login-avatar">
+                  <Avatar
+                    :src="userStore.user.avatar"
+                    :alt="userStore.user.name"
+                    :size="36"
+                  />
+                </div>
+              </div>
+              <div v-else>
+                <Button type="bilibili" class="login-button" @click="handleLogin">
+                  <span>登录</span>
+                </Button>
+              </div>
+            </div>
+          </template>
+          <template #menu="{ close }">
+            <div v-if="userStore.isLogin">
+              <div class="dropdown-item">
+                <IconUser class="iconUser" :size="18" />
+                <span>个人中心</span>
+              </div>
+              <div class="dropdown-item">
+                <IconLogout class="iconLogout" :size="18" />
+                <span @click="close"> 退出登录 </span>
+              </div>
+            </div>
+            <div v-else>
+              <div class="dropdown-item">
+                <span>登录更多精彩</span>
+              </div>
+            </div>
+          </template>
+        </Dropdown>
+
+        <el-dropdown v-if="userStore.isLogin" :show-arrow="false">
           <span class="el-dropdown-link">
             <div class="login-avatar">
               <Avatar
@@ -90,11 +125,11 @@ const userStore = useUserStore();
 const uiStore = useUIStore();
 
 const searchText = ref("");
-const emit = defineEmits(['search']); // 声明 emit 事件
+const emit = defineEmits(["search"]); // 声明 emit 事件
 
 function onSearch({ keyword, type }) {
   console.log("搜索关键词:", keyword, "类型:", type);
-  emit('search', { keyword, type }); 
+  emit("search", { keyword, type });
   // 调用 API
 }
 
@@ -207,6 +242,12 @@ function goPublish() {
   padding: 0px;
 }
 
+.dropdown-trigger {
+  display: inline-flex;
+  cursor: pointer;
+}
+
+
 .header-bar-login .el-dropdown-link {
   cursor: pointer;
   color: var(--text-primary);
@@ -225,6 +266,10 @@ function goPublish() {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.login-avatar:hover{
+  transform: scale(1.2);
 }
 
 .el-dropdown-menu {
@@ -258,6 +303,30 @@ function goPublish() {
 
 :deep(.el-dropdown-link:focus) {
   outline: none !important;
+}
+
+.dropdown-item {
+  color: var(--text-secondary);
+  background-color: transparent;
+  height: 40px;
+  margin: 10px, 0;
+  padding: 10px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: .9rem;
+}
+
+.dropdown-item span {
+  margin-left: 12px;
+  font-weight: 500;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+  color: var(--text-primary);
+  background-color: var(--bg-hover);
 }
 
 .iconHome {
@@ -326,5 +395,15 @@ function goPublish() {
   .header-bar-contact {
     display: none;
   }
+}
+</style>
+<style>
+.dropdown-menu--login {
+  width: 200px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 10px;
+  background-color: var(--bg-primary);
 }
 </style>

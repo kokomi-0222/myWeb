@@ -24,7 +24,7 @@
       </div>
 
       <div class="post-card__more">
-        <el-dropdown @command="handleCommand" placement="bottom-end">
+        <el-dropdown :trigger="triggerMode" @command="handleCommand" placement="bottom-end">
           <span class="el-dropdown-link">
             <div class="post-card__more-icon">
               <IconMore style="width: 24px; height: 28px" />
@@ -168,6 +168,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useUserStore } from "@/stores/user";
+import { useUIStore } from "@/stores/ui";
 import DOMPurify from "dompurify"; // 防 XSS
 import { usePermission } from "@/utils/usePermission";
 import { ALL_ACTIONS } from "@/utils/postActions";
@@ -188,6 +189,14 @@ const emit = defineEmits(["like", "comment", "reply", "edit", "delete"]);
 
 // Store
 const userStore = useUserStore();
+
+//ui
+const ui = useUIStore();
+const isLargeScreen = computed(() => ui.screenSize === "lg");
+const triggerMode = computed(() => {
+  return isLargeScreen.value ? "hover" : "click";
+});
+
 
 // Refs
 const commentInputRef = ref(null);
