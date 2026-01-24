@@ -24,7 +24,11 @@
       </div>
 
       <div class="post-card__more">
-        <el-dropdown :trigger="triggerMode" @command="handleCommand" placement="bottom-end">
+        <el-dropdown
+          :trigger="triggerMode"
+          @command="handleCommand"
+          placement="bottom-end"
+        >
           <span class="el-dropdown-link">
             <div class="post-card__more-icon">
               <IconMore style="width: 24px; height: 28px" />
@@ -42,6 +46,26 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
+        <Dropdown
+          v-model:visible="dropdownVisible"
+          trigger="click"
+          menuClass="dropdown-menu--postCard"
+          :offsetY="5"
+          :showArrow="true"
+          placement="top"
+          :disableAnimation="false"
+        >
+          <template #trigger>
+            <div >
+             莱昂
+            </div>
+          </template>
+          <template #menu="{ close }">
+            <div>
+              ASDASDASD
+            </div>
+          </template>
+        </Dropdown>
       </div>
     </header>
 
@@ -196,7 +220,6 @@ const isLargeScreen = computed(() => ui.screenSize === "lg");
 const triggerMode = computed(() => {
   return isLargeScreen.value ? "hover" : "click";
 });
-
 
 // Refs
 const commentInputRef = ref(null);

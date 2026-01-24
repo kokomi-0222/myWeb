@@ -20,7 +20,7 @@
         />
       </div>
       <div class="header-bar-login">
-        <Dropdown menuClass="dropdown-menu--login" :offsetY="10" :arrow="false">
+        <Dropdown menuClass="dropdown-menu--login" :offsetY="10" :showArrow="false" >
           <template #trigger>
             <div class="dropdown-trigger">
               <div v-if="userStore.isLogin">
@@ -47,7 +47,7 @@
               </div>
               <div class="dropdown-item">
                 <IconLogout class="iconLogout" :size="18" />
-                <span @click="close"> 退出登录 </span>
+                <span @click="handleLogout"> 退出登录 </span>
               </div>
             </div>
             <div v-else>
@@ -57,7 +57,7 @@
             </div>
           </template>
         </Dropdown>
-
+<!-- 
         <el-dropdown v-if="userStore.isLogin" :show-arrow="false">
           <span class="el-dropdown-link">
             <div class="login-avatar">
@@ -89,9 +89,9 @@
           @click="handleLogin"
         >
           <span>登录</span>
-        </Button>
+        </Button> -->
       </div>
-      <div class="header-bar-message">
+      <div class="header-bar-message" data-tippy-content="消息">
         <IconMessage class="iconMessage" :size="24" />
       </div>
       <div class="header-bar-contact">
@@ -401,7 +401,7 @@ function goPublish() {
 .dropdown-menu--login {
   width: 200px;
   border: 1px solid #e4e7ed;
-  border-radius: 8px;
+  border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   padding: 10px;
   background-color: var(--bg-primary);

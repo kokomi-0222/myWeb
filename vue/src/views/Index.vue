@@ -12,6 +12,7 @@
     <div ref="mainView" class="app-main">
       <aside class="sidebar-left"></aside>
       <main class="main-content">
+      <Tooltip />
         <div class="sort-bar">
           <div class="sort-title">排序</div>
           <ul class="sort-content">

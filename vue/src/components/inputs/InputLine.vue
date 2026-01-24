@@ -7,7 +7,9 @@
         trigger="click"
         menuClass="dropdown-menu--inputLine"
         :offsetY="5"
-        :arrow="false"
+        :showArrow="true"
+        placement="bottom"
+        :disableAnimation="true"
       >
         <template #trigger>
           <div class="dropdown-trigger">
@@ -79,6 +81,7 @@
 <script setup>
 import { ref, computed, watch } from "vue";
 import Dropdown from "../modules/Dropdown.vue";
+
 const props = defineProps({
   modelValue: {
     type: [String, Number],
