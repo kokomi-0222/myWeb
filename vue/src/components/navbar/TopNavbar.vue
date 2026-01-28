@@ -57,39 +57,6 @@
             </div>
           </template>
         </Dropdown>
-<!-- 
-        <el-dropdown v-if="userStore.isLogin" :show-arrow="false">
-          <span class="el-dropdown-link">
-            <div class="login-avatar">
-              <Avatar
-                :src="userStore.user.avatar"
-                :alt="userStore.user.name"
-                :size="36"
-              />
-            </div>
-          </span>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item>
-                <IconUser class="iconUser" :size="18" />
-                <span>个人中心</span>
-              </el-dropdown-item>
-              <el-dropdown-item @click="handleLogout">
-                <IconLogout class="iconLogout" :size="18" />
-                <span> 退出登录 </span>
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-
-        <Button
-          v-else-if="!userStore.isLogin"
-          type="bilibili"
-          class="login-button"
-          @click="handleLogin"
-        >
-          <span>登录</span>
-        </Button> -->
       </div>
       <div class="header-bar-message" data-tippy-content="消息">
         <IconMessage class="iconMessage" :size="24" />
@@ -248,20 +215,6 @@ function goPublish() {
 }
 
 
-.header-bar-login .el-dropdown-link {
-  cursor: pointer;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  width: 100%;
-  white-space: nowrap;
-  background-color: transparent;
-}
-
-.header-bar-login .el-dropdown-link:hover {
-  transform: scale(1.2);
-}
-
 .login-avatar {
   display: flex;
   align-items: center;
@@ -272,38 +225,6 @@ function goPublish() {
   transform: scale(1.2);
 }
 
-.el-dropdown-menu {
-  background-color: var(--bg-primary);
-  width: 200px;
-  border-radius: 8px;
-  padding: 10px;
-}
-
-:deep(.el-dropdown-menu__item) {
-  color: var(--text-secondary);
-  background-color: transparent;
-  height: 40px;
-  margin: 10px, 0;
-  padding: 10px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-}
-
-:deep(.el-dropdown-menu__item span) {
-  margin-left: 12px;
-  font-weight: 500;
-}
-
-:deep(.el-dropdown-menu__item:hover),
-:deep(.el-dropdown-menu__item:focus) {
-  color: var(--text-primary);
-  background-color: var(--bg-hover);
-}
-
-:deep(.el-dropdown-link:focus) {
-  outline: none !important;
-}
 
 .dropdown-item {
   color: var(--text-secondary);

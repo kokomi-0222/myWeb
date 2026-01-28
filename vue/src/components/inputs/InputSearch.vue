@@ -2,21 +2,40 @@
   <div class="search-input-wrapper">
     <form class="search-form" @submit.prevent="handleSearch">
       <div v-if="searchTypes.length > 0" class="search-type-select">
-        <el-dropdown trigger="click" @command="handleCommand" :show-arrow="false">
-          <span class="el-dropdown-link">
-            <div style="">{{ currentLabel }}</div>
-            <div class="select-arrow">
-            <IconDoubleArrow size="12"/>
+        <Dropdown
+          v-model:visible="dropdownVisible"
+          trigger="click"
+          menuClass="dropdown-menu--inputSearch"
+          :offsetY="10"
+          :showArrow="true"
+          placement="bottom"
+          :disableAnimation="false"
+        >
+          <template #trigger>
+            <div class="dropdown-trigger">
+              <span style="margin-bottom: 2px; font-size: 0.9rem; white-space: nowrap"
+                >{{ currentLabel }}
+              </span>
+              <div class="select-arrow">
+                <IconDoubleArrow size="12" />
+              </div>
             </div>
-          </span>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item v-for="type in searchTypes" :command="type">{{
-                type.label
-              }}</el-dropdown-item>
-            </el-dropdown-menu>
           </template>
-        </el-dropdown>
+          <template #menu="{ close }">
+            <div
+              class="dropdown-item"
+              v-for="type in searchTypes"
+              @click="
+                () => {
+                  handleCommand(type);
+                  close();
+                }
+              "
+            >
+              {{ type.label }}
+            </div>
+          </template>
+        </Dropdown>
       </div>
 
       <div class="search-content" :class="{ 'is-focused': isFocused }">
@@ -33,12 +52,12 @@
         />
         <!-- 清空按钮（仅在有内容且聚焦/悬停时显示） -->
         <div v-if="showClear" class="clear-btn" @click="clearInput">
-          <IconClearButton size="16"/>
+          <IconClearButton size="16" />
         </div>
       </div>
       <!-- 搜索图标 -->
       <button class="search-btn" type="button" @click="handleSearch" aria-label="搜索">
-        <IconSearch :size="20"/>
+        <IconSearch :size="20" />
       </button>
     </form>
   </div>
@@ -123,7 +142,7 @@ function handleCommand(type) {
   padding: 2px 48px 2px 4px;
   position: relative;
   line-height: 38px;
-/*   border: 1px solid var(--input-search-border); */
+  /*   border: 1px solid var(--input-search-border); */
   height: 40px;
   background-color: var(--input-search-bg);
   opacity: 0.9;
@@ -150,16 +169,6 @@ function handleCommand(type) {
 .search-type-select:hover {
   background-color: var(--input-search-btn-hover);
 }
-
-/* 自定义箭头 */
-.select-arrow {
-  margin-left: 5px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.5;
-}
-
 
 .search-content {
   display: flex;
@@ -199,7 +208,7 @@ function handleCommand(type) {
   cursor: pointer;
   height: 20px;
   width: 20px;
-  color:var(--input-search-clear-btn);
+  color: var(--input-search-clear-btn);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -208,7 +217,6 @@ function handleCommand(type) {
 .clear-btn:hover {
   color: var(--input-search-clear-btn-hover);
 }
-
 
 .search-btn {
   position: absolute;
@@ -233,26 +241,44 @@ function handleCommand(type) {
   background-color: var(--input-search-btn-hover);
 }
 
-.search-type-select .el-dropdown-link {
+.dropdown-trigger {
+  display: inline-flex;
   cursor: pointer;
-  color: var(--text-primary);
+  /*   width: 50px; */
+}
+
+.select-arrow {
+  margin-left: 5px;
   display: flex;
   align-items: center;
-  width: 100%;
-  white-space: nowrap; 
+  justify-content: center;
+  opacity: 0.5;
 }
 
-.el-dropdown-menu {
-  background-color: var(--bg-primary);
-}
-
-:deep(.el-dropdown-menu__item) {
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 500;
+  height: 32px;
+  cursor: pointer;
   color: var(--text-secondary);
   background-color: var(--bg-primary);
 }
 
-:deep(.el-dropdown-menu__item:hover),:deep(.el-dropdown-menu__item:focus) {
-  color: var(--text-primary);
-  background-color: var(--bg-hover);
+.dropdown-item:hover {
+  color: var(--primary-color);
+  background-color: var(--bg-secondary);
+}
+</style>
+<style>
+.dropdown-menu--inputSearch {
+  width: 64px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px var(--box-shadow);
+  padding: 8px 0px;
+  background-color: var(--bg-primary);
 }
 </style>

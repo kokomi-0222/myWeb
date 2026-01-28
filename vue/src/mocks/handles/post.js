@@ -9,6 +9,8 @@ let posts = [
     content: "<p>云海太美了！</p>",
     mediaUrls: [
       new URL("@/assets/images/kokomi001.jpg", import.meta.url).href,
+      new URL("@/assets/images/kokomi002.jpg", import.meta.url).href,
+      new URL("@/assets/images/kokomi003.jpg", import.meta.url).href,
     ],
     author: {
       id: 1, name: "kokomi", nameColor: "#e966b2",

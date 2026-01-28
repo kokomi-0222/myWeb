@@ -5,9 +5,13 @@
     --text-primary: #222222;
     --text-secondary: #666666;
     --border-color: #e0e0e0;
+    --box-shadow: rgba(0, 0, 0, 0.15);
     --primary-color: #00aeec;
     --bg-nomarl: #f0f2f5;
     --bg-hover: #e4e7eb;
+
+
+
 
     --input-bg: #ffffff;
     --input-border: #999;
@@ -79,10 +83,23 @@
     --text-primary: #f0f0f0;
     --text-secondary: #aaaaaa;
     --border-color: #333333;
+    --box-shadow: rgba(0, 0, 0, 0.15);
     --primary-color: #66b1ff;
-
     --bg-nomarl: #2d2d2e;
     --bg-hover: #505050;
+
+    --input-bg: #ffffff;
+    --input-border: #999;
+    --button-border: #ddd;
+    --button-bg0: #ffffff;
+    --button-bg0-hover: #f8f8f8;
+    --button-text0: #333;
+    --button-text0-hover: #333;
+
+    --button-bg1: #00aeec;
+    --button-bg1-hover: #04bcff;
+    --button-text1: #ddd;
+    --button-text1-hover: #fff;
 
     --header-bar-bg: transparent;
     --header-bar-bg-scrolled: rgba(22, 22, 22, 0.9);
@@ -109,8 +126,8 @@
     --input-line-wrapper-after: var(--input-line-label-focus);
     --input-line-placeholder: var(--input-line-label);
     --input-line-password-toggle: #888;
-    --input-line-password-toggle-hover: #007bff;
-
+    --input-line-password-toggle-hover: #00aeec;
+    --input-line-wrapper-focus: rgba(31, 146, 199, 0.9);
 
     --input-search-bg: #ebebeb;
     --input-search-bg-hover: #ffffff;
@@ -125,4 +142,5 @@
 
     --login-modal-bg: #e7ecfd;
     --login-button-bg: #00aeec;
+    --login-button-bg2: #fff;
 }

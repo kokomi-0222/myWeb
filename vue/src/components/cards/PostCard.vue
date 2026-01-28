@@ -24,45 +24,34 @@
       </div>
 
       <div class="post-card__more">
-        <el-dropdown
-          :trigger="triggerMode"
-          @command="handleCommand"
-          placement="bottom-end"
-        >
-          <span class="el-dropdown-link">
-            <div class="post-card__more-icon">
-              <IconMore style="width: 24px; height: 28px" />
-            </div>
-          </span>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item
-                v-for="action in moreActions"
-                :key="action.key"
-                :command="action"
-                :class="{ 'danger-item': action.danger }"
-                >{{ action.label }}</el-dropdown-item
-              >
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
         <Dropdown
-          v-model:visible="dropdownVisible"
-          trigger="click"
-          menuClass="dropdown-menu--postCard"
+          v-model:visible="moreDropdownVisible"
+          :trigger="triggerMode"
+          menuClass="dropdown-menu--postCard-more"
           :offsetY="5"
           :showArrow="true"
-          placement="top"
-          :disableAnimation="false"
+          placement="bottom-end"
         >
           <template #trigger>
-            <div >
-             莱昂
+            <div class="post-card__more-trigger">
+              <div class="post-card__more-icon">
+                <IconMore style="width: 24px; height: 28px" />
+              </div>
             </div>
           </template>
           <template #menu="{ close }">
-            <div>
-              ASDASDASD
+            <div
+              class="more-actions-item"
+              v-for="action in moreActions"
+              :key="action.key"
+              @click="
+                () => {
+                  moreActionsHandle(action);
+                  close();
+                }
+              "
+            >
+              {{ action.label }}
             </div>
           </template>
         </Dropdown>
@@ -76,15 +65,35 @@
 
       <!-- 图片展示（如果 mediaUrls 存在） -->
       <div v-if="post.mediaUrls && post.mediaUrls.length" class="post-card__media">
-        <img
+        <el-image
           v-for="(url, index) in post.mediaUrls"
           :key="index"
           :src="url"
           :alt="`图片 ${index + 1}`"
           class="post-card__image"
-          loading="lazy"
-          @click="openImagePreview(url)"
-        />
+          fit="cover"
+          :lazy="true"
+          :preview-src-list="post.mediaUrls"
+          :initial-index="index"
+          :preview-teleported="true"
+          hide-on-click-modal
+          :fallback="imagePlaceholder"
+        >
+          <template #loading>
+            <div class="el-image-loading">
+              <svg
+                class="el-icon-loading"
+                viewBox="0 0 1024 1024"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M988 548c-19.9 0-36-16.1-36-36 0-59.4-11.6-117-34.6-171.3a440.45 440.45 0 0 0-94.3-139.9 437.71 437.71 0 0 0-139.9-94.3C629 11.6 571.4 0 512 0c-59.4 0-117 11.6-171.3 34.6a440.45 440.45 0 0 0-139.9 94.3 437.71 437.71 0 0 0-94.3 139.9C11.6 395 0 452.6 0 512c0 59.4 11.6 117 34.6 171.3a440.45 440.45 0 0 0 94.3 139.9 437.71 437.71 0 0 0 139.9 94.3C395 1012.4 452.6 1024 512 1024c59.4 0 117-11.6 171.3-34.6a440.45 440.45 0 0 0 139.9-94.3 437.71 437.71 0 0 0 94.3-139.9C1012.4 629 1024 571.4 1024 512c0-19.9-16.1-36-36-36zm-232 180c-19.3 0-36.8-7.5-49.4-20.1a67.9 67.9 0 0 1-20.1-49.4c0-19.3 7.5-36.8 20.1-49.4a67.9 67.9 0 0 1 49.4-20.1c19.3 0 36.8 7.5 49.4 20.1a67.9 67.9 0 0 1 20.1 49.4c0 19.3-7.5 36.8-20.1 49.4a67.9 67.9 0 0 1-49.4 20.1zm-456 0c-19.3 0-36.8-7.5-49.4-20.1a67.9 67.9 0 0 1-20.1-49.4c0-19.3 7.5-36.8 20.1-49.4a67.9 67.9 0 0 1 49.4-20.1c19.3 0 36.8 7.5 49.4 20.1a67.9 67.9 0 0 1 20.1 49.4c0 19.3-7.5 36.8-20.1 49.4a67.9 67.9 0 0 1-49.4 20.1zm228-460c-19.3 0-36.8-7.5-49.4-20.1a67.9 67.9 0 0 1-20.1-49.4c0-19.3 7.5-36.8 20.1-49.4a67.9 67.9 0 0 1 49.4-20.1c19.3 0 36.8 7.5 49.4 20.1a67.9 67.9 0 0 1 20.1 49.4c0 19.3-7.5 36.8-20.1 49.4a67.9 67.9 0 0 1-49.4 20.1z"
+                  fill="currentColor"
+                ></path>
+              </svg>
+            </div>
+          </template>
+        </el-image>
       </div>
     </div>
 
@@ -226,10 +235,10 @@ const commentInputRef = ref(null);
 const newComment = ref("");
 const replyInputs = ref({});
 const showReplyInputId = ref(null);
-
+const moreDropdownVisible = ref(false);
 // Constants
 const defaultAvatar = new URL("@/assets/images/kokomi.jpg", import.meta.url).href;
-
+const imagePlaceholder = new URL("@/assets/images/kokomi1.jpg", import.meta.url).href;
 // Computed
 const isAuthor = computed(() => {
   return userStore.user?.id === props.post.author.id;
@@ -261,7 +270,7 @@ const moreActions = computed(() => {
 });
 
 // 处理点击
-const handleCommand = (action) => {
+const moreActionsHandle = (action) => {
   // 临时 hack：把 emit 传给 handler（更优雅的方式是让 handler 返回 promise 或回调）
   const wrappedHandler = action.handler.toString();
   if (wrappedHandler.includes("emit")) {
@@ -412,7 +421,7 @@ const loadMoreComments = () => {
   justify-content: center;
 }
 
-.post-card__more .el-dropdown-link {
+.post-card__more-trigger {
   cursor: pointer;
   color: var(--text-primary);
   display: flex;
@@ -422,7 +431,7 @@ const loadMoreComments = () => {
   background-color: transparent;
 }
 
-.post-card__more .el-dropdown-link:hover {
+.post-card__more-trigger:hover {
   background-color: var(--bg-hover);
 }
 
@@ -433,24 +442,20 @@ const loadMoreComments = () => {
   opacity: 0.3;
 }
 
-.el-dropdown-menu {
-  background-color: var(--bg-primary);
-}
-
-:deep(.el-dropdown-menu__item) {
+.more-actions-item {
   color: var(--text-secondary);
   background-color: var(--bg-primary);
-  width: 100px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px 16px;
+  font-size: 0.875rem;
 }
 
-:deep(.el-dropdown-menu__item:hover),
-:deep(.el-dropdown-menu__item:focus) {
+.more-actions-item:hover,
+.more-actions-item:focus {
   color: var(--text-primary);
   background-color: var(--bg-secondary);
-}
-
-:deep(.el-dropdown-link:focus) {
-  outline: none !important;
 }
 
 .danger-item {
@@ -478,14 +483,61 @@ const loadMoreComments = () => {
 
 .post-card__media {
   margin-top: 12px;
+
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  max-height: 400px;
+  overflow: hidden;
 }
 
 .post-card__image {
-  max-width: 100%;
+  width: 100%;
+  height: 120px; /* 固定预览高度（和之前一致） */
   border-radius: 8px;
-  margin-top: 8px;
   cursor: pointer;
+  transition: transform 0.2s ease;
+  /* 隐藏 el-image 自带的边框（可选，根据你的主题调整） */
+  --el-image-border-color: transparent;
+  --el-image-hover-border-color: transparent;
 }
+
+.post-card__image:hover {
+  transform: scale(1.02);
+}
+
+.post-card__media:only-child .post-card__image {
+  height: 200px;
+  max-width: 100%;
+}
+
+/* 4张及以上图片，2x2 网格（和之前一致） */
+.post-card__media:has(.post-card__image:nth-child(4)) {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.post-card__media:has(.post-card__image:nth-child(4)) .post-card__image {
+  height: 100px;
+}
+
+/* 可选：加载中占位的样式优化 */
+.el-image-loading {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  background-color: var(--bg-hover);
+  border-radius: 8px;
+}
+
+.el-icon-loading {
+  animation: el-rotate 2s linear infinite;
+  width: 24px;
+  height: 24px;
+}
+
 
 .post-card__footer {
   border-top: 1px solid var(--border-color);
@@ -636,5 +688,15 @@ const loadMoreComments = () => {
   .post-card__actions {
     flex-direction: column;
   }
+}
+</style>
+<style>
+.dropdown-menu--postCard-more {
+  width: 100px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px var(--box-shadow);
+  padding: 8px 0px;
+  background-color: var(--bg-primary);
 }
 </style>

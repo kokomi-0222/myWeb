@@ -6,10 +6,10 @@
         v-model:visible="dropdownVisible"
         trigger="click"
         menuClass="dropdown-menu--inputLine"
-        :offsetY="5"
+        :offsetY="10"
         :showArrow="true"
         placement="bottom"
-        :disableAnimation="true"
+        :disableAnimation="false"
       >
         <template #trigger>
           <div class="dropdown-trigger">
@@ -299,7 +299,7 @@ defineExpose({
   cursor: pointer;
 }
 
-/* 自定义箭头 */
+
 .select-arrow {
   margin-left: 5px;
   padding-right: 5px;
@@ -385,9 +385,9 @@ input.input-line::-webkit-caps-lock-indicator {
 <style>
 .dropdown-menu--inputLine {
   width: 64px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px var(--box-shadow);
   padding: 8px 0px;
   background-color: var(--bg-primary);
 }
