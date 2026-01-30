@@ -44,6 +44,7 @@ declare module 'vue' {
     MobileNavbar: typeof import('./src/components/navbar/MobileNavbar.vue')['default']
     Pagination: typeof import('./src/components/modules/Pagination.vue')['default']
     PostCard: typeof import('./src/components/cards/PostCard.vue')['default']
+    PostImage: typeof import('./src/components/cards/PostImage.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     ThemeToggle: typeof import('./src/components/buttons/ThemeToggle.vue')['default']

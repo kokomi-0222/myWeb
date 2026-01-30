@@ -63,45 +63,59 @@
       <h3 v-if="post.title" class="post-card__title">{{ post.title }}</h3>
       <div class="post-card__content" v-html="sanitizeContent(post.content)"></div>
 
-      <!-- 图片展示（如果 mediaUrls 存在） -->
-      <div v-if="post.mediaUrls && post.mediaUrls.length" class="post-card__media">
-        <el-image
-          v-for="(url, index) in post.mediaUrls"
+      <!-- 图片展示 -->
+      <div
+        v-if="post.mediaUrls && post.mediaUrls.length"
+        class="post-card__media"
+        :class="imageLayout"
+      >
+        <PostImage
+          v-for="(thumbUrl, index) in post.mediaUrls"
           :key="index"
-          :src="url"
-          :alt="`图片 ${index + 1}`"
-          class="post-card__image"
-          fit="cover"
-          :lazy="true"
-          :preview-src-list="post.mediaUrls"
-          :initial-index="index"
-          :preview-teleported="true"
-          hide-on-click-modal
-          :fallback="imagePlaceholder"
-        >
-          <template #loading>
-            <div class="el-image-loading">
-              <svg
-                class="el-icon-loading"
-                viewBox="0 0 1024 1024"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M988 548c-19.9 0-36-16.1-36-36 0-59.4-11.6-117-34.6-171.3a440.45 440.45 0 0 0-94.3-139.9 437.71 437.71 0 0 0-139.9-94.3C629 11.6 571.4 0 512 0c-59.4 0-117 11.6-171.3 34.6a440.45 440.45 0 0 0-139.9 94.3 437.71 437.71 0 0 0-94.3 139.9C11.6 395 0 452.6 0 512c0 59.4 11.6 117 34.6 171.3a440.45 440.45 0 0 0 94.3 139.9 437.71 437.71 0 0 0 139.9 94.3C395 1012.4 452.6 1024 512 1024c59.4 0 117-11.6 171.3-34.6a440.45 440.45 0 0 0 139.9-94.3 437.71 437.71 0 0 0 94.3-139.9C1012.4 629 1024 571.4 1024 512c0-19.9-16.1-36-36-36zm-232 180c-19.3 0-36.8-7.5-49.4-20.1a67.9 67.9 0 0 1-20.1-49.4c0-19.3 7.5-36.8 20.1-49.4a67.9 67.9 0 0 1 49.4-20.1c19.3 0 36.8 7.5 49.4 20.1a67.9 67.9 0 0 1 20.1 49.4c0 19.3-7.5 36.8-20.1 49.4a67.9 67.9 0 0 1-49.4 20.1zm-456 0c-19.3 0-36.8-7.5-49.4-20.1a67.9 67.9 0 0 1-20.1-49.4c0-19.3 7.5-36.8 20.1-49.4a67.9 67.9 0 0 1 49.4-20.1c19.3 0 36.8 7.5 49.4 20.1a67.9 67.9 0 0 1 20.1 49.4c0 19.3-7.5 36.8-20.1 49.4a67.9 67.9 0 0 1-49.4 20.1zm228-460c-19.3 0-36.8-7.5-49.4-20.1a67.9 67.9 0 0 1-20.1-49.4c0-19.3 7.5-36.8 20.1-49.4a67.9 67.9 0 0 1 49.4-20.1c19.3 0 36.8 7.5 49.4 20.1a67.9 67.9 0 0 1 20.1 49.4c0 19.3-7.5 36.8-20.1 49.4a67.9 67.9 0 0 1-49.4 20.1z"
-                  fill="currentColor"
-                ></path>
-              </svg>
-            </div>
-          </template>
-        </el-image>
+          :src="thumbUrl"
+          :preview-list="post.mediaUrls"
+          :index="index"
+          :width="imgWidth"
+          :height="imgHeight"
+        />
       </div>
     </div>
 
     <!-- 元数据 & 操作 -->
     <footer class="post-card__footer">
       <div class="post-card__stats">
-        <span class="post-card__stat">👁️ {{ formatNumber(post.views) }}</span>
-        <span class="post-card__stat">👍 {{ formatNumber(post.likes) }}</span>
+        <div class="post-card__stat">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            xmlns:xlink="http://www.w3.org/1999/xlink"
+            viewBox="0 0 18 18"
+            width="18"
+            height="18"
+            style="width: 18px; height: 18px"
+          >
+            <path
+              d="M9.789075 2.2956175C8.97235 1.6308450000000003 7.74999 2.212005 7.74999 3.26506L7.74999 5.3915500000000005C6.642015000000001 5.5780325 5.3073725 6.040405 4.141735000000001 7.11143C2.809155 8.335825 1.751515 10.3041 1.45716 13.404099999999998C1.409905 13.9018 1.7595399999999999 14.22505 2.105415 14.317499999999999C2.442215 14.40755 2.8807175 14.314625 3.127745 13.92915C3.9664525 12.620249999999999 4.89282 11.894575 5.765827499999999 11.50585C6.4628049999999995 11.19545 7.14528 11.093125 7.74999 11.0959L7.74999 13.235025C7.74999 14.2881 8.97235 14.869250000000001 9.789075 14.2045L15.556199999999999 9.510425000000001C16.355075 8.860149999999999 16.355075 7.640124999999999 15.556199999999999 6.989840000000001L9.789075 2.2956175zM9.165099999999999 3.0768275000000003L14.895025 7.739050000000001C15.227975 7.980475 15.235775 8.468875 14.943874999999998 8.7142L9.17615 13.416800000000002C8.979474999999999 13.562024999999998 8.75 13.4269 8.75 13.227375000000002L8.75 10.638175C8.75 10.326975000000001 8.542125 10.134725 8.2544 10.1118C7.186765 10.02955 6.1563175 10.2037 5.150895 10.69295C4.14982 11.186925 3.2102250000000003 12.096525 2.573625 13.00995C2.54981 13.046975 2.52013 13.046025 2.5211725 12.986C2.8971525 10.0573 3.9373475 8.652125 4.807025 7.85305C5.87747 6.8694775 7.213197500000001 6.444867500000001 8.2272 6.33056C8.606525 6.287802500000001 8.74805 6.0849325 8.74805 5.7032275L8.74805 3.2615475C8.74805 3.0764875000000007 8.993175 2.9321925 9.165099999999999 3.0768275000000003z"
+              fill="currentColor"
+            ></path>
+          </svg>
+          {{ formatNumber(post.views) }}
+        </div>
+        <span class="post-card__stat"
+          ><svg
+            xmlns="http://www.w3.org/2000/svg"
+            xmlns:xlink="http://www.w3.org/1999/xlink"
+            viewBox="0 0 18 18"
+            width="18"
+            height="18"
+            style="width: 18px; height: 18px"
+          >
+            <path
+              d="M1.5625 7.875C1.5625 4.595807499999999 4.220807499999999 1.9375 7.5 1.9375L10.5 1.9375C13.779175 1.9375 16.4375 4.595807499999999 16.4375 7.875C16.4375 11.0504 13.944675 13.6435 10.809275 13.80405C10.097025 14.722974999999998 8.920875 15.880675 7.267095 16.331325C6.9735075 16.4113 6.704762499999999 16.286224999999998 6.55411 16.092325C6.40789 15.904149999999998 6.3561 15.634350000000001 6.4652449999999995 15.383025C6.72879 14.776249999999997 6.776465 14.221025000000001 6.7340175 13.761800000000001C3.8167675 13.387125 1.5625 10.894475 1.5625 7.875zM7.5 2.9375C4.773095 2.9375 2.5625 5.148095 2.5625 7.875C2.5625 10.502575 4.61524 12.651075000000002 7.2041924999999996 12.8038C7.4305875 12.817174999999999 7.619625000000001 12.981200000000001 7.664724999999999 13.203475C7.772575 13.734575000000001 7.8012 14.405425000000001 7.5884275 15.148399999999999C8.748325 14.6682 9.606 13.759825 10.151275 13.016475C10.24445 12.889475 10.392050000000001 12.8138 10.54955 12.812275C13.253575 12.785725 15.4375 10.58535 15.4375 7.875C15.4375 5.148095 13.226899999999999 2.9375 10.5 2.9375L7.5 2.9375z"
+              fill="currentColor"
+            ></path>
+          </svg>
+          {{ formatNumber(post.likes) }}</span
+        >
         <span class="post-card__stat">💬 {{ formatNumber(post.commentsCount) }}</span>
       </div>
 
@@ -239,9 +253,38 @@ const moreDropdownVisible = ref(false);
 // Constants
 const defaultAvatar = new URL("@/assets/images/kokomi.jpg", import.meta.url).href;
 const imagePlaceholder = new URL("@/assets/images/kokomi1.jpg", import.meta.url).href;
+
 // Computed
 const isAuthor = computed(() => {
   return userStore.user?.id === props.post.author.id;
+});
+
+const imageLayout = computed(() => {
+  const len = props.post.mediaUrls?.length || 0;
+  if (len === 1) return "single"; // 1张图：单图布局
+  if (len === 2 || len === 4) return "grid2"; // 2/4张图：每行2张（四宫格）
+  if (len >= 3) return "grid3"; // 3张/≥5张：每行3张
+  return "";
+});
+
+const imgHeight = computed(() => imgWidth.value);
+
+const imgWidth = computed(() => {
+  switch (imageLayout.value) {
+    case "single":
+      return 280; // 单图放大
+    case "grid2":
+      return 120; // 2/4张图四宫格
+    case "grid3":
+      return 100; // 3张/≥5张图三列
+    default:
+      return 100;
+  }
+});
+
+// 限制最大显示9张图（超出滚动，主流平台通用）
+const displayThumbnails = computed(() => {
+  return props.post.mediaUrls?.slice(0, 9) || [];
 });
 
 const currentUser = computed(() => userStore.user);
@@ -482,62 +525,34 @@ const loadMoreComments = () => {
 }
 
 .post-card__media {
-  margin-top: 12px;
-
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 8px;
-  max-height: 400px;
+  width: fit-content;
   overflow: hidden;
 }
 
-.post-card__image {
-  width: 100%;
-  height: 120px; /* 固定预览高度（和之前一致） */
-  border-radius: 8px;
-  cursor: pointer;
-  transition: transform 0.2s ease;
-  /* 隐藏 el-image 自带的边框（可选，根据你的主题调整） */
-  --el-image-border-color: transparent;
-  --el-image-hover-border-color: transparent;
+.post-card__media.single {
+  grid-template-columns: 1fr;
 }
 
-.post-card__image:hover {
-  transform: scale(1.02);
+/* 双列布局：grid2 - 2/4张图用，每行2张，四宫格，固定小尺寸 */
+.post-card__media.grid2 {
+  grid-template-columns: repeat(2, 120px); /* 固定2列，每列120px */
 }
 
-.post-card__media:only-child .post-card__image {
-  height: 200px;
-  max-width: 100%;
+/* 三列布局：grid3 - 3张/≥5张图用，每行3张，固定更小尺寸，靠左换行 */
+.post-card__media.grid3 {
+  grid-template-columns: repeat(3, 100px);
+  max-height: calc(100px * 3 + 8px * 2);
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-/* 4张及以上图片，2x2 网格（和之前一致） */
-.post-card__media:has(.post-card__image:nth-child(4)) {
-  grid-template-columns: repeat(2, 1fr);
+/* 隐藏Chrome/Safari滚动条 */
+.post-card__media.grid3::-webkit-scrollbar {
+  display: none;
 }
-
-.post-card__media:has(.post-card__image:nth-child(4)) .post-card__image {
-  height: 100px;
-}
-
-/* 可选：加载中占位的样式优化 */
-.el-image-loading {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  background-color: var(--bg-hover);
-  border-radius: 8px;
-}
-
-.el-icon-loading {
-  animation: el-rotate 2s linear infinite;
-  width: 24px;
-  height: 24px;
-}
-
 
 .post-card__footer {
   border-top: 1px solid var(--border-color);
@@ -550,6 +565,13 @@ const loadMoreComments = () => {
   margin-bottom: 12px;
   color: var(--text-secondary);
   font-size: 0.875rem;
+}
+
+.post-card__stat {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  justify-content: center;
 }
 
 .post-card__actions {

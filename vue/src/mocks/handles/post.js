@@ -1,4 +1,5 @@
 // mocks/handlers/post.js
+
 let posts = [
   {
     id: "1",
@@ -9,8 +10,13 @@ let posts = [
     content: "<p>云海太美了！</p>",
     mediaUrls: [
       new URL("@/assets/images/kokomi001.jpg", import.meta.url).href,
-      new URL("@/assets/images/kokomi002.jpg", import.meta.url).href,
-      new URL("@/assets/images/kokomi003.jpg", import.meta.url).href,
+      `https://picsum.photos/seed/${getRandomInt(0, 1000)}/200/300`,
+      `https://picsum.photos/seed/${getRandomInt(0, 1000)}/200/300`,
+      `https://picsum.photos/seed/${getRandomInt(0, 1000)}/200/300`,
+      `https://picsum.photos/seed/${getRandomInt(0, 1000)}/200/300`,
+      `https://picsum.photos/seed/${getRandomInt(0, 1000)}/200/300`,
+      `https://picsum.photos/seed/${getRandomInt(0, 1000)}/200/300`,
+      "https://picsum.photo123123123",
     ],
     author: {
       id: 1, name: "kokomi", nameColor: "#e966b2",
@@ -31,6 +37,9 @@ let posts = [
     content: "<p>住在大山里针不戳</p>",
     mediaUrls: [
       new URL("@/assets/images/kokomi002.jpg", import.meta.url).href,
+      `https://picsum.photos/seed/${getRandomInt(0, 1000)}/200/300`,
+      `https://picsum.photos/seed/${getRandomInt(0, 1000)}/200/300`,
+      `https://picsum.photos/seed/${getRandomInt(0, 1000)}/200/300`,
     ],
     author: {
       id: 2, name: "admin", nameColor: "#cf0e0e",
@@ -51,6 +60,7 @@ let posts = [
     content: "<p>住在大山里针不戳</p>",
     mediaUrls: [
       new URL("@/assets/images/kokomi003.jpg", import.meta.url).href,
+      `https://picsum.photos/seed/${getRandomInt(0, 1000)}/200/300`,
     ],
     author: {
       id: 3, name: "张三", nameColor: "#636161",
@@ -72,6 +82,8 @@ let posts = [
     content: "<p>住在大山里针不戳</p>",
     mediaUrls: [
       new URL("@/assets/images/kokomi004.jpg", import.meta.url).href,
+      `https://picsum.photos/seed/${getRandomInt(0, 1000)}/200/300`,
+      `https://picsum.photos/seed/${getRandomInt(0, 1000)}/200/300`,
     ],
     author: {
       id: 4, name: "李四", nameColor: "#242323",
@@ -152,3 +164,17 @@ export function mockDeletePost({ params }) {
   posts = posts.filter(p => p.id !== Number(id))
   return { code: "200", message: '删除成功' }
 }
+
+
+/**
+ * 生成指定范围的随机整数
+ * @param {number} min 最小值（包含）
+ * @param {number} max 最大值（包含）
+ * @returns {number} 随机整数
+ */
+function getRandomInt(min, max) {
+  min = Math.ceil(min); // 确保 min 是整数（向上取整）
+  max = Math.floor(max); // 确保 max 是整数（向下取整）
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
