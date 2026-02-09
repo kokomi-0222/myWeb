@@ -34,7 +34,7 @@ const props = defineProps({
   badge: { type: String, default: null }
 })
 
-const defaultAvatar = new URL('@/assets/images/kokomi.jpg', import.meta.url).href
+const defaultAvatar = new URL('@/assets/images/user.jpg', import.meta.url).href
 
 const loading = ref(true)
 const error = ref(false)

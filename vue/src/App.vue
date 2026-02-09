@@ -9,14 +9,7 @@ import { onMounted, watch } from "vue";
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
 const ui = useUIStore();
-const userStore = useUserStore();
-
-onMounted(() => {
-  if (userStore.token) {
-    userStore.getUserInfo();
-  }
-});
-
+const user = useUserStore();
 watch(
   () => ui.isDarkMode,
   (isDark) => {

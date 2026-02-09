@@ -5,7 +5,7 @@
     <div class="header-banner">
       <img
         src="@/assets/images/bgTop.jpg"
-        style="height: 100%; width: 100%; object-fit: cover; display: block"
+        class="header-banner-picture"
       />
       <div class="header-banner-overlay"></div>
     </div>
@@ -14,6 +14,7 @@
       <main class="main-content">
         <div class="sort-bar">
           <div class="sort-title">排序</div>
+          <div class="sort-divider"></div>
           <ul class="sort-content">
             <li
               v-for="(option, index) in sortOptions"
@@ -77,11 +78,6 @@
 </template>
 
 <script setup>
-import TopNavbar from "@/components/navbar/TopNavbar.vue";
-import MobileNavbar from "@/components/navbar/MobileNavbar.vue";
-import BottomNavbar from "@/components/navbar/BottomNavbar.vue";
-import PostCard from "@/components/cards/PostCard.vue";
-import LoginModal from "@/components/modules/LoginModal.vue";
 import { getPosts } from "@/api/posts";
 import setting from "@/config/setting";
 
@@ -270,6 +266,13 @@ const handleDelete = (postId) => {};
   overflow: visible;
 }
 
+.header-banner-picture {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .header-banner-overlay {
   position: absolute;
   top: 0;
@@ -287,7 +290,7 @@ const handleDelete = (postId) => {};
   margin-top: -100px;
   height: 100%;
   padding: 0 16px;
-   transition: background-color 0.7s ease, color 0.7s ease;
+  transition: background-color 0.7s ease, color 0.7s ease;
 }
 
 .sidebar-left {
@@ -304,10 +307,10 @@ const handleDelete = (postId) => {};
   position: relative;
   flex: 8;
   height: 100%;
+  max-width: 800px;
   min-height: 100vh;
   background-color: var(--bg-secondary);
   box-shadow: 0px -2px 6px rgba(0, 0, 0, 0.3);
-
 }
 
 .sort-bar {
@@ -322,14 +325,22 @@ const handleDelete = (postId) => {};
   padding-right: 5px;
 }
 
+.sort-divider {
+  display: inline-block;
+  height: 14px;
+  margin: 0px 3px;
+  border-left: solid 1px var(--text-secondary);
+  vertical-align: -2px;
+  opacity: 0.5;
+}
+
 .sort-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-left: 10px;
+  padding-left: 5px;
   gap: 10px;
   margin-right: 10px;
-  border-left: 1px solid var(--border-color);
 }
 
 .sort-content a {

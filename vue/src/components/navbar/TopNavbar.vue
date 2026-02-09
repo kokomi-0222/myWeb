@@ -11,7 +11,10 @@
       <InputSearch v-model="searchText" placeholder="搜索..." @search="onSearch" />
     </div>
     <!-- 右侧：大中屏功能区 -->
-    <div class="header-bar-right">
+    <div
+      class="header-bar-right"
+      :style="{ visibility: userStore.isLoading ? 'hidden' : 'visible' }"
+    >
       <div class="header-bar-switch">
         <el-switch
           v-model="uiStore.isDarkMode"
@@ -20,7 +23,7 @@
         />
       </div>
       <div class="header-bar-login">
-        <Dropdown menuClass="dropdown-menu--login" :offsetY="10" :showArrow="false" >
+        <Dropdown menuClass="dropdown-menu--login" :offset-y="10" :show-arrow="false">
           <template #trigger>
             <div class="dropdown-trigger">
               <div v-if="userStore.isLogin">
@@ -214,17 +217,15 @@ function goPublish() {
   cursor: pointer;
 }
 
-
 .login-avatar {
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.login-avatar:hover{
+.login-avatar:hover {
   transform: scale(1.2);
 }
-
 
 .dropdown-item {
   color: var(--text-secondary);
@@ -236,7 +237,7 @@ function goPublish() {
   display: flex;
   align-items: center;
   cursor: pointer;
-  font-size: .9rem;
+  font-size: 0.9rem;
 }
 
 .dropdown-item span {

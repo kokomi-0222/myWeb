@@ -5,11 +5,11 @@
       <Dropdown
         v-model:visible="dropdownVisible"
         trigger="click"
-        menuClass="dropdown-menu--inputLine"
-        :offsetY="10"
-        :showArrow="true"
+        menu-class="dropdown-menu--inputLine"
+        :offset-y="10"
+        :show-arrow="false"
         placement="bottom"
-        :disableAnimation="false"
+        :disable-animation="false"
       >
         <template #trigger>
           <div class="dropdown-trigger">
