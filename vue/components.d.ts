@@ -33,6 +33,7 @@ declare module 'vue' {
     IconDark: typeof import('./src/components/icons/IconDark.vue')['default']
     IconDoubleArrow: typeof import('./src/components/icons/IconDoubleArrow.vue')['default']
     IconDownload: typeof import('./src/components/icons/IconDownload.vue')['default']
+    IconEmoji: typeof import('./src/components/icons/IconEmoji.vue')['default']
     IconEye: typeof import('./src/components/icons/IconEye.vue')['default']
     IconFlip: typeof import('./src/components/icons/IconFlip.vue')['default']
     IconForward: typeof import('./src/components/icons/IconForward.vue')['default']

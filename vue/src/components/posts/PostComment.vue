@@ -29,31 +29,9 @@
             v-model="commentContent"
             placeholder="天青色等烟雨，而我在等你..."
             @submit="handleCommentSubmit"
-            @image-upload="handleImageUpload"
           />
-
-          <!--  <textarea
-            v-model="newComment"
-            ref="commentInputRef"
-            placeholder="天青色等烟雨，而我在等你..."
-            class="comment-textarea"
-          ></textarea> -->
-          <!-- <button
-            :disabled="!newComment.trim()"
-            @click="submitComment"
-            class="comment-submit"
-          >
-            发布
-          </button> -->
         </div>
       </div>
-
-      <!-- <div v-else class="comment-login-tip">
-        请先
-        <span @click="ui.openLoginModal" style="color: #4173df; cursor: pointer"
-          >登录</span
-        >后发表评论
-      </div> -->
 
       <!-- 评论列表 -->
       <ul class="comment-list">
@@ -118,7 +96,6 @@ const sortOptions = [
 ];
 
 const commentInputRef = ref(null);
-const newComment = ref("");
 const replyInputs = ref({});
 const showReplyInputId = ref(null);
 const currentSort = ref(sortOptions[0].sortBy);
@@ -127,16 +104,56 @@ const props = defineProps({
   postId: [String, Number], // 接收帖子ID，用于请求数据
 });
 
-const emit = defineEmits(["close"]);
+const emit = defineEmits(["close", "comment", "reply"]);
 
 const handleSort = (sortBy) => {
   currentSort.value = sortBy;
 };
 
-const submitComment = () => {
-  if (!newComment.value.trim()) return;
-  emit("comment", { postId: props.post.id, content: newComment.value });
-  newComment.value = "";
+// 表情相关
+const showEmojiPanel = ref(false);
+const commentContent = ref("");
+const emojiList = ref([
+  "😀",
+  "😂",
+  "🤣",
+  "😍",
+  "🥰",
+  "😘",
+  "👍",
+  "👏",
+  "💪",
+  "✨",
+  "😜",
+  "😝",
+  "🤪",
+  "😎",
+  "🤩",
+  "🥳",
+  "😋",
+  "😉",
+  "😊",
+  "🙂",
+  "🤔",
+  "🤨",
+  "😐",
+  "😑",
+]);
+
+const selectEmoji = (emoji) => {
+  commentContent.value += emoji;
+  showEmojiPanel.value = false;
+};
+
+// 发布评论（修复变量绑定）
+const handleCommentSubmit = () => {
+  if (!commentContent.value.trim()) return;
+  if (!userStore.isLogin) {
+    ui.openLoginModal();
+    return;
+  }
+  emit("comment", { postId: props.postId, content: commentContent.value });
+  commentContent.value = "";
 };
 
 const toggleReplyInput = (commentId) => {
@@ -158,7 +175,8 @@ const submitReply = (commentId) => {
   showReplyInputId.value = null;
 };
 
-// Mock comments (实际应从 API 获取)
+// Mock数据
+const defaultAvatar = "https://picsum.photos/32/32"; // 新增默认头像
 const comments = ref([
   {
     id: "c1",
@@ -177,15 +195,13 @@ const comments = ref([
 ]);
 
 const hasMoreComments = ref(false);
-const loadMoreComments = () => {
-  // 实际调用 API
-};
+const loadMoreComments = () => {};
 </script>
+
 <style scoped>
 .comment-section {
   display: inline-block;
   width: 100%;
-  /* border-top: 1px solid var(--border-color); */
   padding-top: 5px;
 }
 
@@ -269,26 +285,9 @@ const loadMoreComments = () => {
   flex: 1;
   font-size: 0.9rem;
   margin: 2px 20px;
-  min-height: 46px;
 }
 
-.comment-textarea {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  resize: none;
-  overflow-y: auto;
-}
 
-.comment-submit {
-  padding: 8px 16px;
-  background: var(--primary-color);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
 
 .comment-list {
   list-style: none;
