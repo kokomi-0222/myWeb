@@ -1,6 +1,7 @@
 // mocks/index.js
 import * as user from '@/mocks/handles/user.js'
 import * as post from '@/mocks/handles/post.js'
+import * as comment from '@/mocks/handles/comment.js'
 import { getAccessToken} from '@/utils/accessToken'
 
 // 🗺️ 路由映射表：URL + Method → 对应的 mock 函数
@@ -16,6 +17,9 @@ const MOCK_ROUTES = [
     { url: '/posts/getPosts', method: 'get', handler: post.mockGetPosts },
     { url: '/posts/createPost', method: 'post', handler: post.mockCreatePost },
     { url: '/posts/deleteById/', method: 'delete', handler: post.mockDeletePost, extractIdFromUrl: true },
+
+    // 评论
+    { url: '/comments/getComments', method: 'get', handler: comment.mockGetComments },
 ]
 
 /**

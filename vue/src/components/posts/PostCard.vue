@@ -88,7 +88,7 @@
       <div class="post-card__stats">
         <div class="post-card__stat views">
           <IconForward size="18" />
-          {{ post.forward ? formatNumber(post.forward) : "转发" }}
+          {{ forwardCount > 0 ? formatNumber(forwardCount) : "转发" }}
         </div>
         <div
           class="post-card__stat"
@@ -96,18 +96,18 @@
           @click="toggleComment"
         >
           <IconComment size="18" />
-          {{ post.commentsCount ? formatNumber(post.commentsCount) : "评论" }}
+          {{ commentCount > 0 ? formatNumber(commentCount) : "评论" }}
         </div>
         <div class="post-card__stat">
           <IconLike size="18" />
-          {{ post.likes ? formatNumber(post.likes) : "点赞" }}
+          {{ likeCount > 0 ? formatNumber(likeCount) : "点赞" }}
         </div>
       </div>
     </footer>
 
     <!-- 评论区 -->
     <section class="post-card__comments" v-if="commentVisible">
-      <PostComment :post-id="post.id" />
+      <PostComment :post-id="post.id" :comments-count="commentCount" />
     </section>
   </article>
 </template>
@@ -148,6 +148,33 @@ const triggerMode = computed(() => {
 
 const moreDropdownVisible = ref(false);
 const commentVisible = ref(false);
+
+const commentCount = computed(() => {
+  const p = props.post || {};
+  const raw =
+    p.commentsCount ??
+    p.commentCount ??
+    p.comments_count ??
+    p.comment_count ??
+    p.comments?.length ??
+    0;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+});
+
+const likeCount = computed(() => {
+  const p = props.post || {};
+  const raw = p.likes ?? p.likeCount ?? p.likesCount ?? p.likes_count ?? 0;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+});
+
+const forwardCount = computed(() => {
+  const p = props.post || {};
+  const raw = p.forward ?? p.forwardCount ?? p.forwardsCount ?? p.forward_count ?? 0;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+});
 
 // Computed
 const isAuthor = computed(() => {

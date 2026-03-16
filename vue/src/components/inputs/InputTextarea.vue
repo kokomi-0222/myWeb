@@ -1,7 +1,7 @@
 <template>
   <div class="comment-input-wrapper">
     <!-- 输入框容器（独立边框） -->
-    <div class="comment-input-container">
+    <div class="comment-input-container" :class="{ 'is-focused': isFocused }">
       <textarea
         ref="textareaRef"
         v-model="inputValue"
@@ -21,14 +21,10 @@
       </div>
     </div>
 
-    <!-- 底部工具栏（独立区域，在输入框下方） -->
-    <div class="comment-input-toolbar">
+    <!-- 底部工具栏（聚焦或有内容/图片时显示） -->
+    <div v-if="isFocused || inputValue.trim() || imageFile" class="comment-input-toolbar">
       <!-- 左侧留白，保持工具栏右对齐 -->
-      <div class="toolbar-left"></div>
-
-      <!-- 右侧功能按钮组 -->
-      <div class="toolbar-right">
-        <!-- 复用Dropdown组件的表情按钮 -->
+      <div class="toolbar-left">
         <Dropdown
           v-model:visible="showEmojiPanel"
           trigger="click"
@@ -41,7 +37,7 @@
         >
           <template #trigger>
             <div class="emoji-btn" :disabled="disabled">
-              <IconEmoji />
+              <IconEmoji size="16" />
             </div>
           </template>
 
@@ -64,14 +60,14 @@
           </template>
         </Dropdown>
         <!--图片按钮 -->
-        <button
+        <div
           class="func-btn image-btn"
           @click.stop="triggerImageUpload"
           v-if="showImage"
           :disabled="disabled"
         >
-          📷
-        </button>
+          <IconPictrue size="16" />
+        </div>
         <!-- 隐藏的文件选择器 -->
         <input
           ref="imageInputRef"
@@ -80,6 +76,9 @@
           class="image-input"
           @change="handleImageChange"
         />
+      </div>
+      <!-- 右侧功能按钮组 -->
+      <div class="toolbar-right">
         <!-- 发送按钮 -->
         <Button
           class="comment-submit-button"
@@ -96,6 +95,7 @@
 
 <script setup>
 import { ref, watch } from "vue";
+
 // 新增：图片相关ref
 const imageInputRef = ref(null); // 文件选择器DOM
 const imageFile = ref(null); // 选中的图片文件
@@ -156,6 +156,8 @@ const emit = defineEmits([
 const inputValue = ref(props.modelValue);
 // 输入框DOM引用
 const textareaRef = ref(null);
+// 是否聚焦（控制工具栏和样式）
+const isFocused = ref(false);
 // 是否正在提交（防重复提交）
 const isSubmitting = ref(false);
 // 防抖计时器
@@ -242,9 +244,11 @@ const handleCancel = () => {
 
 // 聚焦/失焦处理
 const handleFocus = () => {
+  isFocused.value = true;
   textareaRef.value?.classList.add("focused");
 };
 const handleBlur = () => {
+  isFocused.value = false;
   textareaRef.value?.classList.remove("focused");
 };
 
@@ -287,9 +291,11 @@ const handleImageChange = (e) => {
 
 // 新增：清空图片
 const clearImage = () => {
+  if (imagePreviewUrl.value) {
+    URL.revokeObjectURL(imagePreviewUrl.value); // 释放内存
+  }
   imageFile.value = null;
   imagePreviewUrl.value = "";
-  URL.revokeObjectURL(imagePreviewUrl.value); // 释放内存
 };
 
 // 修改提交逻辑：携带图片文件
@@ -334,6 +340,11 @@ const handleSubmit = async () => {
   margin-bottom: 8px; /* 和工具栏拉开间距 */
 }
 
+.comment-input-container.is-focused {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px rgba(64, 150, 255, 0.2);
+}
+
 .comment-textarea {
   width: 100%;
   box-sizing: border-box;
@@ -344,10 +355,6 @@ const handleSubmit = async () => {
   font-size: 0.9rem;
   color: #333;
   min-height: 20px;
-}
-
-.comment-textarea:focused {
-  border-color: #4096ff;
 }
 
 /* 底部工具栏（独立区域） */
@@ -361,7 +368,10 @@ const handleSubmit = async () => {
 
 /* 左侧留白，保证按钮右对齐 */
 .toolbar-left {
+  display: flex;
+  align-items: center;
   flex: 1;
+  gap: 8px;
 }
 
 /* 右侧功能按钮组 */
@@ -373,8 +383,8 @@ const handleSubmit = async () => {
 
 /* 复用你原来的表情按钮样式 */
 .emoji-btn {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
   background: #f9f9f9;
@@ -384,6 +394,7 @@ const handleSubmit = async () => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  color: rgba(0, 0, 0, 0.5);
 }
 
 .emoji-btn:hover {
@@ -404,8 +415,8 @@ const handleSubmit = async () => {
 }
 /* 新增：图片按钮样式（和表情按钮统一） */
 .func-btn.image-btn {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
   background: #f9f9f9;
@@ -415,6 +426,7 @@ const handleSubmit = async () => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  color: rgba(0, 0, 0, 0.5);
 }
 
 .func-btn.image-btn:hover {
