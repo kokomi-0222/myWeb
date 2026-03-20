@@ -98,7 +98,7 @@ const isVerticalPlacement = computed(() => {
   return props.placement.startsWith("top") || props.placement.startsWith("bottom");
 });
 
-// 🌟 新增：根据placement确定transformOrigin和缩放方向
+// 根据placement确定transformOrigin和缩放方向
 const animationConfig = computed(() => {
   const vertical = isVerticalPlacement.value;
   // 垂直方向：scaleY + transformOrigin（top/bottom center）
@@ -144,7 +144,7 @@ const { floatingStyles, middlewareData, update } = useFloating(triggerRef, menuR
   ],
 });
 
-// 🌟 核心修正：动画样式（严格匹配你的要求）
+// 动画样式
 const menuAnimationStyle = computed(() => {
   const config = animationConfig.value;
   const isExpanded = localVisible.value;
@@ -452,7 +452,6 @@ watch(
 .global-dropdown-menu {
   box-sizing: border-box !important;
   min-width: 10px;
-  overflow: visible !important;
   position: relative;
   /* 防止缩放时菜单内容模糊 */
   backface-visibility: hidden;

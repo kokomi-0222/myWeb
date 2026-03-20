@@ -1,5 +1,5 @@
 <template>
-  <div class="comment-input-wrapper">
+  <div ref="wrapperRef" class="comment-input-wrapper">
     <!-- 输入框容器（独立边框） -->
     <div class="comment-input-container" :class="{ 'is-focused': isFocused }">
       <textarea
@@ -20,9 +20,12 @@
         <button class="preview-close" @click="clearImage">×</button>
       </div>
     </div>
-
     <!-- 底部工具栏（聚焦或有内容/图片时显示） -->
-    <div v-if="isFocused || inputValue.trim() || imageFile" class="comment-input-toolbar">
+    <div
+      v-if="isFocused || showEmojiPanel || inputValue.trim() || imageFile"
+      class="comment-input-toolbar"
+      @mousedown.prevent="handleToolbarMouseDown"
+    >
       <!-- 左侧留白，保持工具栏右对齐 -->
       <div class="toolbar-left">
         <Dropdown
@@ -31,7 +34,7 @@
           menu-class="dropdown-menu--emoji-panel"
           :offsetY="10"
           :show-arrow="false"
-          placement="bottom"
+          :placement="uiStore.isMobile ? 'bottom-start' : 'bottom'"
           :disable-animation="true"
           v-if="showEmoji"
         >
@@ -42,20 +45,56 @@
           </template>
 
           <template #menu="{ close }">
-            <div class="emoji-grid">
-              <span
-                v-for="emoji in emojiList"
-                :key="emoji"
-                class="emoji-item"
-                @click="
-                  () => {
-                    selectEmoji(emoji);
-                    close();
-                  }
-                "
-              >
-                {{ emoji }}
-              </span>
+            <div
+              v-if="normalizedEmojiPacks.length > 1"
+              class="emoji-panel-header"
+              :style="{
+                '--emoji-cell': `${currentEmojiCellSize}px`,
+                '--emoji-gap': `${currentEmojiGap}px`,
+                '--emoji-rows': currentEmojiMaxRows,
+              }"
+            >
+              <div class="emoji-pack-name">{{ currentEmojiPack.label }}</div>
+              <div class="emoji-pack-nav">
+                <button class="emoji-pack-nav-btn" @click="prevEmojiPack" aria-label="上一类表情">
+                  &lt;
+                </button>
+                <button class="emoji-pack-nav-btn" @click="nextEmojiPack" aria-label="下一类表情">
+                  &gt;
+                </button>
+              </div>
+            </div>
+
+            <div
+              class="emoji-grid-scroll"
+              :style="{
+                '--emoji-cell': `${currentEmojiCellSize}px`,
+                '--emoji-gap': `${currentEmojiGap}px`,
+                '--emoji-rows': currentEmojiMaxRows,
+              }"
+            >
+              <div class="emoji-grid">
+                <span
+                  v-for="item in currentEmojiItems"
+                  :key="item.key"
+                  class="emoji-item"
+                  @click="
+                    () => {
+                      selectEmoji(item.value);
+                      close();
+                    }
+                  "
+                >
+                  <img
+                    v-if="item.type === 'image'"
+                    class="emoji-img"
+                    :src="item.src"
+                    :alt="item.alt || ''"
+                    loading="lazy"
+                  />
+                  <template v-else>{{ item.text }}</template>
+                </span>
+              </div>
             </div>
           </template>
         </Dropdown>
@@ -94,7 +133,9 @@
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
+import { useUIStore } from "@/stores/ui";
+const uiStore = useUIStore();
 
 // 新增：图片相关ref
 const imageInputRef = ref(null); // 文件选择器DOM
@@ -128,6 +169,26 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  // 多套表情包（可选）。每套可自定义尺寸：{ label, items, cellSize, gap, maxRows }
+  emojiPacks: {
+    type: Array,
+    default: null,
+  },
+  // 默认表情网格：单元格大小（px）
+  emojiCellSize: {
+    type: Number,
+    default: 32,
+  },
+  // 默认表情网格：间距（px）
+  emojiGap: {
+    type: Number,
+    default: 8,
+  },
+  // 默认表情网格：最多显示行数
+  emojiMaxRows: {
+    type: Number,
+    default: 5,
+  },
   // 提交防抖时间（ms）
   debounceTime: {
     type: Number,
@@ -156,6 +217,7 @@ const emit = defineEmits([
 const inputValue = ref(props.modelValue);
 // 输入框DOM引用
 const textareaRef = ref(null);
+const wrapperRef = ref(null);
 // 是否聚焦（控制工具栏和样式）
 const isFocused = ref(false);
 // 是否正在提交（防重复提交）
@@ -190,7 +252,93 @@ const emojiList = ref([
   "🤨",
   "😐",
   "😑",
+
 ]);
+
+const normalizedEmojiPacks = computed(() => {
+  const packs = Array.isArray(props.emojiPacks) && props.emojiPacks.length
+    ? props.emojiPacks
+    : [
+        {
+          key: "default",
+          label: "默认",
+          items: emojiList.value,
+          cellSize: props.emojiCellSize,
+          gap: props.emojiGap,
+          maxRows: props.emojiMaxRows,
+        },
+      ];
+
+  return packs
+    .map((p, idx) => ({
+      key: String(p?.key ?? idx),
+      label: String(p?.label ?? `表情${idx + 1}`),
+      items: Array.isArray(p?.items) ? p.items : [],
+      cellSize: Number.isFinite(Number(p?.cellSize)) ? Number(p.cellSize) : props.emojiCellSize,
+      gap: Number.isFinite(Number(p?.gap)) ? Number(p.gap) : props.emojiGap,
+      maxRows: Number.isFinite(Number(p?.maxRows)) ? Number(p.maxRows) : props.emojiMaxRows,
+    }))
+    .filter((p) => p.items.length);
+});
+
+const currentEmojiPackIndex = ref(0);
+
+watch(
+  normalizedEmojiPacks,
+  (packs) => {
+    if (!packs.length) currentEmojiPackIndex.value = 0;
+    if (currentEmojiPackIndex.value >= packs.length) currentEmojiPackIndex.value = 0;
+  },
+  { immediate: true }
+);
+
+const currentEmojiPack = computed(() => {
+  const packs = normalizedEmojiPacks.value;
+  return packs[currentEmojiPackIndex.value] || {
+    key: "default",
+    label: "默认",
+    items: [],
+    cellSize: props.emojiCellSize,
+    gap: props.emojiGap,
+    maxRows: props.emojiMaxRows,
+  };
+});
+
+const currentEmojiCellSize = computed(() => currentEmojiPack.value.cellSize);
+const currentEmojiGap = computed(() => currentEmojiPack.value.gap);
+const currentEmojiMaxRows = computed(() => currentEmojiPack.value.maxRows);
+
+const currentEmojiItems = computed(() => {
+  const items = currentEmojiPack.value.items || [];
+  return items.map((it, idx) => {
+    if (typeof it === "string") {
+      return { key: `${currentEmojiPack.value.key}-${idx}`, type: "text", text: it, value: it };
+    }
+    // 允许图片表情：{ type:'image', src, alt?, code?/text? }
+    const type = it?.type === "image" || it?.src ? "image" : "text";
+    const value = it?.code ?? it?.text ?? it?.value ?? "";
+    return {
+      key: String(it?.id ?? `${currentEmojiPack.value.key}-${idx}`),
+      type,
+      src: it?.src,
+      alt: it?.alt,
+      text: it?.text ?? "",
+      value: value || "",
+    };
+  });
+});
+
+const prevEmojiPack = () => {
+  const len = normalizedEmojiPacks.value.length;
+  if (len <= 1) return;
+  currentEmojiPackIndex.value = (currentEmojiPackIndex.value - 1 + len) % len;
+};
+
+const nextEmojiPack = () => {
+  const len = normalizedEmojiPacks.value.length;
+  if (len <= 1) return;
+  currentEmojiPackIndex.value = (currentEmojiPackIndex.value + 1) % len;
+};
 
 // 监听外部modelValue变化，同步到内部
 watch(
@@ -248,13 +396,49 @@ const handleFocus = () => {
   textareaRef.value?.classList.add("focused");
 };
 const handleBlur = () => {
-  isFocused.value = false;
-  textareaRef.value?.classList.remove("focused");
+  // 点击工具栏/按钮时，textarea 会先 blur，但我们不希望工具栏立刻消失
+  // 这里延迟一拍判断：如果焦点仍在组件内部，就维持 focused 状态
+  setTimeout(() => {
+    if (showEmojiPanel.value) {
+      isFocused.value = true;
+      return;
+    }
+    const active = document.activeElement;
+    const stillInside =
+      active && wrapperRef.value && wrapperRef.value.contains(active);
+    if (stillInside) {
+      isFocused.value = true;
+      return;
+    }
+    isFocused.value = false;
+    textareaRef.value?.classList.remove("focused");
+  }, 0);
+};
+
+watch(showEmojiPanel, (visible) => {
+  if (visible) {
+    isFocused.value = true;
+    return;
+  }
+  setTimeout(() => {
+    const active = document.activeElement;
+    const stillInside =
+      active && wrapperRef.value && wrapperRef.value.contains(active);
+    if (stillInside) return;
+    if (inputValue.value?.trim() || imageFile.value) return;
+    isFocused.value = false;
+  }, 0);
+});
+
+const handleToolbarMouseDown = () => {
+  if (props.disabled) return;
+  textareaRef.value?.focus();
 };
 
 // 选择表情插入输入框
 const selectEmoji = (emoji) => {
-  inputValue.value += emoji;
+  // emoji 既可能是字符串，也可能是图片表情的 code/text/value
+  if (emoji) inputValue.value += String(emoji);
   showEmojiPanel.value = false; // 选择后关闭面板
   handleInput(); // 重新计算输入框高度
 };
@@ -334,7 +518,7 @@ const handleSubmit = async () => {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 4px 8px;
   background: #fff;
   margin-bottom: 8px; /* 和工具栏拉开间距 */
@@ -487,18 +671,61 @@ const handleSubmit = async () => {
   width: 320px !important;
   min-width: 320px !important;
   max-width: 320px !important;
-  max-height: 220px !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+.dropdown-menu--emoji-panel .emoji-panel-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  margin-bottom: 8px !important;
+  user-select: none !important;
+}
+
+.dropdown-menu--emoji-panel .emoji-pack-name {
+  font-size: 12px !important;
+  color: var(--text-secondary) !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.dropdown-menu--emoji-panel .emoji-pack-nav {
+  display: inline-flex !important;
+  gap: 6px !important;
+}
+
+.dropdown-menu--emoji-panel .emoji-pack-nav-btn {
+  width: 22px !important;
+  height: 22px !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  line-height: 20px !important;
+  color: var(--text-secondary) !important;
+}
+
+.dropdown-menu--emoji-panel .emoji-pack-nav-btn:hover {
+  color: var(--primary-color) !important;
+  border-color: var(--primary-color) !important;
+}
+
+.dropdown-menu--emoji-panel .emoji-grid-scroll {
+  max-height: calc(var(--emoji-cell) * var(--emoji-rows) + var(--emoji-gap) * (var(--emoji-rows) - 1)) !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
-  box-sizing: border-box !important;
 }
 
 /* 表情网格：8列排版 */
 .dropdown-menu--emoji-panel .emoji-grid {
   display: grid !important;
-  grid-template-columns: repeat(8, 30px) !important;
-  gap: 8px !important;
-  width: fit-content !important;
+  /* 根据面板可用宽度自动决定一行多少个（避免 8 个溢出） */
+  grid-template-columns: repeat(auto-fill, minmax(var(--emoji-cell), 1fr)) !important;
+  gap: var(--emoji-gap) !important;
+  width: 100% !important;
   box-sizing: border-box !important;
 }
 
@@ -506,14 +733,21 @@ const handleSubmit = async () => {
 .dropdown-menu--emoji-panel .emoji-item {
   font-size: 20px !important;
   cursor: pointer !important;
-  padding: 6px !important;
+  padding: 0 !important;
   border-radius: 4px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 30px !important;
-  height: 32px !important;
+  width: var(--emoji-cell) !important;
+  height: var(--emoji-cell) !important;
   box-sizing: border-box !important;
+}
+
+.dropdown-menu--emoji-panel .emoji-img {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  display: block !important;
 }
 
 .dropdown-menu--emoji-panel .emoji-item:hover {
@@ -521,14 +755,14 @@ const handleSubmit = async () => {
 }
 
 /* 美化滚动条 */
-.dropdown-menu--emoji-panel::-webkit-scrollbar {
+.dropdown-menu--emoji-panel .emoji-grid-scroll::-webkit-scrollbar {
   width: 6px !important;
 }
-.dropdown-menu--emoji-panel::-webkit-scrollbar-thumb {
+.dropdown-menu--emoji-panel .emoji-grid-scroll::-webkit-scrollbar-thumb {
   background: #ccc !important;
   border-radius: 3px !important;
 }
-.dropdown-menu--emoji-panel::-webkit-scrollbar-track {
+.dropdown-menu--emoji-panel .emoji-grid-scroll::-webkit-scrollbar-track {
   background: #f1f1f1 !important;
 }
 </style>

@@ -14,6 +14,7 @@
       </div>
     </div>
     <div class="comment-content">
+      <!-- 评论输入框 -->
       <div class="comment-input">
         <Avatar :src="userStore.user?.avatar" alt="" :size="40" />
         <div class="comment-input-area">
@@ -24,7 +25,7 @@
 
       <!-- 评论列表（B站动态风格） -->
       <ul v-if="comments.length" class="comment-list">
-        <li v-for="comment in comments" :key="comment.id" class="comment-item">
+        <li v-for="comment in sortedComments" :key="comment.id" class="comment-item">
           <div class="comment-avatar">
             <Avatar :src="comment.author.avatar" alt="" :size="40" />
           </div>
@@ -52,7 +53,7 @@
                     {{ comment.likes }}
                   </span>
                 </button>
-                <button class="comment-action" @click="toggleReplyInput(comment.id, comment.author.name)">
+                <button class="comment-action" @click="toggleReplyInput(comment.id, null)">
                   回复
                 </button>
               </div>
@@ -77,7 +78,7 @@
                   <div class="reply-meta">
                     <span class="reply-time">{{ formatAbsoluteTime(reply.createdAt) }}</span>
                     <button class="reply-meta-action">
-                      <IconLike size="12" />
+                      <IconLike size="14" />
                       <span v-if="(reply.likes ?? 0) > 0" class="reply-like-count">
                         {{ reply.likes }}
                       </span>
@@ -100,29 +101,44 @@
             </div>
             <div v-if="comment.replies?.length && isRepliesExpanded(comment.id) && getReplyPageCount(comment) > 1"
               class="reply-pagination">
-              <button class="reply-page-btn" :disabled="replyPage[comment.id] <= 1"
-                @click="changeReplyPage(comment, replyPage[comment.id] - 1)">
+              <span class="reply-page-total">共 {{ getReplyPageCount(comment) }} 页</span>
+
+              <button v-if="(replyPage[comment.id] || 1) > 1" class="reply-page-link"
+                @click="changeReplyPage(comment, (replyPage[comment.id] || 1) - 1)">
                 上一页
               </button>
-              <span class="reply-page-info">
-                {{ replyPage[comment.id] || 1 }} / {{ getReplyPageCount(comment) }}
-              </span>
-              <button class="reply-page-btn" :disabled="replyPage[comment.id] >= getReplyPageCount(comment)"
-                @click="changeReplyPage(comment, replyPage[comment.id] + 1)">
+
+              <div class="reply-page-numbers">
+                <template v-for="p in getReplyPageList(comment)" :key="String(p)">
+                  <span v-if="p === '...'" class="reply-page-ellipsis">...</span>
+                  <button v-else class="reply-page-number" :class="{ active: p === (replyPage[comment.id] || 1) }"
+                    @click="changeReplyPage(comment, p)">
+                    {{ p }}
+                  </button>
+                </template>
+              </div>
+
+              <button v-if="(replyPage[comment.id] || 1) < getReplyPageCount(comment)" class="reply-page-link"
+                @click="changeReplyPage(comment, (replyPage[comment.id] || 1) + 1)">
                 下一页
               </button>
-              <button class="reply-page-btn reply-collapse-btn" @click="toggleRepliesExpanded(comment.id)">
+
+              <button class="reply-page-link reply-collapse-btn" @click="toggleRepliesExpanded(comment.id)">
                 收起
               </button>
             </div>
 
             <!-- 回复输入框 -->
             <div v-if="showReplyInputId === comment.id" class="reply-input">
-              <input v-model="replyInputs[comment.id]" type="text" :placeholder="replyTargets[comment.id]
+              <Avatar :src="userStore.user?.avatar" alt="" :size="40" />
+              <div class="reply-input-area">
+                <InputTextarea  v-model="replyInputs[comment.id]" :placeholder="replyTargets[comment.id]
                 ? `回复 @${replyTargets[comment.id]}`
                 : `回复 @${comment.author.name}`
-                " @keyup.enter="submitReply(comment.id)" class="reply-text" />
-              <button @click="submitReply(comment.id)">发送</button>
+                " @submit="submitReply(comment.id)" 
+                :show-image="false"
+                />
+              </div>
             </div>
           </div>
         </li>
@@ -140,7 +156,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
 import { formatRelativeTime, formatAbsoluteTime } from "@/utils/time";
@@ -154,7 +170,7 @@ const sortOptions = [
   { label: "最新", sortBy: "update" },
 ];
 
-const commentInputRef = ref(null);
+
 const replyInputs = ref({});
 const replyTargets = ref({});
 const showReplyInputId = ref(null);
@@ -174,40 +190,25 @@ const handleSort = (sortBy) => {
   currentSort.value = sortBy;
 };
 
-// 表情相关
-const showEmojiPanel = ref(false);
-const commentContent = ref("");
-const emojiList = ref([
-  "😀",
-  "😂",
-  "🤣",
-  "😍",
-  "🥰",
-  "😘",
-  "👍",
-  "👏",
-  "💪",
-  "✨",
-  "😜",
-  "😝",
-  "🤪",
-  "😎",
-  "🤩",
-  "🥳",
-  "😋",
-  "😉",
-  "😊",
-  "🙂",
-  "🤔",
-  "🤨",
-  "😐",
-  "😑",
-]);
+const sortedComments = computed(() => {
+  const list = Array.isArray(comments.value) ? comments.value : [];
+  const sortBy = currentSort.value;
 
-const selectEmoji = (emoji) => {
-  commentContent.value += emoji;
-  showEmojiPanel.value = false;
-};
+  const byCreatedAtDesc = (a, b) =>
+    new Date(b?.createdAt || 0).getTime() - new Date(a?.createdAt || 0).getTime();
+  const byLikesDesc = (a, b) => {
+    const diff = (b?.likes ?? 0) - (a?.likes ?? 0);
+    return diff !== 0 ? diff : byCreatedAtDesc(a, b);
+  };
+
+  const sorted = [...list].sort(sortBy === "update" ? byCreatedAtDesc : byLikesDesc);
+  return sorted;
+});
+
+// 评论区相关逻辑
+const commentContent = ref("");
+
+
 
 // 发布评论（修复变量绑定）
 const handleCommentSubmit = () => {
@@ -221,15 +222,21 @@ const handleCommentSubmit = () => {
 };
 
 const toggleReplyInput = (commentId, targetName) => {
-  if (showReplyInputId.value === commentId) {
+  const nextTarget = targetName || null;
+  const isSameComment = showReplyInputId.value === commentId;
+  const currentTarget = replyTargets.value[commentId] || null;
+
+  // 同一条评论下：再次点“同一个目标”才关闭；点“不同目标”只切换 @ 人
+  if (isSameComment && currentTarget === nextTarget) {
     showReplyInputId.value = null;
     replyTargets.value[commentId] = null;
-  } else {
-    showReplyInputId.value = commentId;
-    replyTargets.value[commentId] = targetName || null;
-    if (!replyInputs.value[commentId]) {
-      replyInputs.value[commentId] = "";
-    }
+    return;
+  }
+
+  showReplyInputId.value = commentId;
+  replyTargets.value[commentId] = nextTarget;
+  if (replyInputs.value[commentId] === undefined) {
+    replyInputs.value[commentId] = "";
   }
 };
 
@@ -267,7 +274,7 @@ const getReplyPageCount = (comment) => {
 const getHotReplies = (comment) => {
   const list = comment.replies || [];
   // 约定：isHot 为 true 的是高赞回复
-  return list.filter((r) => r.isHot);
+  return list.filter((r) => r.isHot).sort((a, b) => (b?.likes ?? 0) - (a?.likes ?? 0));
 };
 
 const shouldShowReplySummary = (comment) => {
@@ -285,15 +292,39 @@ const getVisibleReplies = (comment) => {
     const hot = getHotReplies(comment);
     return hot.slice(0, Math.min(2, hot.length));
   }
+  // 展开状态：统一按时间排序（旧 -> 新）
+  const sortedByTime = [...list].sort(
+    (a, b) => new Date(a?.createdAt || 0).getTime() - new Date(b?.createdAt || 0).getTime()
+  );
   const page = replyPage.value[comment.id] || 1;
   const start = (page - 1) * REPLIES_PAGE_SIZE;
-  return list.slice(start, start + REPLIES_PAGE_SIZE);
+  return sortedByTime.slice(start, start + REPLIES_PAGE_SIZE);
 };
 
 const changeReplyPage = (comment, newPage) => {
   const totalPages = getReplyPageCount(comment);
   if (newPage < 1 || newPage > totalPages) return;
   replyPage.value[comment.id] = newPage;
+};
+
+const getReplyPageList = (comment) => {
+  const total = getReplyPageCount(comment);
+  const current = replyPage.value[comment.id] || 1;
+  if (total <= 1) return [1];
+
+  const pages = new Set([1, total, current]);
+  for (let p = current - 1; p <= current + 1; p++) {
+    if (p >= 1 && p <= total) pages.add(p);
+  }
+
+  const sorted = Array.from(pages).sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i < sorted.length; i++) {
+    out.push(sorted[i]);
+    const next = sorted[i + 1];
+    if (next && next - sorted[i] > 1) out.push("...");
+  }
+  return out;
 };
 
 const getAuthorStyle = (author) => ({
@@ -436,7 +467,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 2px;
+  margin-bottom: 8px;
   font-size: 0.875rem;
 }
 
@@ -456,7 +487,12 @@ onMounted(() => {
 
 .comment-text {
   font-size: 0.9rem;
-  line-height: 1.6;
+  margin-block-start: 0;
+  margin-block-end: 0;
+  margin-inline-start: 0;
+  margin-inline-end: 0;
+
+  line-height: 1.2;
   color: var(--text-primary, #18191c);
   white-space: pre-wrap;
 }
@@ -465,7 +501,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  margin-top: 4px;
+  margin-top: 8px;
   font-size: 0.8rem;
   color: var(--text-secondary);
 }
@@ -480,6 +516,7 @@ onMounted(() => {
 .comment-action {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 4px;
   padding: 0;
   border: none;
@@ -498,17 +535,21 @@ onMounted(() => {
 }
 
 .reply-list {
-  margin-top: 4px;
+  margin-top: 16px;
   padding: 8px 12px;
   list-style: none;
-  background: rgba(0, 0, 0, 0.02);
+/*   background: rgba(0, 0, 0, 0.02); */
   border-radius: 4px;
 }
 
 .reply-item {
   display: flex;
-  margin-bottom: 6px;
+  margin-bottom: 18px;
   font-size: 0.85rem;
+}
+
+.reply-item:last-child {
+  margin-bottom: 0;
 }
 
 .reply-avatar {
@@ -538,8 +579,11 @@ onMounted(() => {
 }
 
 .reply-meta {
-  margin-top: 2px;
-  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-top: 8px;
+  font-size: 0.85rem;
   color: var(--text-secondary);
 }
 
@@ -547,12 +591,13 @@ onMounted(() => {
   margin-left: 12px;
   border: none;
   background: transparent;
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   color: inherit;
   cursor: pointer;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 2px;
+  justify-content: flex-start;
+  gap: 4px;
 }
 
 .reply-meta-action:hover {
@@ -570,11 +615,10 @@ onMounted(() => {
   margin-top: 8px;
 }
 
-.reply-text {
+.reply-input-area {
   flex: 1;
   padding: 4px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
+  margin-right: 20px;
 }
 
 .comment-more {
@@ -582,9 +626,14 @@ onMounted(() => {
   justify-content: center;
   padding: 12px 0 4px;
   font-size: 0.85rem;
+  color: var(--text-secondary);
 }
 
 .no-more-comments {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 4px;
+  font-size: 0.85rem;
   color: var(--text-secondary);
 }
 
@@ -612,7 +661,7 @@ onMounted(() => {
 
 .reply-summary-action:hover {
   color: var(--primary-color);
-  text-decoration: underline;
+  /* text-decoration: underline; */
 }
 
 .reply-pagination {
@@ -624,25 +673,56 @@ onMounted(() => {
   color: var(--text-secondary);
 }
 
-.reply-page-btn {
-  padding: 0 6px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: transparent;
-  cursor: pointer;
-}
-
-.reply-page-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
 .reply-collapse-btn {
   margin-left: 4px;
 }
 
-.reply-page-info {
-  min-width: 40px;
+.reply-page-total {
+  margin-right: 4px;
+  user-select: none;
+}
+
+.reply-page-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.reply-page-link:hover {
+  color: var(--primary-color);
+  /* text-decoration: underline; */
+}
+
+.reply-page-numbers {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reply-page-number {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  min-width: 14px;
   text-align: center;
+}
+
+.reply-page-number:hover {
+  color: var(--primary-color);
+  /* text-decoration: underline; */
+}
+
+.reply-page-number.active {
+  color: var(--primary-color);
+  font-weight: 600;
+  /* text-decoration: underline; */
+}
+
+.reply-page-ellipsis {
+  user-select: none;
 }
 </style>

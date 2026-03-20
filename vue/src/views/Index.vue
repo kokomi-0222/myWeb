@@ -3,11 +3,15 @@
     <TopNavbar @search="handleGlobalSearch" />
     <MobileNavbar @search="handleGlobalSearch" />
     <div class="header-banner">
-      <img
+      <Banner
+        bannerHeight="155px"
+        :maxOffset="25"
+      ></Banner>
+      <!-- <img
         src="@/assets/images/bgTop.jpg"
         class="header-banner-picture"
       />
-      <div class="header-banner-overlay"></div>
+      <div class="header-banner-overlay"></div> -->
     </div>
     <div ref="mainView" class="app-main">
       <aside class="sidebar-left"></aside>
@@ -287,7 +291,7 @@ const handleDelete = (postId) => {};
 .app-main {
   position: relative;
   display: flex;
-  margin-top: -100px;
+  /*   margin-top: -100px; */
   height: 100%;
   padding: 0 16px;
   transition: background-color 0.7s ease, color 0.7s ease;
@@ -309,8 +313,8 @@ const handleDelete = (postId) => {};
   height: 100%;
   max-width: 800px;
   min-height: 100vh;
-  background-color: var(--bg-secondary);
-  box-shadow: 0px -2px 6px rgba(0, 0, 0, 0.3);
+  /*   background-color: var(--bg-secondary);
+  box-shadow: 0px -2px 6px rgba(0, 0, 0, 0.3); */
 }
 
 .sort-bar {
@@ -319,6 +323,8 @@ const handleDelete = (postId) => {};
   justify-content: flex-end;
   padding: 10px;
   font-size: 0.9rem;
+  background-color: var(--bg-secondary);
+  box-shadow: 0px -2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .sort-title {

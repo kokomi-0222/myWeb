@@ -8,8 +8,23 @@ const router = createRouter({
       meta: { title: '主页' },
       component: () => import('@/views/Index.vue'),
     },
-
-
+    {
+      path: '/space',
+      meta: { title: '个人空间' },
+      component: () => import('@/views/space/Index.vue'),
+      children: [
+        {
+          path: 'account',
+          meta: { name: '账户信息' },
+          component: () => import('@/views/space/Account.vue'),
+        },
+        {
+          path: 'posts',
+          meta: { name: '帖子列表' },
+          component: () => import('@/views/space/Posts.vue'),
+        },
+      ],
+    },
   ],
 })
 

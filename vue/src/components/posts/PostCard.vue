@@ -279,9 +279,11 @@ const toggleComment = () => {
 
 <style scoped>
 .post-card {
+  /* 与头部作者名左缘对齐：头像 48px + 与名字间距 18px */
+  --post-card-align-indent: calc(48px + 18px);
   background: var(--bg-secondary);
   border-radius: 12px;
-  padding: 16px;
+  padding: 16px 20px;
   margin-bottom: 24px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   transition: background-color 0.7s ease, color 0.7s ease;
@@ -295,7 +297,7 @@ const toggleComment = () => {
 }
 
 .post-card__avatar {
-  margin-right: 12px;
+  margin-right: 18px;
 }
 
 .post-card__author-info {
@@ -381,6 +383,7 @@ const toggleComment = () => {
 
 .post-card__body {
   margin-bottom: 16px;
+  margin-left: var(--post-card-align-indent);
 }
 
 .post-card__title {
@@ -428,13 +431,15 @@ const toggleComment = () => {
 .post-card__footer {
   /* border-top: 1px solid var(--border-color); */
   padding-top: 12px;
+  margin-left: var(--post-card-align-indent);
+  margin-right: calc(var(--post-card-align-indent) + 30px);
 }
 
 .post-card__stats {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 5px 20px;
+  margin: 5px 0;
   color: var(--text-secondary);
   font-size: 0.875rem;
   user-select: none;
