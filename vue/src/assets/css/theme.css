@@ -28,7 +28,7 @@
     --button-text1-hover: #fff;
 
 
-    --header-bar-bg: transparent;
+    --header-bar-bg: rgba(255, 255, 255, 0);
     --header-bar-bg-scrolled: rgba(255, 255, 255, 0.9);
     --header-bar-bg-scrolled-shadow: rgba(0, 0, 0, 0.1);
     --header-bar-logo: #5fd0f3;
@@ -101,8 +101,8 @@
     --button-text1: #ddd;
     --button-text1-hover: #fff;
 
-    --header-bar-bg: transparent;
-    --header-bar-bg-scrolled: rgba(22, 22, 22, 0.9);
+    --header-bar-bg: rgba(255, 255, 255, 0);
+    --header-bar-bg-scrolled: rgba(61, 61, 61, 0.9);
     --header-bar-bg-scrolled-shadow: rgba(0, 0, 0, 0.1);
     --header-bar-logo: #5fd0f3;
     --header-bar-icon: #fff;

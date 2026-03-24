@@ -279,13 +279,13 @@ const toggleComment = () => {
 
 <style scoped>
 .post-card {
-  /* 与头部作者名左缘对齐：头像 48px + 与名字间距 18px */
   --post-card-align-indent: calc(48px + 18px);
-  background: var(--bg-secondary);
-  border-radius: 12px;
+  background: var(--bg-primary);
+  border-radius: 8px;
   padding: 16px 20px;
-  margin-bottom: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  margin-bottom: 18px;
+  box-shadow: 0 4px 12px var(--box-shadow);
+  border: 1px solid var(--border-color);
   transition: background-color 0.7s ease, color 0.7s ease;
 }
 

@@ -1,151 +1,321 @@
 <template>
-  <!-- 视差横幅容器 -->
-  <div class="banner-parallax" ref="bannerRef" :style="{ height: bannerHeight }">
-    <!-- 多层背景图层 -->
-    <div
-      v-for="(layer, index) in layers"
-      :key="index"
-      class="banner-layer"
-      :style="{
-        '--speed': layer.speed,
-        '--z-index': index + 1,
-      }"
-    >
-      <img :src="layer.imgUrl" :alt="`layer-${index}`" class="layer-img" />
+  <!-- 给外层容器绑定鼠标移入/离开事件 -->
+  <div 
+    class="bili-header__banner"
+    @mouseenter="isHover = true"
+    @mouseleave="isHover = false"
+  >
+    <!-- 兜底背景（取背景图列表第一张，兼容本地/远程URL） -->
+    <picture v-for="bg in bgImageList" class="v-img banner-img">
+      <img :src="bg" alt="banner背景" />
+    </picture>
+
+    <!-- 核心：视差滑动的animated-banner -->
+    <div class="animated-banner" ref="bannerRef">
+      <!-- 遍历传入的图层列表渲染（兼容本地/远程URL） -->
+      <div
+        v-for="(layer, index) in layerList"
+        :key="layer.key || index"
+        class="layer"
+      >
+        <img
+          :src="layer.path"
+          :data-width="layer.width || 3840"
+          :data-height="layer.height || 360"
+          :alt="layer.alt || `layer${index + 1}`"
+        />
+      </div>
     </div>
-    <!-- 自定义内容插槽（可加文字/按钮） -->
-    <div class="banner-content">
-      <slot></slot>
-    </div>
+
+    <div class="header-banner__inner"></div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 
-// 1. 定义 props（可外部自定义）
+// 定义可配置的参数（核心：图层列表+背景图列表，兼容本地/远程URL）
 const props = defineProps({
-  // 横幅高度（默认B站160px）
-  bannerHeight: {
-    type: String,
-    default: "160px",
-  },
-  // 图层配置：数组，每项包含 imgUrl（图片地址）、speed（移动速度）
-  layers: {
+  // 核心：图层列表（必传/默认32层本地示例）
+  layerList: {
     type: Array,
-    default: () => [
-      // 示例图层（替换成你的图片地址）
-      { imgUrl: new URL('@/assets/images/layer1.png', import.meta.url).href, speed: 0.03 }, // 最远层，最慢
-      { imgUrl: new URL('@/assets/images/layer2.png', import.meta.url).href, speed: 0.06 }, // 中间层
-      { imgUrl: new URL('@/assets/images/layer3.png', import.meta.url).href, speed: 0.09 }  // 最近层，最快
-      
-    /*     { imgUrl: "https://picsum.photos/1920/160?random=1", speed: 0.03 },
-        { imgUrl: "https://picsum.photos/1920/160?random=2", speed: 0.06 },
-        { imgUrl: "https://picsum.photos/1920/160?random=3", speed: 0.09 }, */
-      
-    ],
+    default: () => {
+      const defaultLayers = [];
+      for (let i = 1; i <= 32; i++) {
+        const layerName = `../../assets/images/banner/layer${String(i).padStart(
+          2,
+          "0"
+        )}.png`;
+        const layerUrl = new URL(layerName, import.meta.url).href;
+        let x = 0,
+          y = 0,
+          s = 0,
+          r = 0;
+
+        switch (i) {
+          case 1:
+            (x = 0), (y = 0), (s = 0), (r = 0);
+            break;
+          case 2:
+            (x = 0), (y = 0), (s = 0), (r = 0);
+            break;
+          case 3:
+          case 4:
+          case 5:
+          case 6:
+          case 7:
+          case 8:
+            (x = 0), (y = -0.001), (s = 0.011), (r = 0);
+            break;
+          case 9:
+            (x = 0.012), (y = -0.001), (s = 0.012), (r = 0);
+            break;
+          case 10:
+            (x = 0.013), (y = -0.001), (s = 0.013), (r = 0);
+            break;
+          case 11:
+            (x = 0.013), (y = -0.002), (s = 0.014), (r = 0);
+            break;
+          case 12:
+            (x = 0.014), (y = -0.002), (s = 0.014), (r = 0);
+            break;
+          case 13:
+            (x = 0.015), (y = -0.002), (s = 0.015), (r = 0);
+            break;
+          case 14:
+          case 15:
+            (x = 0.015), (y = -0.003), (s = 0.016), (r = 0);
+            break;
+          case 16:
+            (x = 0.015), (y = -0.003), (s = 0.016), (r = 0);
+            break;
+          case 17:
+            (x = 0.016), (y = -0.003), (s = 0.016), (r = 0);
+            break;
+          case 18:
+            (x = 0.09), (y = -0.003), (s = 0.017), (r = 0);
+            break;
+          case 19:
+            (x = 0.10), (y = -0.003), (s = 0.017), (r = 0);
+            break;
+          case 20:
+            (x = 0.12), (y = -0.003), (s = 0.017), (r = 0);
+            break;
+          case 21:
+            (x = 0.12), (y = -0.003), (s = 0.017), (r = 0);
+            break;
+          case 22:
+            (x = 0.12), (y = -0.003), (s = 0.017), (r = 0);
+            break;
+          case 23:
+            (x = 0.12), (y = -0.003), (s = 0.017), (r = 0);
+            break;
+          case 24:
+            (x = 0), (y = 0.1), (s = 0), (r = 0.15);
+            break;
+          case 25:
+            (x = 0.15), (y = -0.004), (s = 0.02), (r = 0);
+            break;
+          case 26:
+            (x = 0.18), (y = -0.006), (s = 0.03), (r = 0);  
+            break;
+          case 27:
+            (x = 0.18), (y = -0.007), (s = 0.04), (r = 0);  
+            break;
+          case 28:
+            (x = 0.2), (y = -0.005), (s = 0.05), (r = 0);
+            break;  
+          case 29:
+            (x = 0.2), (y = -0.005), (s = 0.06), (r = 0);
+            break;
+          case 30:    
+            (x = 0.2), (y = -0.01), (s = 0.07), (r = 0);
+            break;
+          case 31:
+            (x = 0.2), (y = -0.01), (s = 0.08), (r = 0);
+            break;
+          case 32:
+            (x = 0), (y = 0.1), (s = 0), (r = 0.2);
+            break;
+        }
+
+        defaultLayers.push({
+          path: layerUrl,
+          x: x,
+          y: y,
+          s: s,
+          r: r,
+          width: 3840,
+          height: 360,
+          alt: `layer${i}`,
+        });
+      }
+      return defaultLayers;
+    },
   },
-  // 最大偏移量（防止偏移过大露空白）
-  maxOffset: {
+  // 背景图列表（默认1张本地路径，支持远程URL）
+  bgImageList: {
+    type: Array,
+    default: () => [new URL("../../assets/images/bgbili.png", import.meta.url).href],
+  },
+  // 最大偏移量
+  maxTranslate: {
     type: Number,
-    default: 20,
+    default: 300,
   },
+  // 横幅高度
+  bannerHeight: {
+    type: Number,
+    default: 160,
+  },
+  // 新增：鼠标离开后是否重置位置（默认false）
+  resetOnLeave: {
+    type: Boolean,
+    default: false,
+  }
 });
 
-// 2. 定义响应式变量
+// 新增：鼠标悬浮状态
+const isHover = ref(false);
+// 初始化ref
 const bannerRef = ref(null);
+let layers = [];
 let mouseMoveHandler = null;
-let mouseLeaveHandler = null;
 
-// 3. 初始化事件监听
+// 性能优化：节流函数
+const throttle = (fn, delay = 16) => {
+  let timer = null;
+  return (...args) => {
+    if (!timer) {
+      timer = setTimeout(() => {
+        fn.apply(this, args);
+        timer = null;
+      }, delay);
+    }
+  };
+};
+
+// 新增：重置图层到初始位置
+const resetLayers = () => {
+  if (!layers || layers.length === 0) return;
+  layers.forEach(layer => {
+    layer.style.transform = 'translate(0px, 0px) scale(1) rotate(0deg)';
+  });
+};
+
+// 核心视差逻辑
+const initParallax = async () => {
+  await nextTick();
+
+  // 获取所有图层（数量由layerList决定）
+  if (bannerRef.value) {
+    layers = bannerRef.value.querySelectorAll(".layer");
+  }
+
+  // 节流处理鼠标事件
+  mouseMoveHandler = throttle((e) => {
+    // 新增：只有鼠标悬浮时才执行动画
+    if (!isHover.value || !layers || layers.length === 0) return;
+
+    const globalX = e.clientX / window.innerWidth - 0.5;
+
+    // 遍历图层
+    for (let i = 0; i < layers.length; i++) {
+      const layer = layers[i];
+      const { x, y, s, r } = props.layerList[i];
+      const tx = globalX * props.maxTranslate * x;
+      const ty = globalX * props.maxTranslate * y;
+      const scale = 1 + globalX * s;
+      const rotate = globalX * r;
+      layer.style.transform = `translate(${tx}px, ${ty}px) scale(${scale}) rotate(${rotate}deg)`;
+    }
+  });
+
+  // 绑定鼠标事件
+  window.addEventListener("mousemove", mouseMoveHandler, { passive: true });
+};
+
+// 组件生命周期
 onMounted(() => {
-  if (!bannerRef.value) return;
-
-  // 鼠标移动事件
-  mouseMoveHandler = (e) => {
-    const banner = bannerRef.value;
-    const rect = banner.getBoundingClientRect();
-    // 计算鼠标相对容器中心的偏移（中心为原点）
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-    const mouseX = e.clientX - rect.left - centerX;
-    const mouseY = e.clientY - rect.top - centerY;
-
-    // 遍历所有图层，设置偏移
-    const layers = banner.querySelectorAll(".banner-layer");
-    layers.forEach((layer) => {
-      const speed = parseFloat(getComputedStyle(layer).getPropertyValue("--speed"));
-      // 计算偏移并限制最大范围
-      const offsetX = Math.min(
-        Math.max(mouseX * speed, -props.maxOffset),
-        props.maxOffset
-      );
-      const offsetY = Math.min(
-        Math.max(mouseY * speed, -props.maxOffset),
-        props.maxOffset
-      );
-      // 应用偏移（GPU加速，更流畅）
-      layer.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
-    });
-  };
-
-  // 鼠标移出复位
-  mouseLeaveHandler = () => {
-    const layers = bannerRef.value?.querySelectorAll(".banner-layer");
-    layers?.forEach((layer) => {
-      layer.style.transform = "translate(0, 0)";
-    });
-  };
-
-  // 绑定事件
-  bannerRef.value.addEventListener("mousemove", mouseMoveHandler);
-  bannerRef.value.addEventListener("mouseleave", mouseLeaveHandler);
+  initParallax();
 });
 
-// 4. 销毁时移除事件（防止内存泄漏）
 onUnmounted(() => {
-  if (!bannerRef.value) return;
-  bannerRef.value.removeEventListener("mousemove", mouseMoveHandler);
-  bannerRef.value.removeEventListener("mouseleave", mouseLeaveHandler);
+  if (mouseMoveHandler) {
+    window.removeEventListener("mousemove", mouseMoveHandler);
+  }
+  layers = [];
+});
+
+// 新增：监听鼠标离开事件，可选重置位置
+watch(isHover, (newVal) => {
+  if (!newVal && props.resetOnLeave) {
+    resetLayers();
+  }
 });
 </script>
 
 <style scoped>
-/* 核心样式：容器 + 图层 + 内容 */
-.banner-parallax {
+.bili-header__banner {
   position: relative;
   width: 100%;
+  height: v-bind(bannerHeight + "px");
   overflow: hidden;
   cursor: default;
-  background-color: #000; /* 兜底背景色 */
 }
 
-.banner-layer {
+/* 兜底背景 */
+.banner-img {
   position: absolute;
-  left: 0;
-  top: 0;
-  width: 110%; /* 比容器宽10%，留偏移空间 */
-  height: 110%;
-  z-index: var(--z-index);
-  transition: transform 0.3s ease-out; /* 平滑动画 */
+  inset: 0;
+  z-index: 1;
 }
-
-.layer-img {
+.banner-img img {
   width: 100%;
   height: 100%;
-  object-fit: cover; /* 保持比例覆盖容器 */
-  user-select: none; /* 禁止选中图片 */
-  pointer-events: none; /* 不拦截鼠标事件 */
+  object-fit: cover;
 }
 
-.banner-content {
+/* 视差层容器 */
+.animated-banner {
   position: absolute;
-  left: 50%;
+  inset: 0;
+  z-index: 2;
+}
+
+/* 单个视差层（性能优化） */
+.layer {
+  position: absolute;
+  inset: 0;
+  transition: transform 0.1s ease-out;
+  z-index: 2;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+.layer img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 1;
+  mix-blend-mode: normal;
+}
+
+/* 底部渐变遮罩 */
+.taper-line {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: linear-gradient(transparent, #ffffff);
+  z-index: 4;
+}
+
+.header-banner__inner {
+  position: absolute;
+  z-index: 3;
+  left: 50px;
   top: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 99; /* 内容层在最上方 */
-  color: #fff;
-  font-size: 24px;
-  text-shadow: 0 0 8px rgba(0, 0, 0, 0.5); /* 文字阴影更清晰 */
+  transform: translateY(-50%);
 }
 </style>

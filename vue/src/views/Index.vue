@@ -3,36 +3,27 @@
     <TopNavbar @search="handleGlobalSearch" />
     <MobileNavbar @search="handleGlobalSearch" />
     <div class="header-banner">
-      <Banner
-        bannerHeight="155px"
-        :maxOffset="25"
-      ></Banner>
-      <!-- <img
-        src="@/assets/images/bgTop.jpg"
-        class="header-banner-picture"
-      />
-      <div class="header-banner-overlay"></div> -->
+      <Banner />
     </div>
     <div ref="mainView" class="app-main">
       <aside class="sidebar-left"></aside>
       <main class="main-content">
-        <div class="sort-bar">
-          <div class="sort-title">排序</div>
-          <div class="sort-divider"></div>
-          <ul class="sort-content">
-            <li
-              v-for="(option, index) in sortOptions"
-              :key="index"
-              :class="{ active: currentSort === option.sortBy }"
-            >
-              <a href="#" @click.prevent="applySort(option)">
-                <span>{{ option.label }}</span>
-              </a>
-            </li>
-          </ul>
-        </div>
-
         <div class="posts-content">
+          <div class="sort-bar">
+            <div class="sort-title">排序</div>
+            <div class="sort-divider"></div>
+            <ul class="sort-content">
+              <li
+                v-for="(option, index) in sortOptions"
+                :key="index"
+                :class="{ active: currentSort === option.sortBy }"
+              >
+                <a href="#" @click.prevent="applySort(option)">
+                  <span>{{ option.label }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
           <PostCard
             v-for="post in posts.list"
             :key="post.id"
@@ -313,18 +304,21 @@ const handleDelete = (postId) => {};
   height: 100%;
   max-width: 800px;
   min-height: 100vh;
-  /*   background-color: var(--bg-secondary);
-  box-shadow: 0px -2px 6px rgba(0, 0, 0, 0.3); */
+
 }
 
 .sort-bar {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 10px;
+  background: var(--bg-primary);
   font-size: 0.9rem;
-  background-color: var(--bg-secondary);
-  box-shadow: 0px -2px 6px rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 6px 20px;
+  margin-bottom: 4px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 12px var(--box-shadow);
+  transition: background-color 0.7s ease, color 0.7s ease;
 }
 
 .sort-title {
@@ -397,7 +391,7 @@ const handleDelete = (postId) => {};
     display: none !important;
   }
   .app-main {
-    margin-top: 0 !important; /* 移动端不需要上移 */
+    margin-top: 50px !important; 
     padding: 0;
   }
 }

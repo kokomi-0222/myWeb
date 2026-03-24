@@ -7,7 +7,7 @@
       <span class="header-bar-title">{{ $route.meta.title }}</span>
     </div>
     <!-- 中间：搜索框 -->
-    <div class="header-bar-center">
+    <div v-if="showTools" class="header-bar-center">
       <InputSearch v-model="searchText" placeholder="搜索..." @search="onSearch" />
     </div>
     <!-- 右侧：大中屏功能区 -->
@@ -15,14 +15,14 @@
       class="header-bar-right"
       :style="{ visibility: userStore.isLoading ? 'hidden' : 'visible' }"
     >
-      <div class="header-bar-switch">
+      <div v-if="showTools" class="header-bar-switch">
         <el-switch
           v-model="uiStore.isDarkMode"
           :active-action-icon="IconDark"
           :inactive-action-icon="IconLight"
         />
       </div>
-      <div class="header-bar-login">
+      <div v-if="showTools" class="header-bar-login">
         <Dropdown menuClass="dropdown-menu--login" :offset-y="10" :show-arrow="false">
           <template #trigger>
             <div class="dropdown-trigger">
@@ -44,7 +44,7 @@
           </template>
           <template #menu="{ close }">
             <div v-if="userStore.isLogin">
-              <div class="dropdown-item">
+              <div class="dropdown-item" @click="gotoPersonalSpace">
                 <IconUser class="iconUser" :size="18" />
                 <span>个人中心</span>
               </div>
@@ -61,13 +61,13 @@
           </template>
         </Dropdown>
       </div>
-      <div class="header-bar-message" data-tippy-content="消息">
+      <div v-if="showTools" class="header-bar-message" data-tippy-content="消息">
         <IconMessage class="iconMessage" :size="24" />
       </div>
-      <div class="header-bar-contact">
+      <div v-if="showTools" class="header-bar-contact">
         <IconContact class="iconContact" :size="24" />
       </div>
-      <div class="header-bar-publish">
+      <div v-if="showTools" class="header-bar-publish">
         <Button
           class="publish-button"
           backgroundColor="var(--header-bar-button-publish-bg)"
@@ -87,12 +87,17 @@ import { useUserStore } from "@/stores/user";
 import { useUIStore } from "@/stores/ui";
 import IconLight from "@/components/icons/IconLight.vue";
 import IconDark from "@/components/icons/IconDark.vue";
+import router from "@/router";
 
 const navbar = document.querySelector(".header-bar");
 const navbarHeight = navbar?.offsetHeight || 54;
 const { isScrolled } = useScroll(navbarHeight);
 const userStore = useUserStore();
 const uiStore = useUIStore();
+
+defineProps({
+  showTools: { type: Boolean, default: true },
+});
 
 const searchText = ref("");
 const emit = defineEmits(["search"]); // 声明 emit 事件
@@ -120,6 +125,11 @@ function goPublish() {
   // TODO: 跳转发布页或打开发布弹窗
   closeMobileMenu();
 }
+
+//去往个人中心
+const gotoPersonalSpace = () => {
+  router.push("/space/account");
+};
 </script>
 
 <style scoped>
