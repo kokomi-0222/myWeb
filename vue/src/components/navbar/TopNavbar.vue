@@ -4,7 +4,7 @@
     <!-- 左侧：Logo + 标题 -->
     <div class="header-bar-left">
       <IconHome class="iconHome" :size="24" />
-      <span class="header-bar-title">{{ $route.meta.title }}</span>
+      <span class="header-bar-title" @click="gotoMainPage">首页</span>
     </div>
     <!-- 中间：搜索框 -->
     <div v-if="showTools" class="header-bar-center">
@@ -128,7 +128,16 @@ function goPublish() {
 
 //去往个人中心
 const gotoPersonalSpace = () => {
-  router.push("/space/account");
+  router.push("/space/home").then(() => {
+    router.go(0);
+  });
+};
+
+//去往首页
+const gotoMainPage = () => {
+  router.push("/").then(() => {
+    router.go(0);
+  });
 };
 </script>
 
@@ -163,6 +172,7 @@ const gotoPersonalSpace = () => {
 .header-bar-title {
   font-size: 0.9rem;
   color: var(--header-title);
+  cursor: pointer;
 }
 
 .header-bar.is-scrolled .header-bar-title {

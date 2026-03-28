@@ -12,8 +12,8 @@
             class="list-item"
             v-for="(menu, index) in menuList"
             :key="menu.key"
-            :class="{ 'is-actived': currentActived === menu.key }"
-            @click="handleMenuClick(menu.key)"
+            :class="{ 'is-actived': router.currentRoute.value.path === `/space/${menu.path}` }"
+            @click="handleMenuClick(menu.path)"
           >
             <i class="list-item-icon">
               <component :is="menu.icon" size="20"></component>
@@ -23,7 +23,9 @@
         </ul>
       </aside>
 
-      <main class="main-content"></main>
+      <main class="main-content">
+        <RouterView />
+      </main>
 
       <aside class="sidebar-right"></aside>
     </div>
@@ -35,16 +37,17 @@ import { ref } from "vue";
 import IconHome from "@/components/icons/IconHome.vue";
 import IconUser from "@/components/icons/IconUser.vue";
 import IconMessage from "@/components/icons/IconMessage.vue";
-const currentActived = ref("home");
+import router from "@/router";
+
 const menuList = [
-  { key: "home", text: "首  页", icon: IconHome },
-  { key: "user", text: "账号管理", icon: IconUser },
-  { key: "post", text: "动态管理", icon: IconMessage },
+  { path: "home", text: "首  页", icon: IconHome },
+  { path: "account", text: "账号管理", icon: IconUser },
+  { path: "posts", text: "动态管理", icon: IconMessage },
 ];
 
-const handleMenuClick = (menuKey) => {
-  currentActived.value = menuKey;
-  console.log(currentActived.value);
+const handleMenuClick = (menuPath) => {
+  router.push(menuPath);
+  console.log(router.currentRoute.value.path);
 };
 
 const handleGlobalSearch = (value) => {
@@ -107,7 +110,7 @@ const handleGlobalSearch = (value) => {
   font-weight: 500;
   padding: 15px 40px;
   color: var(--text-secondary);
-/*   border-bottom: 1px solid var(--border-color); */
+  /*   border-bottom: 1px solid var(--border-color); */
   color: #d62bc4;
   background-color: #f6d7d7;
 }
@@ -126,7 +129,7 @@ const handleGlobalSearch = (value) => {
   gap: 10px;
   padding: 15px 30px;
   cursor: pointer;
-/*   border-bottom: 1px solid #e1e2e5; */
+  /*   border-bottom: 1px solid #e1e2e5; */
   user-select: none;
   color: #d62bc4;
   background-color: #f6d7d7;

@@ -14,6 +14,11 @@ const router = createRouter({
       component: () => import('@/views/space/Index.vue'),
       children: [
         {
+          path: 'home',
+          meta: { name: '首页' },
+          component: () => import('@/views/space/Home.vue'),
+        },
+        {
           path: 'account',
           meta: { name: '账户信息' },
           component: () => import('@/views/space/Account.vue'),
