@@ -95,6 +95,7 @@ const handleGlobalSearch = (value) => {
 .sidebar-left {
   /*   flex: 1; */
   width: 200px;
+  min-width: 180px;
   height: 100vh;
   margin-top: -6px;
   border-top: none;

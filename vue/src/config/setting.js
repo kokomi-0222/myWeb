@@ -36,6 +36,8 @@ const setting = {
     showPagination: false,
     //一次加载多少个帖子
     postsPageSize: 3,
+    //图片大小限制
+    imageSize: 1024 * 1024 * 2, //2M
 }
 
 export default setting

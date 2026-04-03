@@ -55,6 +55,8 @@ declare module 'vue' {
     IconUser: typeof import('./src/components/icons/IconUser.vue')['default']
     IconZoomIn: typeof import('./src/components/icons/IconZoomIn.vue')['default']
     IconZoomOut: typeof import('./src/components/icons/IconZoomOut.vue')['default']
+    InputEmoji: typeof import('./src/components/inputs/InputEmoji.vue')['default']
+    InputImage: typeof import('./src/components/inputs/InputImage.vue')['default']
     InputLine: typeof import('./src/components/inputs/InputLine.vue')['default']
     InputSearch: typeof import('./src/components/inputs/InputSearch.vue')['default']
     InputTextarea: typeof import('./src/components/inputs/InputTextarea.vue')['default']
