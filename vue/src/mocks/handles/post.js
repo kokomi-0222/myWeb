@@ -146,24 +146,6 @@ let posts = [
         format: 'jpeg',
         is_animated: false,
       },
-      ...Array.from({ length: 1 }).map((_, idx) => {
-        const seed = getRandomInt(0, 1000)
-        const { width, height } = getRandomSize()
-        return {
-          id: `media_3_${idx + 2}`,
-          thumbnail_url: `https://picsum.photos/seed/${seed}/100/100`, // 缩略图（小尺寸）
-          preview_url: `https://picsum.photos/seed/${seed}/${width}/${height}`, // 预览图（高清原图尺寸）
-          row_url: `https://picsum.photos/seed/${seed}/${width}/${height}`,
-          type: 'image/jpeg',
-          width,
-          height,
-          size: getRandomFileSize(),
-          alt: `帖子配图${idx + 2}`,
-          orientation: 1,
-          format: 'jpeg',
-          is_animated: false,
-        }
-      }),
     ],
     author: {
       id: 3,
@@ -243,9 +225,9 @@ let posts = [
     media: [
       {
         id: 'media_3_1', // 媒体唯一ID（必加）
-        thumbnail_url: new URL('@/assets/images/kokomi005.jpg', import.meta.url).href, // 缩略图URL（必加）
-        preview_url: new URL('@/assets/images/kokomi005.jpg', import.meta.url).href, // 预览图URL（必加）
-        row_url: new URL('@/assets/images/kokomi005.jpg', import.meta.url).href,
+        thumbnail_url: new URL('@/assets/images/kokomi001.jpg', import.meta.url).href, // 缩略图URL（必加）
+        preview_url: new URL('@/assets/images/kokomi001.jpg', import.meta.url).href, // 预览图URL（必加）
+        row_url: new URL('@/assets/images/kokomi001.jpg', import.meta.url).href,
         type: 'image/jpeg',
         width: 1920,
         height: 1080,
@@ -255,24 +237,6 @@ let posts = [
         format: 'jpeg',
         is_animated: false,
       },
-      ...Array.from({ length: 3 }).map((_, idx) => {
-        const seed = getRandomInt(0, 1000)
-        const { width, height } = getRandomSize()
-        return {
-          id: `media_5_${idx + 2}`,
-          thumbnail_url: `https://picsum.photos/seed/${seed}/100/100`, // 缩略图（小尺寸）
-          preview_url: `https://picsum.photos/seed/${seed}/${width}/${height}`, // 预览图（高清原图尺寸）
-          row_url: `https://picsum.photos/seed/${seed}/${width}/${height}`,
-          type: 'image/jpeg',
-          width,
-          height,
-          size: getRandomFileSize(),
-          alt: `帖子配图${idx + 2}`,
-          orientation: 1,
-          format: 'jpeg',
-          is_animated: false,
-        }
-      }),
     ],
     author: {
       id: 5,
@@ -310,7 +274,7 @@ let posts = [
         format: 'jpeg',
         is_animated: false,
       },
-      ...Array.from({ length: 6 }).map((_, idx) => {
+      ...Array.from({ length: 10 }).map((_, idx) => {
         const seed = getRandomInt(0, 1000)
         const { width, height } = getRandomSize()
         return {

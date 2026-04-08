@@ -63,26 +63,16 @@
     <div class="post-card__body">
       <h3 v-if="post.title" class="post-card__title">{{ post.title }}</h3>
       <div class="post-card__content" v-html="sanitizeContent(post.content)"></div>
-
       <!-- 图片展示 -->
-      <div
+       <div
         v-if="post.media && post.media.length"
         class="post-card__media"
-        :class="imageLayout"
       >
         <PostImage
-          v-for="(item, index) in post.media"
-          :key="item.id"
-          :src="item.thumbnail_url"
-          :preview-list="post.media.map((item) => item.preview_url)"
-          :index="index"
-          :width="imgWidth"
-          :height="imgHeight"
-          :error-text="item.alt || '图片加载失败'"
+          :media="post.media"
         />
       </div>
     </div>
-
     <!-- 底部操作区 -->
     <footer class="post-card__footer">
       <div class="post-card__stats">
@@ -181,33 +171,7 @@ const isAuthor = computed(() => {
   return userStore.user?.id === props.post.author.id;
 });
 
-const imageLayout = computed(() => {
-  const len = props.post.media?.length || 0;
-  if (len === 1) return "single"; // 1张图：单图布局
-  if (len === 2 || len === 4) return "grid2"; // 2/4张图：每行2张（四宫格）
-  if (len >= 3) return "grid3"; // 3张/≥5张：每行3张
-  return "";
-});
 
-const imgHeight = computed(() => imgWidth.value);
-
-const imgWidth = computed(() => {
-  switch (imageLayout.value) {
-    case "single":
-      return 280; // 单图放大
-    case "grid2":
-      return 120; // 2/4张图四宫格
-    case "grid3":
-      return 100; // 3张/≥5张图三列
-    default:
-      return 100;
-  }
-});
-
-// 限制最大显示9张图（超出滚动，主流平台通用）
-const displayThumbnails = computed(() => {
-  return props.post.media?.slice(0, 9) || [];
-});
 
 const currentUser = computed(() => userStore.user);
 
@@ -403,29 +367,7 @@ const toggleComment = () => {
   gap: 8px;
   width: fit-content;
   overflow: hidden;
-}
-
-.post-card__media.single {
-  grid-template-columns: 1fr;
-}
-
-/* 双列布局：grid2 - 2/4张图用，每行2张，四宫格，固定小尺寸 */
-.post-card__media.grid2 {
-  grid-template-columns: repeat(2, 120px); /* 固定2列，每列120px */
-}
-
-/* 三列布局：grid3 - 3张/≥5张图用，每行3张，固定更小尺寸，靠左换行 */
-.post-card__media.grid3 {
-  grid-template-columns: repeat(3, 100px);
-  max-height: calc(100px * 3 + 8px * 2);
-  overflow-y: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-/* 隐藏Chrome/Safari滚动条 */
-.post-card__media.grid3::-webkit-scrollbar {
-  display: none;
+  
 }
 
 .post-card__footer {

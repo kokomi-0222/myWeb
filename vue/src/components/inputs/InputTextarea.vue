@@ -15,11 +15,13 @@
         @focus="handleFocus"
       ></textarea>
       <!-- 图片预览（可选：选中图片后显示） -->
-      <div v-if="imageFile" ref="previewContainerRef" class="image-preview"></div>
+
+      <div ref="previewContainerRef" class="image-preview-content">
+      </div>
     </div>
     <!-- 底部工具栏（聚焦或有内容/图片时显示） -->
     <div
-      v-if="isFocused || showEmojiPanel || inputValue.trim() || imageFile"
+      v-if="isFocused || showEmojiPanel || inputValue.trim() || imageFiles.length"
       class="comment-input-toolbar"
       @mousedown.prevent="handleToolbarMouseDown"
     >
@@ -32,6 +34,7 @@
           v-if="showImage"
           :preview-container="previewContainerRef"
           @change="handleImageChange"
+          :max-count="9"
         />
       </div>
       <!-- 右侧功能按钮组 -->
@@ -199,7 +202,7 @@ watch(showEmojiPanel, (visible) => {
     const active = document.activeElement;
     const stillInside = active && wrapperRef.value && wrapperRef.value.contains(active);
     if (stillInside) return;
-    if (inputValue.value?.trim() || imageFile.value) return;
+    if (inputValue.value?.trim() || imageFiles.value) return;
     isFocused.value = false;
   }, 0);
 });
@@ -221,23 +224,23 @@ const selectEmoji = (emoji) => {
 const previewContainerRef = ref(null);
 
 // 接收图片
-const imageFile = ref(null);
-function handleImageChange(file) {
-  imageFile.value = file;
+const imageFiles = ref([]);
+function handleImageChange(files) {
+  imageFiles.value = files;
 }
 
 // 修改提交逻辑：携带图片文件
 const handleSubmit = async () => {
   if (isSubmitting.value || props.disabled) return;
   // 空内容校验：文字+图片都为空时不提交
-  if (!inputValue.value.trim() && !imageFile.value) return;
+  if (!inputValue.value.trim() && !imageFiles.value) return;
 
   try {
     isSubmitting.value = true;
     // 提交时把文字和图片一起传给父组件
     await emit("submit", {
       content: inputValue.value,
-      image: imageFile.value,
+      image: imageFiles.value,
     });
     // 提交后清空
     inputValue.value = "";
@@ -346,34 +349,9 @@ const handleSubmit = async () => {
 }
 
 /* 图片预览样式 */
-.image-preview {
-  margin-top: 8px;
-  position: relative;
-  width: 72px;
-  height: 72px;
-  border-radius: 4px;
-  overflow: hidden;
-  border: 1px solid #e5e7eb;
-}
-.preview-img {
+.image-preview-content{
   width: 100%;
   height: 100%;
-  object-fit: cover;
-}
-.preview-close {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 20px;
-  height: 20px;
-  border: none;
-  background: rgba(0, 0, 0, 0.5);
-  color: #fff;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+};
+
 </style>

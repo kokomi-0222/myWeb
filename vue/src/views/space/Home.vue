@@ -47,14 +47,19 @@
           maxlength="1000"
           @input="handleContentInput"
         />
+        <div ref="previewContainerRef" class="image-preview-content"></div>
       </div>
       <!-- 底部工具栏-->
       <div class="publishing-footer">
         <div class="toolbar-left">
-        <InputEmoji
-          @select="selectEmoji"
-        />
-        
+          <!--表情按钮 -->
+          <InputEmoji @select="selectEmoji" />
+          <!--图片按钮 -->
+          <InputImage
+            :preview-container="previewContainerRef"
+            @change="handleImageChange"
+            :max-count="20"
+          />
         </div>
         <!-- 右侧功能按钮组 -->
         <div class="toolbar-right">
@@ -67,7 +72,7 @@
               !publishingTitleInnerValue.trim() && !publishingContentInnerValue.trim()
             "
           >
-            发送
+            发布
           </Button>
         </div>
       </div>
@@ -133,7 +138,16 @@ const handleContentInput = () => {
 };
 
 function selectEmoji(emoji) {
-  publishingContentInnerValue.value += emoji
+  publishingContentInnerValue.value += emoji;
+}
+
+//预览图定位
+const previewContainerRef = ref(null);
+
+// 接收图片
+const imageFiles = ref([]);
+function handleImageChange(files) {
+  imageFiles.value = files;
 }
 
 const handleSubmit = async () => {};
@@ -276,8 +290,15 @@ const handleSubmit = async () => {};
   opacity: 0.8;
 }
 
+.image-preview-content {
+  width: 100%;
+  height: 100%;
+}
+
 .publishing-footer {
   width: 100%;
+  margin-left: 20px;
+  padding-right: 30px;
   box-sizing: border-box;
   display: flex;
   justify-content: space-between;
@@ -299,6 +320,7 @@ const handleSubmit = async () => {};
   gap: 8px;
 }
 
+/*发布按钮*/
 .comment-submit-button {
   width: 65px;
   height: 32px;

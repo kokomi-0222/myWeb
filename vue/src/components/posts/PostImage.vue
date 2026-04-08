@@ -1,25 +1,29 @@
-<!-- CustomImage.vue 带超时功能的最终版 -->
 <template>
-  <div
-    ref="imgContainerRef"
-    class="custom-image"
-    :style="{ width: `${width}px`, height: `${height}px`, borderRadius: `${radius}px` }"
-    :data-img-index="index"
-    @click="handleImageClick"
-  >
-    <div class="loading" v-if="status === 'loading'">
-      <div class="spinner"></div>
+  <!-- 自动布局容器：子组件内部全权控制 -->
+  <div class="image-grid-layout" :class="imageLayoutClass">
+    <!-- 前8张 -->
+    <div
+      v-for="(item, idx) in displayMedia"
+      :key="item.id || idx"
+      class="grid-item"
+      :style="gridItemStyle"
+      @click="handleImageClick(idx)"
+    >
+      <div class="loading" v-if="item.status === 'loading'">
+        <div class="spinner"></div>
+      </div>
+      <div class="error" v-if="item.status === 'error'">
+        <span>{{ errorText }}</span>
+      </div>
+      <img
+        class="img"
+        :src="item.thumbnail_url"
+        :alt="item.alt"
+        v-if="item.status === 'success'"
+      />
+       <!-- 第9格：+N -->
+    <div v-if="idx === 8 && isOverLimit" class="more-mask">+{{ exceedCount }}</div>
     </div>
-    <div class="error" v-if="status === 'error'">
-      <span>{{ errorText }}</span>
-    </div>
-    <img
-      class="img"
-      :src="props.src"
-      alt=""
-      style="object-fit: cover; display: block"
-      v-if="status === 'success'"
-    />
   </div>
 
   <!-- 预览弹窗 -->
@@ -35,7 +39,7 @@
         <div class="modal-mask" @click="handleClosePreview"></div>
         <div class="preview-controls">
           <div class="preview-page-index">
-            {{ currentPreviewIndex + 1 }} / {{ previewList.length }}
+            {{ currentPreviewIndex + 1 }} / {{ media.length }}
           </div>
           <button class="preview-close-btn" @click.stop="handleClosePreview">
             <IconClose />
@@ -43,14 +47,14 @@
           <button
             class="preview-nav-btn prev-btn"
             @click.stop="handlePrevImg"
-            v-if="previewList.length > 1"
+            v-if="media.length > 1"
           >
             <IconArrow />
           </button>
           <button
             class="preview-nav-btn next-btn"
             @click.stop="handleNextImg"
-            v-if="previewList.length > 1"
+            v-if="media.length > 1"
           >
             <IconArrow transform="rotate(180)" />
           </button>
@@ -82,8 +86,8 @@
           </div>
           <img
             class="preview-img"
-            :src="currentPreviewSrc"
-            alt="预览图片"
+            :src="currentPreviewItem?.preview_url"
+            alt="预览"
             v-show="!isPreviewError"
             @load="handlePreviewImgLoad"
             @error="handlePreviewImgError"
@@ -101,9 +105,7 @@
             @click="reloadPreviewImg"
           >
             <div>{{ errorText }}</div>
-            <div style="font-size: 12px; color: #888">
-              加载超时
-            </div>
+            <div style="font-size: 12px; color: #888">加载失败</div>
           </div>
         </div>
       </div>
@@ -112,436 +114,293 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted, shallowRef, computed } from "vue";
+import { ref, watch, onMounted, computed } from "vue";
 
 const props = defineProps({
-  src: { type: String, required: true },
-  previewList: { type: Array, default: () => [] },
-  index: { type: Number, required: true },
-  width: { type: [Number, String], default: 100 },
-  height: { type: [Number, String], default: 100 },
-  radius: { type: [Number, String], default: 8 },
-  errorText: { type: String, default: "图片加载失败" },
+  media: { type: Array, default: () => [] },
+  width: { type: [Number, String], default: "" },
+  height: { type: [Number, String], default: "" },
+  radius: { type: [Number, String], default: "6px" },
+  errorText: { type: String, default: "加载失败" },
   disableLazy: { type: Boolean, default: false },
 });
 
-const emits = defineEmits([
-  "load",
-  "error",
-  "preview-open",
-  "preview-close",
-  "preview-error",
-]);
-// 预览弹窗核心状态
-const status = ref("loading");
-const imgContainerRef = ref(null);
-const observer = ref(null);
-// 预览弹窗核心状态
-const previewVisible = ref(false);
-const currentPreviewIndex = ref(props.index);
-const isPreviewLoading = ref(false);
-const isPreviewError = ref(false);
-const currentPreviewSrc = ref(""); // 直接存当前预览图URL，取消computed避免响应式问题
-// 图片操作状态
-const zoomScale = ref(1); // 缩放比例
-const rotateDeg = ref(0); // 旋转角度
-const flipHorizontal = ref(false); // 水平翻转
-const flipVertical = ref(false); // 垂直翻转
+const emits = defineEmits(["load", "error", "preview-open", "preview-close"]);
 
-// 超时相关配置
-const loadTimeoutTimer = ref(null); // 超时定时器
-const MAX_RETRY_COUNT = 2; // 最大重试次数
-const LOAD_TIMEOUT = 8000; // 超时时间8秒
-const retryCountMap = shallowRef(new Map()); // 记录每张图片的重试次数
+// 布局计算
+const imageLayout = computed(() => {
+  const len = props.media?.length || 0;
+  if (len === 1) return "single";
+  if (len === 2 || len === 4) return "grid2";
+  if (len >= 3) return "grid3";
+  return "";
+});
 
-const previewImgCache = shallowRef(new Map());
-// 页面刷新标记：刷新后重新生成，用于清除浏览器缓存
-if (!window._imgRefreshFlag) {
-  window._imgRefreshFlag = Date.now();
-}
+const imageLayoutClass = computed(() => `layout-${imageLayout.value}`);
 
-// 生成带缓存控制的URL（刷新加时间戳，缓存命中用原URL）
-const genPreviewUrl = (url) => {
-  if (!url) return "";
-  if (previewImgCache.value.has(url)) {
-    return url; // 有缓存，用原URL复用浏览器缓存
+const gridItemSize = computed(() => {
+  if (props.width && props.height) {
+    return { w: props.width, h: props.height };
   }
-  // 无缓存，加时间戳清除浏览器缓存（仅刷新生效）
-  return `${url}${url.includes("?") ? "&" : "?"}t=${window._imgRefreshFlag}`;
-};
-// 预加载单张图片
-const preloadSingleImg = (url) => {
-  if (!url || previewImgCache.value.has(url)) return;
-  const img = new Image();
-  img.src = genPreviewUrl(url);
-  img.onload = () => previewImgCache.value.set(url, true);
+  const layout = imageLayout.value;
+  if (layout === "single") return { w: "100%", h: "auto" };
+  if (layout === "grid2") return { w: "120px", h: "120px" };
+  if (layout === "grid3") return { w: "120px", h: "120px" };
+  return { w: "100px", h: "100px" };
+});
+
+const gridItemStyle = computed(() => ({
+  width: gridItemSize.value.w,
+  height: gridItemSize.value.h,
+  borderRadius: props.radius,
+}));
+
+// 媒体状态
+const gridMediaList = ref([]);
+
+const initMediaStatus = () => {
+  gridMediaList.value = (props.media || []).map((item) => ({
+    ...item,
+    status: "loading",
+  }));
 };
 
-// 预加载上下张图片
-const preloadNearbyImgs = (currentIdx) => {
-  const { previewList } = props;
-  if (previewList.length <= 1) return;
-  // 下一张
-  const nextIdx = (currentIdx + 1) % previewList.length;
-  preloadSingleImg(previewList[nextIdx]);
-  // 上一张
-  const prevIdx = (currentIdx - 1 + previewList.length) % previewList.length;
-  preloadSingleImg(previewList[prevIdx]);
-};
-
-const preloadImage = (imgUrl) => {
-  if (!imgUrl) {
-    status.value = "error";
-    emits("error", props.index);
-    return;
-  }
-  status.value = "loading";
+const loadImage = (idx) => {
+  const item = gridMediaList.value[idx];
+  if (!item || !item.thumbnail_url) return;
+  item.status = "loading";
   const img = new Image();
-  img.src = imgUrl;
+  img.src = item.thumbnail_url;
   img.onload = () => {
-    status.value = "success";
-    emits("load", props.index);
+    item.status = "success";
+    emits("load", idx);
   };
   img.onerror = () => {
-    status.value = "error";
-    emits("error", props.index);
+    item.status = "error";
+    emits("error", idx);
   };
 };
 
-const initLazyLoad = () => {
-  if (observer.value) {
-    observer.value.disconnect();
-    observer.value = null;
-  }
-  if (
-    props.disableLazy ||
-    !imgContainerRef.value ||
-    !props.src ||
-    !window.IntersectionObserver
-  ) {
-    preloadImage(props.src);
-    return;
-  }
+// 最多显示 9 张，第9张位置用来放 +N
+const displayMax = 9;
 
-  observer.value = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          preloadImage(props.src);
-          observer.value.unobserve(entry.target);
-        }
-      });
-    },
-    { rootMargin: "200px", threshold: 0 }
-  );
+// 实际要渲染的列表
+const displayMedia = computed(() => {
+  const list = gridMediaList.value || [];
+  return list.slice(0, displayMax);
+});
 
-  observer.value.observe(imgContainerRef.value);
-};
+// 是否显示 +N
+const isOverLimit = computed(() => {
+  return (gridMediaList.value?.length || 0) > displayMax;
+});
 
-// 加载超时处理方法
-const handleLoadTimeout = (url) => {
-  if (isPreviewLoading.value && currentPreviewSrc.value.includes(url)) {
-    isPreviewLoading.value = false;
-    isPreviewError.value = true;
-    // 超时累加重试次数
-    const currentRetry = retryCountMap.value.get(url) || 0;
-    retryCountMap.value.set(url, currentRetry + 1);
-    emits("preview-error", currentPreviewIndex.value, "图片加载超时");
-  }
-};
+// 超出数量
+const exceedCount = computed(() => {
+  return (gridMediaList.value?.length || 0) - displayMax;
+});
 
-//  打开预览弹窗
-const handleImageClick = () => {
-  if (props.previewList.length === 0) return;
+// 预览
+const previewVisible = ref(false);
+const currentPreviewIndex = ref(0);
+const isPreviewLoading = ref(false);
+const isPreviewError = ref(false);
+
+const zoomScale = ref(1);
+const rotateDeg = ref(0);
+const flipHorizontal = ref(false);
+const flipVertical = ref(false);
+
+const currentPreviewItem = computed(() => {
+  return props.media?.[currentPreviewIndex.value] || {};
+});
+
+const handleImageClick = (idx) => {
+  currentPreviewIndex.value = idx;
   previewVisible.value = true;
-  const targetIdx = Math.min(props.index, props.previewList.length - 1);
-  currentPreviewIndex.value = targetIdx;
-  const targetUrl = props.previewList[targetIdx];
-  currentPreviewSrc.value = genPreviewUrl(targetUrl);
-  // 判断缓存，控制加载动画
-  isPreviewLoading.value = !previewImgCache.value.has(targetUrl);
+  isPreviewLoading.value = true;
   isPreviewError.value = false;
-
-  // 启动超时定时器
-  if (loadTimeoutTimer.value) clearTimeout(loadTimeoutTimer.value);
-  if (isPreviewLoading.value) {
-    loadTimeoutTimer.value = setTimeout(() => {
-      handleLoadTimeout(targetUrl);
-    }, LOAD_TIMEOUT);
-  }
-
-  // 预加载上下张
-  preloadNearbyImgs(targetIdx);
-
-  emits("preview-open", targetIdx);
-};
-
-// 关闭预览弹窗
-const handleClosePreview = () => {
-  previewVisible.value = false;
-  isPreviewError.value = false;
-  // 重置图片操作状态
   zoomScale.value = 1;
   rotateDeg.value = 0;
   flipHorizontal.value = false;
   flipVertical.value = false;
-  
-  //清除超时定时器+重置重试次数
-  if (loadTimeoutTimer.value) {
-    clearTimeout(loadTimeoutTimer.value);
-    loadTimeoutTimer.value = null;
-  }
-  const currentUrl = props.previewList[currentPreviewIndex.value];
-  if (currentUrl) retryCountMap.value.delete(currentUrl);
-  
+  emits("preview-open", idx);
+};
+
+const handleClosePreview = () => {
+  previewVisible.value = false;
   emits("preview-close");
 };
 
-// 切换图片时精准控制加载状态
 const handlePrevImg = () => {
-  const newIdx =
-    (currentPreviewIndex.value - 1 + props.previewList.length) % props.previewList.length;
-  currentPreviewIndex.value = newIdx;
-  const newUrl = props.previewList[newIdx];
-  if (!newUrl) return;
-  
-  // 先赋值URL，再控制状态
-  currentPreviewSrc.value = genPreviewUrl(newUrl);
-  isPreviewLoading.value = !previewImgCache.value.has(newUrl);
+  currentPreviewIndex.value =
+    (currentPreviewIndex.value - 1 + props.media.length) % props.media.length;
+  isPreviewLoading.value = true;
   isPreviewError.value = false;
-
-  // 启动超时定时器
-  if (loadTimeoutTimer.value) clearTimeout(loadTimeoutTimer.value);
-  if (isPreviewLoading.value) {
-    loadTimeoutTimer.value = setTimeout(() => {
-      handleLoadTimeout(newUrl);
-    }, LOAD_TIMEOUT);
-  }
-
-  preloadNearbyImgs(newIdx);
 };
 
-// 切换下一张同理
 const handleNextImg = () => {
-  const newIdx = (currentPreviewIndex.value + 1) % props.previewList.length;
-  currentPreviewIndex.value = newIdx;
-  const newUrl = props.previewList[newIdx];
-  if (!newUrl) return;
-  
-  // 先赋值URL，再控制状态
-  currentPreviewSrc.value = genPreviewUrl(newUrl);
-  isPreviewLoading.value = !previewImgCache.value.has(newUrl);
+  currentPreviewIndex.value = (currentPreviewIndex.value + 1) % props.media.length;
+  isPreviewLoading.value = true;
   isPreviewError.value = false;
-
-  // 启动超时定时器
-  if (loadTimeoutTimer.value) clearTimeout(loadTimeoutTimer.value);
-  if (isPreviewLoading.value) {
-    loadTimeoutTimer.value = setTimeout(() => {
-      handleLoadTimeout(newUrl);
-    }, LOAD_TIMEOUT);
-  }
-
-  preloadNearbyImgs(newIdx);
 };
 
-// 预览图加载成功：关闭加载动画，存入缓存
 const handlePreviewImgLoad = () => {
-  // 清除超时定时器
-  if (loadTimeoutTimer.value) {
-    clearTimeout(loadTimeoutTimer.value);
-    loadTimeoutTimer.value = null;
-  }
-  
   isPreviewLoading.value = false;
   isPreviewError.value = false;
-  const currentUrl = props.previewList[currentPreviewIndex.value];
-  previewImgCache.value.set(currentUrl, true);
-  retryCountMap.value.delete(currentUrl); // 加载成功清空重试次数
-
-  const MAX_CACHE_SIZE = 50;
-  if (previewImgCache.value.size > MAX_CACHE_SIZE) {
-    // 删除最早加入的缓存
-    const firstKey = previewImgCache.value.keys().next().value;
-    previewImgCache.value.delete(firstKey);
-  }
 };
 
-// 预览图加载失败：关闭加载动画，标记错误
 const handlePreviewImgError = () => {
-  // 清除超时定时器
-  if (loadTimeoutTimer.value) {
-    clearTimeout(loadTimeoutTimer.value);
-    loadTimeoutTimer.value = null;
-  }
-  
   isPreviewLoading.value = false;
   isPreviewError.value = true;
-  
-  // 重试次数判断，超过上限则剔除缓存
-  const currentUrl = props.previewList[currentPreviewIndex.value];
-  const currentRetry = retryCountMap.value.get(currentUrl) || 0;
-  if (currentRetry >= MAX_RETRY_COUNT) {
-    previewImgCache.value.delete(currentUrl); // 剔除失效缓存
-    retryCountMap.value.delete(currentUrl);
-  } else {
-    retryCountMap.value.set(currentUrl, currentRetry + 1);
-  }
-  
-  emits("preview-error", currentPreviewIndex.value);
 };
 
-// 脚本：新增重试方法
 const reloadPreviewImg = () => {
-  const currentUrl = props.previewList[currentPreviewIndex.value];
-  if (!currentUrl) return;
-  
-  // 移除失败的缓存，强制重新加载
-  previewImgCache.value.delete(currentUrl);
-  // 重新生成URL（加时间戳）
-  currentPreviewSrc.value = genPreviewUrl(currentUrl);
-  // 重置状态
   isPreviewError.value = false;
   isPreviewLoading.value = true;
-
-  // 启动重试超时定时器
-  if (loadTimeoutTimer.value) clearTimeout(loadTimeoutTimer.value);
-  loadTimeoutTimer.value = setTimeout(() => {
-    handleLoadTimeout(currentUrl);
-  }, LOAD_TIMEOUT);
 };
 
-// 滚轮缩放
-const handleWheelZoom = (e) => {
-  e.deltaY < 0 ? handleZoomIn() : handleZoomOut();
-};
-
-// 放大
-const handleZoomIn = () => {
-  if (zoomScale.value >= 3) return;
-  zoomScale.value += 0.2;
-};
-
-// 缩小
-const handleZoomOut = () => {
-  if (zoomScale.value <= 0.3) return;
-  zoomScale.value -= 0.2;
-};
-
-const handleRotate = () => {
-  rotateDeg.value = rotateDeg.value + 90;
-};
-
-const handleFlipHorizontal = () => {
-  flipHorizontal.value = !flipHorizontal.value;
-};
-
-const handleFlipVertical = () => {
-  flipVertical.value = !flipVertical.value;
-};
+const handleWheelZoom = (e) => (e.deltaY < 0 ? handleZoomIn() : handleZoomOut());
+const handleZoomIn = () => (zoomScale.value = Math.min(3, zoomScale.value + 0.2));
+const handleZoomOut = () => (zoomScale.value = Math.max(0.3, zoomScale.value - 0.2));
+const handleRotate = () => (rotateDeg.value += 90);
+const handleFlipHorizontal = () => (flipHorizontal.value = !flipHorizontal.value);
 
 const handleDownload = () => {
-  const rawUrl = currentPreviewSrc.value.split("?")[0];
-  if (!rawUrl) {
-    alert("图片地址无效，无法下载");
-    return;
-  }
-
-  try {
-    const a = document.createElement("a");
-    a.href = rawUrl;
-    a.download = `image-${currentPreviewIndex.value + 1}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    // 修复：仅当是blob URL时才释放
-    if (rawUrl.startsWith("blob:")) {
-      URL.revokeObjectURL(a.href);
-    }
-  } catch (e) {
-    // 兼容跨域/无法下载的情况
-    alert("当前图片无法直接下载，可右键图片选择“图片另存为”");
-    console.warn("下载失败：", e);
-  }
+  const url = currentPreviewItem.value?.row_url || currentPreviewItem.value?.preview_url;
+  if (!url) return;
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = currentPreviewItem.value?.id || `image`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 };
 
 onMounted(() => {
-  initLazyLoad();
-});
-
-onUnmounted(() => {
-  if (observer.value) {
-    observer.value.disconnect();
-    observer.value = null;
-  }
-  // 组件卸载清除定时器和重试记录
-  if (loadTimeoutTimer.value) {
-    clearTimeout(loadTimeoutTimer.value);
-    loadTimeoutTimer.value = null;
-  }
-  retryCountMap.value.clear();
+  initMediaStatus();
+  gridMediaList.value.forEach((_, idx) => loadImage(idx));
 });
 
 watch(
-  () => props.src,
-  (newSrc) => {
-    if (!newSrc || !imgContainerRef.value) return;
-    setTimeout(() => {
-      initLazyLoad();
-    }, 0);
+  () => props.media,
+  () => {
+    initMediaStatus();
+    gridMediaList.value.forEach((_, idx) => loadImage(idx));
   },
-  { immediate: true, deep: true }
+  { deep: true }
 );
 
-// 动画钩子函数
 const onBeforeEnter = (el) => {
-  el.style.transform = "translateY(-50px)";
+  el.style.transform = "translateY(-30px)";
   el.style.opacity = "0";
   el.querySelector(".modal-mask").style.opacity = "0";
 };
-
 const onAfterEnter = (el) => {
   el.style.transform = "translateY(0)";
   el.style.opacity = "1";
   el.querySelector(".modal-mask").style.opacity = "1";
 };
-
 const onBeforeLeave = (el) => {
-  el.style.transform = "translateY(-50px)";
+  el.style.transform = "translateY(-30px)";
   el.style.opacity = "0";
   el.querySelector(".modal-mask").style.opacity = "0";
 };
-
-const onAfterLeave = () => {
-  previewVisible.value = false;
-  isPreviewError.value = false;
-  emits("preview-close");
-};
+const onAfterLeave = () => {};
 </script>
 
 <style scoped>
-.custom-image {
-  position: relative;
-  cursor: pointer;
-  overflow: hidden;
-  background-color: #f5f5f5;
-  transition: transform 0.2s ease;
-}
-.custom-image:hover {
-  transform: scale(1.02);
+/* 布局容器 */
+.image-grid-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.loading {
-  position: absolute;
-  top: 0;
-  left: 0;
+/* 1张：自适应 */
+.layout-single .grid-item {
+  width: auto;
+  height: auto;
+  max-width: 380px;
+  max-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.layout-single .grid-item img {
   width: 100%;
   height: 100%;
+  object-fit: contain;
+  max-width: 380px;
+  max-height: 280px;
+}
+
+/* 2/4张：120px 四宫格 */
+.layout-grid2 {
+  display: grid !important;
+  grid-template-columns: repeat(2,  1fr);
+}
+.layout-grid2 .grid-item {
+  width: 120px;
+  height: 120px;
+}
+
+/* 3/≥5张：100px 三列 */
+.layout-grid3 {
+  display: grid !important;
+  grid-template-columns: repeat(3,  1fr);
+}
+.layout-grid3 .grid-item {
+  width: 100px;
+  height: 100px;
+}
+
+/* 网格项 */
+.grid-item {
+  position: relative;
+  overflow: hidden;
+  background: #f5f5f5;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.grid-item:hover {
+  transform: scale(1.02);
+}
+.grid-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 第九张遮罩 */
+.more-mask {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 1rem;
+  z-index: 1;
+}
+/* 加载 */
+.loading {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2;
 }
-
 .spinner {
   width: 20px;
   height: 20px;
@@ -559,14 +418,12 @@ const onAfterLeave = () => {
   }
 }
 
+/* 错误 */
 .error {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: #979797;
-  color: #3b3b3b;
+  inset: 0;
+  background-color: #e6e6e6;
+  color: #666;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -574,19 +431,7 @@ const onAfterLeave = () => {
   z-index: 2;
 }
 
-.img {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  border: none;
-  margin: 0;
-  padding: 0;
-  z-index: 1;
-}
-
-/* 预览弹窗样式 */
+/* 预览弹窗 */
 .preview-modal {
   position: fixed;
   top: 0;
@@ -608,10 +453,9 @@ const onAfterLeave = () => {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: rgba(0, 0, 0, 0.6);
   z-index: 1;
   transition: opacity 0.25s ease-out;
-  pointer-events: auto;
 }
 
 .preview-controls {
@@ -628,16 +472,12 @@ const onAfterLeave = () => {
   position: absolute;
   top: 20px;
   left: 20px;
-  color: #ffffff;
+  color: #fff;
   font-size: 16px;
   padding: 8px 16px;
   border-radius: 4px;
   opacity: 0.8;
-  transition: opacity 0.2s ease;
   pointer-events: auto;
-}
-.preview-page-index:hover {
-  opacity: 1;
 }
 
 .preview-close-btn {
@@ -647,24 +487,21 @@ const onAfterLeave = () => {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background-color: rgba(50, 50, 50, 0.5);
-  color: #ffffff;
+  background: rgba(50, 50, 50, 0.5);
+  color: #fff;
   border: none;
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0.8;
-  transition: all 0.2s ease;
+  cursor: pointer;
+  transition: all 0.2s;
   pointer-events: auto;
 }
 .preview-close-btn:hover {
   opacity: 1;
-  background-color: rgba(50, 50, 50, 0.6);
+  background: rgba(50, 50, 50, 0.6);
   transform: scale(1.05);
-}
-.preview-close-btn svg {
-  fill: #ffffff;
 }
 
 .preview-nav-btn {
@@ -674,29 +511,26 @@ const onAfterLeave = () => {
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  background-color: rgba(50, 50, 50, 0.5);
-  color: #ffffff;
+  background: rgba(50, 50, 50, 0.5);
+  color: #fff;
   border: none;
-  cursor: pointer;
-  font-size: 24px;
-  font-weight: bold;
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0.8;
-  transition: all 0.2s ease;
+  cursor: pointer;
+  transition: all 0.2s;
   pointer-events: auto;
 }
-
 .preview-nav-btn:hover {
   opacity: 1;
-  background-color: rgba(50, 50, 50, 0.6);
+  background: rgba(50, 50, 50, 0.6);
   transform: translateY(-50%) scale(1.05);
 }
-.preview-nav-btn.prev-btn {
+.prev-btn {
   left: 20px;
 }
-.preview-nav-btn.next-btn {
+.next-btn {
   right: 20px;
 }
 
@@ -716,8 +550,6 @@ const onAfterLeave = () => {
   max-height: 90vh;
   object-fit: contain;
   transform-origin: center;
-  min-width: 100px;
-  min-height: 100px;
 }
 
 .preview-loading {
@@ -728,122 +560,74 @@ const onAfterLeave = () => {
   width: 50px;
   height: 50px;
   z-index: 10;
-  opacity: 1;
-  transition: opacity 0.2s ease;
 }
-
+.preview-spinner {
+  width: 50px;
+  height: 50px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid #fff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
 .preview-loading.hidden {
   opacity: 0;
   pointer-events: none;
 }
 
-.preview-spinner {
-  width: 50px;
-  height: 50px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  border-top: 3px solid #ffffff;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
 .preview-img-error {
   width: 300px;
   height: 300px;
-  background-color: #f5f5f5; 
+  background: #f5f5f5;
   color: #666;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  opacity: 0.9;
-  border-radius: 8px; 
-  font-size: 14px;
-  cursor: pointer; 
-  transition: background-color 0.2s ease;
-  text-align: center;
-  padding: 20px;
-  box-sizing: border-box;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.preview-img-error:hover {
+  background: #eee;
 }
 
-.preview-img-error:hover {
-  background-color: #eee;
-}
-/* 底部工具栏样式 */
+/* 底部工具栏 */
 .preview-toolbar {
   position: absolute;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   left: 50%;
   bottom: 30px;
-  transform: translate(-50%);
-  height: 44px;
-  background-color: rgba(50, 50, 50, 0.5);
-  padding: 0px 23px;
-  border-color: rgb(255, 255, 255);
-  border-radius: 22px;
-  padding: 12px 20px;
+  transform: translateX(-50%);
   display: flex;
+  align-items: center;
   gap: 16px;
-  transition: opacity 0.2s ease;
+  background: rgba(50, 50, 50, 0.5);
+  padding: 12px 20px;
+  border-radius: 22px;
   pointer-events: auto;
 }
-
 .tool-btn {
-  background-color: transparent;
+  background: none;
   border: none;
-  color: #ffffff;
+  color: #fff;
   cursor: pointer;
-  transition: background-color 0.2s ease;
 }
 
-/* 移动端适配 */
+/* 移动端 */
 @media (max-width: 768px) {
-  .preview-page-index {
-    top: 15px;
-    left: 15px;
-    font-size: 14px;
-    padding: 6px 12px;
-  }
-
   .preview-close-btn {
-    top: 15px;
-    right: 15px;
     width: 36px;
     height: 36px;
   }
-
   .preview-nav-btn {
-    width: 48px;
-    height: 48px;
-    font-size: 20px;
+    width: 40px;
+    height: 40px;
   }
-
-  .preview-nav-btn.prev-btn {
-    left: 15px;
-  }
-
-  .preview-nav-btn.next-btn {
-    right: 15px;
-  }
-
-  .preview-img-error {
-    width: 200px;
-    height: 200px;
-    font-size: 14px;
-  }
-
   .preview-toolbar {
     gap: 12px;
     padding: 10px 16px;
   }
-  .tool-btn {
-    font-size: 12px;
-    padding: 6px 10px;
-  }
-
-  .preview-spinner {
-    width: 40px;
-    height: 40px;
+  .preview-img-error {
+    width: 200px;
+    height: 200px;
   }
 }
 </style>
