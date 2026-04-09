@@ -134,6 +134,31 @@ const mockData = [
       'user:block',
     ]
   },
+  {
+    token: "token-AAA",
+    user: {
+      id: 6,
+      name: "AAA",
+      username: "AAA",
+      nameColor: "#ff6699",
+      primaryRole: "vip",
+      avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
+      badge: "",
+      ornament: "",
+      age: 18,
+      email: "1063627264@qq.com",
+      sex: 0,
+      phone: 18579204655,
+    },
+    roles: [
+      "vip"
+    ],
+    permissions: [
+      'comment:report',
+      'post:create',
+      'user:block',
+    ]
+  },
 ]
 
 
@@ -144,6 +169,7 @@ const mockToken = {
   'token-张三': { username: '张三', sub: 3 },
   'token-李四': { username: '李四', sub: 4 },
   'token-王五': { username: '王五', sub: 5 },
+  'token-AAA': { username: 'AAA', sub: 6 },
 }
 
 export function mockLogin({ data }) {

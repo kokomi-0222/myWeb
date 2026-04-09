@@ -96,7 +96,7 @@ const handleGlobalSearch = (value) => {
   /*   flex: 1; */
   width: 200px;
   min-width: 180px;
-  height: 100vh;
+  height: auto;
   margin-top: -6px;
   border-top: none;
   border: 1px solid var(--border-color);

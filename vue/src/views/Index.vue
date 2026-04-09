@@ -86,30 +86,37 @@ import {
   nextTick,
 } from "vue";
 
-// ========== 状态 ==========
+// ========== 分类 ==========
 const sortOptions = [
   { label: "更新", sortBy: "update" },
   { label: "浏览", sortBy: "views" },
   { label: "点赞", sortBy: "likes" },
   { label: "评论", sortBy: "comments" },
 ];
-
+//帖子信息
+const posts = reactive({
+  list: [],
+  total: 0,
+  currentPage: 1,
+  pageSize: setting.postsPageSize || 10,
+  loading: false,
+});
+//分类选项
 const currentSort = ref(null);
-const mainView = ref(null);
+//是否使用分页模式
 const shouldShowPagination = computed(
   () => setting.showPagination && !posts.loading && posts.list.length > 0
 );
-
+//主视角定位，选择页面后可回到开头 分页模式使用
+const mainView = ref(null);
+// 是否还能加载更多（用于无限滚动）
+const hasMore = computed(() => {
+  return posts.list.length < posts.total;
+});
 // ========== 处理全局搜索 ==========
 const searchParams = reactive({
   keyword: "",
   type: "",
-});
-
-// 暴露给 loadPosts 使用
-const getSearchParams = () => ({
-  keyword: searchParams.keyword.trim(),
-  type: searchParams.type,
 });
 
 // 搜索触发函数
@@ -127,19 +134,6 @@ const handleGlobalSearch = ({ keyword, type }) => {
   loadPosts();
 };
 
-const posts = reactive({
-  list: [],
-  total: 0,
-  currentPage: 1,
-  pageSize: setting.postsPageSize || 10,
-  loading: false,
-});
-
-// 是否还能加载更多（用于无限滚动）
-const hasMore = computed(() => {
-  return posts.list.length < posts.total;
-});
-
 // ========== 加载逻辑 ==========
 const loadPosts = async (isLoadMore = false) => {
   if (isLoadMore) {
@@ -155,8 +149,8 @@ const loadPosts = async (isLoadMore = false) => {
       targetPage,
       posts.pageSize,
       currentSort.value,
-      getSearchParams().keyword,
-      getSearchParams().type
+      searchParams.keyword,
+      searchParams.type
     );
 
     if (setting.successCode.includes(res.code)) {
@@ -304,7 +298,6 @@ const handleDelete = (postId) => {};
   height: 100%;
   max-width: 800px;
   min-height: 100vh;
-
 }
 
 .sort-bar {
@@ -313,11 +306,11 @@ const handleDelete = (postId) => {};
   justify-content: flex-end;
   background: var(--bg-primary);
   font-size: 0.9rem;
-  border-radius: 8px;
-  padding: 6px 20px;
-  margin-bottom: 4px;
+  border-radius: 4px;
+  padding: 3px 20px;
+  margin-bottom: 8px;
   border: 1px solid var(--border-color);
-  box-shadow: 0 4px 12px var(--box-shadow);
+/*   box-shadow: 0 4px 12px var(--box-shadow); */
   transition: background-color 0.7s ease, color 0.7s ease;
 }
 
@@ -338,9 +331,10 @@ const handleDelete = (postId) => {};
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-left: 5px;
   gap: 10px;
-  margin-right: 10px;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
 }
 
 .sort-content a {
@@ -357,6 +351,7 @@ const handleDelete = (postId) => {};
 
 .sort-content li {
   list-style: none;
+  padding:0px;
 }
 
 .posts-content {
@@ -391,7 +386,7 @@ const handleDelete = (postId) => {};
     display: none !important;
   }
   .app-main {
-    margin-top: 50px !important; 
+    margin-top: 50px !important;
     padding: 0;
   }
 }

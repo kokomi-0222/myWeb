@@ -63,6 +63,11 @@
         </div>
         <!-- 右侧功能按钮组 -->
         <div class="toolbar-right">
+          <!-- 字数显示 -->
+          <div class="word-count">
+            <span>{{ currentContentLength }}</span>
+          </div>
+          <div class="word-divider"></div>
           <!-- 发送按钮 -->
           <Button
             class="comment-submit-button"
@@ -77,14 +82,52 @@
         </div>
       </div>
     </div>
+
+    <div class="user-posts">
+      <PostCard
+        v-for="post in userPosts.list"
+        :key="post.id"
+        :post="post"
+        @like="handleLike"
+        @comment="handleComment"
+        @reply="handleReply"
+        @edit="handleEdit"
+        @delete="handleDelete"
+      />
+      <!-- 无限滚动：加载提示 -->
+      <div v-if="!setting.showPagination && userPosts.loading && hasMore" class="loading">
+        加载中...
+      </div>
+
+      <!-- 无限滚动：无更多 -->
+      <div
+        v-if="!setting.showPagination && !hasMore && userPosts.list.length > 0"
+        class="no-more"
+      >
+        已经到底啦！
+      </div>
+
+      <!-- 初始无数据 -->
+      <!-- <div v-if="userPosts.list.length === 0 && !userPosts.loading" class="no-data">暂无发布</div> -->
+    </div>
+    <div v-if="shouldShowPagination" class="posts-pagination">
+      <Pagination
+        :totalItems="userPosts.total"
+        :pageSize="userPosts.pageSize"
+        v-model="userPosts.currentPage"
+        @change="handlePageChange"
+      />
+    </div>
   </div>
 </template>
 
 <script setup>
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, reactive, onMounted, onBeforeUnmount } from "vue";
 import setting from "@/config/setting";
+import { getUserPosts } from "@/api/posts";
+
 const uiStore = useUIStore();
 const userStore = useUserStore();
 const id = `input-${Math.random().toString(36).substring(2, 11)}`;
@@ -129,6 +172,11 @@ function handleTitleInput() {
 
 const textareaRef = ref(null);
 const publishingContentInnerValue = ref("");
+
+const currentContentLength = computed(() => {
+  return publishingContentInnerValue.value.length;
+});
+
 // 输入事件处理（自适应高度）
 const handleContentInput = () => {
   if (textareaRef.value) {
@@ -151,6 +199,134 @@ function handleImageChange(files) {
 }
 
 const handleSubmit = async () => {};
+
+//用户帖子记录
+const userPosts = reactive({
+  list: [],
+  total: 0,
+  currentPage: 1,
+  pageSize: setting.postsPageSize || 10,
+  loading: false,
+});
+
+//是否使用分页模式
+const shouldShowPagination = computed(
+  () => setting.showPagination && !userPosts.loading && userPosts.list.length > 0
+);
+//主视角定位，选择页面后可回到开头
+const mainView = ref(null);
+// 是否还能加载更多（用于无限滚动）
+const hasMore = computed(() => {
+  return userPosts.list.length < userPosts.total;
+});
+
+//搜索参数
+const searchParams = reactive({
+  keyword: "",
+  type: "",
+});
+
+// 搜索触发函数
+const handleSearch = ({ keyword, type }) => {
+  // 更新搜索参数
+  searchParams.keyword = keyword?.trim() || "";
+  searchParams.type = type || "";
+  // 重置分页状态
+  userPosts.currentPage = 1;
+  userPosts.list = [];
+  userPosts.total = 0;
+  // 重新加载（带搜索参数）
+  loadPosts();
+};
+
+// ========== 加载逻辑 ==========
+const loadPosts = async (isLoadMore = false) => {
+  if (isLoadMore) {
+    if (userPosts.loading || !hasMore.value) return;
+  }
+
+  userPosts.loading = true;
+  //下一页
+  const targetPage = isLoadMore ? userPosts.currentPage + 1 : userPosts.currentPage;
+
+  try {
+    const res = await getUserPosts(
+      targetPage,
+      userPosts.pageSize,
+      "",
+      searchParams.keyword,
+      searchParams.type
+    );
+
+    if (setting.successCode.includes(res.code)) {
+      const newPosts = res.data.list || [];
+      const newTotal = res.data.total || 0;
+      //console.log(res.data);
+      if (isLoadMore) {
+        userPosts.list.push(...newPosts);
+        userPosts.currentPage += 1; // 已成功加载下一页
+      } else {
+        userPosts.list = newPosts;
+        userPosts.total = newTotal;
+        userPosts.currentPage = 1; // 重置为第 1 页
+      }
+    }
+  } catch (error) {
+    console.error("加载失败:", error);
+  } finally {
+    userPosts.loading = false;
+  }
+};
+
+// ========== 分页器 ==========
+const handlePageChange = (page) => {
+  userPosts.currentPage = page;
+  loadPosts();
+  nextTick(() => {
+    mainView.value?.scrollIntoView({ behavior: "smooth" });
+  });
+};
+
+// ========== Window 滚动监听（仅无限滚动模式） ==========
+let ticking = false;
+const onScroll = () => {
+  if (!ticking && !setting.showPagination) {
+    requestAnimationFrame(() => {
+      const scrollTop = window.scrollY;
+      const scrollHeight = document.documentElement.scrollHeight;
+      const clientHeight = window.innerHeight;
+
+      // 距离底部 < 200px 触发加载（比 100 更宽松，体验更好）
+      if (scrollHeight - scrollTop - clientHeight < 200) {
+        loadPosts(true); // isLoadMore = true
+      }
+      ticking = false;
+    });
+    ticking = true;
+  }
+};
+
+// ========== 生命周期 ==========
+onMounted(() => {
+  // 首次加载（不分页模式还是无限滚动都走这里）
+  loadPosts();
+
+  // 只有无限滚动模式才监听 window scroll
+  if (!setting.showPagination) {
+    window.addEventListener("scroll", onScroll);
+  }
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("scroll", onScroll);
+});
+
+// ========== 事件处理 ==========
+const handleLike = (postId) => {};
+const handleComment = (postId) => {};
+const handleReply = (postId, commentId) => {};
+const handleEdit = (postId) => {};
+const handleDelete = (postId) => {};
 </script>
 
 <style scoped>
@@ -158,6 +334,7 @@ const handleSubmit = async () => {};
   width: 100%;
   height: 100%;
   padding: 20px;
+  --content-with: 700px;
 }
 
 .user-info {
@@ -197,7 +374,7 @@ const handleSubmit = async () => {};
 }
 
 .publishing {
-  width: 600px;
+  width: var(--content-with);
   height: 100%;
   margin-top: 20px;
   padding: 20px;
@@ -227,7 +404,7 @@ const handleSubmit = async () => {};
 }
 
 .input-title {
-  width: 400px;
+  width: 100%;
   border: none;
   outline: none;
   font-size: 1rem;
@@ -256,11 +433,12 @@ const handleSubmit = async () => {};
 }
 
 .title-limit {
-  margin-left: 30px;
+  margin-left: 10px;
+  margin-right: 40px;
   color: var(--text-secondary);
   font-size: 0.8rem;
   height: 24px;
-  line-height: 24px; /* 关键 */
+  line-height: 24px;
   display: flex;
   align-items: center;
 }
@@ -320,6 +498,25 @@ const handleSubmit = async () => {};
   gap: 8px;
 }
 
+.word-count {
+  margin-left: 10px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  height: 24px;
+  line-height: 24px;
+  display: flex;
+  align-items: center;
+}
+
+.word-divider {
+  display: inline-block;
+  height: 14px;
+  margin: 0px 10px 0px 5px;
+  border-left: solid 1px var(--text-secondary);
+  vertical-align: -2px;
+  opacity: 0.5;
+}
+
 /*发布按钮*/
 .comment-submit-button {
   width: 65px;
@@ -327,4 +524,29 @@ const handleSubmit = async () => {};
   border-radius: 4px;
   font-weight: 500;
 }
+
+/* 个人帖子 */
+.user-posts {
+  margin-top: 40px;
+  width: var(--content-with);
+  height: 100%;
+}
+
+
+.posts-content {
+  padding: 10px 20px;
+}
+
+.posts-pagination {
+  padding: 12px;
+}
+
+.loading,
+.no-more,
+.no-data {
+  text-align: center;
+  padding: 16px;
+  color: #888;
+}
+
 </style>

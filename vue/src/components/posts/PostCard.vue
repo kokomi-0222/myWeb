@@ -245,10 +245,10 @@ const toggleComment = () => {
 .post-card {
   --post-card-align-indent: calc(48px + 18px);
   background: var(--bg-primary);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 16px 20px;
   margin-bottom: 18px;
-  box-shadow: 0 4px 12px var(--box-shadow);
+/*   box-shadow: 0 4px 12px var(--box-shadow); */
   border: 1px solid var(--border-color);
   transition: background-color 0.7s ease, color 0.7s ease;
 }
