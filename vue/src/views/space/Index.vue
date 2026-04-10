@@ -12,7 +12,9 @@
             class="list-item"
             v-for="(menu, index) in menuList"
             :key="menu.key"
-            :class="{ 'is-actived': router.currentRoute.value.path === `/space/${menu.path}` }"
+            :class="{
+              'is-actived': router.currentRoute.value.path === `/space/${menu.path}`,
+            }"
             @click="handleMenuClick(menu.path)"
           >
             <i class="list-item-icon">
@@ -24,6 +26,12 @@
       </aside>
 
       <main class="main-content">
+        <!-- 面包屑 -->
+ <!--        <div class="breadcrumb">
+          <span class="breadcrumb-divider">|</span>
+          <span class="breadcrumb-item active">{{ currentMenuText }}</span>
+        </div> -->
+
         <RouterView />
       </main>
 
@@ -33,7 +41,7 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import IconHome from "@/components/icons/IconHome.vue";
 import IconUser from "@/components/icons/IconUser.vue";
 import IconMessage from "@/components/icons/IconMessage.vue";
@@ -44,6 +52,13 @@ const menuList = [
   { path: "account", text: "账号管理", icon: IconUser },
   { path: "posts", text: "动态管理", icon: IconMessage },
 ];
+
+
+const currentMenuText = computed(() => {
+  const fullPath = router.currentRoute.value.path;
+  const menu = menuList.find((m) => `/space/${m.path}` === fullPath);
+  return menu?.text ?? "首页";
+});
 
 const handleMenuClick = (menuPath) => {
   router.push(menuPath);
@@ -111,16 +126,13 @@ const handleGlobalSearch = (value) => {
   font-weight: 500;
   padding: 15px 40px;
   color: var(--text-secondary);
-  /*   border-bottom: 1px solid var(--border-color); */
-  color: #d62bc4;
-  background-color: #f6d7d7;
+  background-color: var(--bg-secondary);
 }
 
 .sidebar-left-list {
   list-style: none;
   padding: 0;
   margin: 0;
-  /* border-bottom: 1px solid #e1e2e5; */
 }
 
 .list-item {
@@ -130,26 +142,35 @@ const handleGlobalSearch = (value) => {
   gap: 10px;
   padding: 15px 30px;
   cursor: pointer;
-  /*   border-bottom: 1px solid #e1e2e5; */
   user-select: none;
-  color: #d62bc4;
-  background-color: #f6d7d7;
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
 }
 
 .list-item.is-actived {
-  background-color: #e4a98b;
-  color: #d62bc4;
+  background-color: #00A1D7;
+  color: #ffffff;
 }
 
 .list-item:not(.is-actived):hover {
-  background-color: #eec8b5;
-  color: #d62bc4;
+  background-color: var( --bg-hover);
+  color: #424242;
 }
 
 .list-item-icon {
   display: flex;
   align-items: center;
+  color: #bbb;
 }
+
+.list-item.is-actived .list-item-icon{
+  color: #eee;
+  
+} 
+/* .list-item-icon:hover {
+  opacity: 1;
+}
+ */
 
 .sidebar-right {
   flex: 1;
@@ -162,5 +183,39 @@ const handleGlobalSearch = (value) => {
   height: 100%;
   max-width: 800px;
   min-height: 100vh;
+/*   border-right: 1px solid var(--border-color); */
+}
+
+/* 面包屑 */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
+  padding: 0px 20px;
+  margin-bottom: 10px;
+  background: transparent;
+
+/*   border-bottom: 1px solid var(--border-color); */
+
+
+  margin-top: -6px;
+  margin-left: 0px;
+  height:55px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.breadcrumb-item {
+  padding: 0 4px;
+}
+
+.breadcrumb-item.active {
+  font-weight: bold;
+  color: #d62bc4;
+}
+
+.breadcrumb-divider {
+  margin: 0 6px;
+  color: #d62bc4;
 }
 </style>

@@ -55,7 +55,7 @@
         </div>
 
         <!-- 分页器（仅分页模式） -->
-        <div v-if="shouldShowPagination" class="posts-pagination">
+        <div v-show="shouldShowPagination" class="posts-pagination">
           <Pagination
             :totalItems="posts.total"
             :pageSize="posts.pageSize"
@@ -163,7 +163,7 @@ const loadPosts = async (isLoadMore = false) => {
       } else {
         posts.list = newPosts;
         posts.total = newTotal;
-        posts.currentPage = 1; // 重置为第 1 页
+        //posts.currentPage = 1; // 重置为第 1 页
       }
     }
   } catch (error) {
@@ -310,7 +310,7 @@ const handleDelete = (postId) => {};
   padding: 3px 20px;
   margin-bottom: 8px;
   border: 1px solid var(--border-color);
-/*   box-shadow: 0 4px 12px var(--box-shadow); */
+  /*   box-shadow: 0 4px 12px var(--box-shadow); */
   transition: background-color 0.7s ease, color 0.7s ease;
 }
 
@@ -351,7 +351,7 @@ const handleDelete = (postId) => {};
 
 .sort-content li {
   list-style: none;
-  padding:0px;
+  padding: 0px;
 }
 
 .posts-content {

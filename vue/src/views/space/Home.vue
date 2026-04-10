@@ -1,5 +1,6 @@
 <template>
-  <div v-if="userStore.isLogin" class="home">
+  <div ref="mainView"></div>
+  <div  v-if="userStore.isLogin" class="home">
     <div class="user-info">
       <Avatar :src="userStore.user?.avatar" :alt="userStore.user?.name" :size="48" />
       <div class="user-name">
@@ -83,7 +84,7 @@
       </div>
     </div>
 
-    <div class="user-posts">
+    <div  class="user-posts">
       <PostCard
         v-for="post in userPosts.list"
         :key="post.id"
@@ -110,7 +111,7 @@
       <!-- 初始无数据 -->
       <!-- <div v-if="userPosts.list.length === 0 && !userPosts.loading" class="no-data">暂无发布</div> -->
     </div>
-    <div v-if="shouldShowPagination" class="posts-pagination">
+    <div v-show="shouldShowPagination" class="posts-pagination">
       <Pagination
         :totalItems="userPosts.total"
         :pageSize="userPosts.pageSize"
@@ -124,7 +125,7 @@
 <script setup>
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
-import { computed, ref, watch, reactive, onMounted, onBeforeUnmount } from "vue";
+import { computed, ref, watch, reactive, onMounted, onBeforeUnmount,nextTick } from "vue";
 import setting from "@/config/setting";
 import { getUserPosts } from "@/api/posts";
 
@@ -268,7 +269,6 @@ const loadPosts = async (isLoadMore = false) => {
       } else {
         userPosts.list = newPosts;
         userPosts.total = newTotal;
-        userPosts.currentPage = 1; // 重置为第 1 页
       }
     }
   } catch (error) {

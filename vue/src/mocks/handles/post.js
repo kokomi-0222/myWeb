@@ -1,5 +1,5 @@
 // mocks/handlers/post.js
-import {mockGetUserInfo} from "./user";
+import { mockGetUserInfo } from './user'
 let posts = [
   {
     id: '1',
@@ -309,6 +309,146 @@ let posts = [
     commentsCount: 2,
     likedByMe: false,
   },
+  {
+    id: '7',
+    title: '今天去爬山了',
+    tag: ['爬山', '旅游'],
+    content: '<p>云海太美了！</p>',
+    media: [
+      {
+        id: 'media_7_1', // 媒体唯一ID（必加）
+        thumbnail_url: new URL('@/assets/images/kokomi001.jpg', import.meta.url).href, // 缩略图URL（必加）
+        preview_url: new URL('@/assets/images/kokomi001.jpg', import.meta.url).href, // 预览图URL（必加）
+        row_url: new URL('@/assets/images/kokomi001.jpg', import.meta.url).href,
+        type: 'image/jpeg', // 媒体类型（必加）
+        width: 1920, // 原图宽度（必加）
+        height: 1080, // 原图高度（必加）
+        size: 2048000, // 文件大小（字节，推荐加）
+        alt: '云海风景图', // 替代文本（推荐加）
+        orientation: 1, // 图片方向（1=正常，推荐加）
+        format: 'jpeg', // 文件格式（可选加）
+        is_animated: false, // 是否动图（可选加）
+      },
+      ...Array.from({ length: 6 }).map((_, idx) => {
+        const seed = getRandomInt(0, 1000)
+        const { width, height } = getRandomSize()
+        return {
+          id: `media_7_${idx + 2}`,
+          thumbnail_url: `https://picsum.photos/seed/${seed}/100/100`, // 缩略图（小尺寸）
+          preview_url: `https://picsum.photos/seed/${seed}/${width}/${height}`, // 预览图（高清原图尺寸）
+          row_url: `https://picsum.photos/seed/${seed}/${width}/${height}`,
+          type: 'image/jpeg',
+          width,
+          height,
+          size: getRandomFileSize(),
+          alt: `帖子配图${idx + 2}`,
+          orientation: 1,
+          format: 'jpeg',
+          is_animated: false,
+        }
+      }),
+      //错误的url
+      {
+        id: 'media_7_8',
+        thumbnail_url: 'https://picsum.photo123123123_thumb',
+        preview_url: 'https://picsum.photo123123123',
+        row_url: 'https://picsum.photo123123123',
+        type: 'image/jpeg',
+        width: 800,
+        height: 600,
+        size: 102400,
+        alt: '失效的图片',
+        orientation: 1,
+        format: 'jpeg',
+        is_animated: false,
+      },
+    ],
+    author: {
+      id: 1,
+      name: 'kokomi',
+      nameColor: '#e966b2',
+      primaryRole: 'admin',
+      avatar: new URL('@/assets/images/kokomi.jpg', import.meta.url).href,
+      badge: '',
+      ornament: '',
+    },
+    createdAt: '2026-01-05T10:00:00Z',
+    views: 1200,
+    forward: 0,
+    likes: 0,
+    commentsCount: 0,
+    likedByMe: false,
+  },
+  {
+    id: '8',
+    title: '今天去爬山了',
+    tag: ['爬山', '旅游'],
+    content: '<p>云海太美了！</p>',
+    media: [
+      {
+        id: 'media_8_1', // 媒体唯一ID（必加）
+        thumbnail_url: new URL('@/assets/images/kokomi001.jpg', import.meta.url).href, // 缩略图URL（必加）
+        preview_url: new URL('@/assets/images/kokomi001.jpg', import.meta.url).href, // 预览图URL（必加）
+        row_url: new URL('@/assets/images/kokomi001.jpg', import.meta.url).href,
+        type: 'image/jpeg', // 媒体类型（必加）
+        width: 1920, // 原图宽度（必加）
+        height: 1080, // 原图高度（必加）
+        size: 2048000, // 文件大小（字节，推荐加）
+        alt: '云海风景图', // 替代文本（推荐加）
+        orientation: 1, // 图片方向（1=正常，推荐加）
+        format: 'jpeg', // 文件格式（可选加）
+        is_animated: false, // 是否动图（可选加）
+      },
+      ...Array.from({ length: 6 }).map((_, idx) => {
+        const seed = getRandomInt(0, 1000)
+        const { width, height } = getRandomSize()
+        return {
+          id: `media_8_${idx + 2}`,
+          thumbnail_url: `https://picsum.photos/seed/${seed}/100/100`, // 缩略图（小尺寸）
+          preview_url: `https://picsum.photos/seed/${seed}/${width}/${height}`, // 预览图（高清原图尺寸）
+          row_url: `https://picsum.photos/seed/${seed}/${width}/${height}`,
+          type: 'image/jpeg',
+          width,
+          height,
+          size: getRandomFileSize(),
+          alt: `帖子配图${idx + 2}`,
+          orientation: 1,
+          format: 'jpeg',
+          is_animated: false,
+        }
+      }),
+      //错误的url
+      {
+        id: 'media_8_8',
+        thumbnail_url: 'https://picsum.photo123123123_thumb',
+        preview_url: 'https://picsum.photo123123123',
+        row_url: 'https://picsum.photo123123123',
+        type: 'image/jpeg',
+        width: 800,
+        height: 600,
+        size: 102400,
+        alt: '失效的图片',
+        orientation: 1,
+        format: 'jpeg',
+        is_animated: false,
+      },
+    ],
+    author: {
+      id: 1,
+      name: 'kokomi',
+      nameColor: '#e966b2',
+      primaryRole: 'admin',
+      avatar: new URL('@/assets/images/kokomi.jpg', import.meta.url).href,
+      badge: '',
+      ornament: '',
+    },
+    createdAt: '2026-01-05T10:00:00Z',
+    views: 1200,
+    forward: 0,
+    likes: 0,
+    commentsCount: 0,
+    likedByMe: false,
+  },
 ]
 
 export function mockGetPosts({ params }) {
@@ -335,7 +475,7 @@ export function mockGetUserPosts({ headers, params }) {
   console.log(`[MOCK] 类型参数: type=${type}`)
   console.log(`[MOCK] 获取用户token: ${JSON.stringify(headers)}`)
 
-  const res = mockGetUserInfo({'headers':headers})
+  const res = mockGetUserInfo({ headers: headers })
 
   if (res.code !== '200') {
     console.log('[MOCK] 获取用户信息失败')

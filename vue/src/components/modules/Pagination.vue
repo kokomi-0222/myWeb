@@ -72,7 +72,7 @@ const totalPages = computed(() => Math.ceil(props.totalItems / props.pageSize));
 
 const currentPage = ref(props.modelValue);
 const jumpToPage = ref();
-
+//console.log("初始化  currentPage:", currentPage.value);
 // 计算需要展示的页码
 const displayedPages = computed(() => {
   const pages = [];
@@ -115,8 +115,11 @@ const displayedPages = computed(() => {
 const emit = defineEmits(["update:modelValue", "change"]);
 
 function goToPage(page) {
+  //console.log("page:", page);
+  //console.log("currentPage:", currentPage.value);
   if (page !== currentPage.value && page > 0 && page <= totalPages.value) {
     currentPage.value = page;
+    //console.log("currentPage:", currentPage.value);
     emit("update:modelValue", page);
     emit("change", page);
   }

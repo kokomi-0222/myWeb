@@ -13,10 +13,11 @@ const mockData = [
       avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
       badge: "",
       ornament: "",
-      age: 18,
+      birthday: "2010-01-01",
       email: "1063627264@qq.com",
-      sex: 0,
+      gender: "female",
       phone: 18579204655,
+      sign: "菲比啾比",
     },
     roles: [     // 角色表
       'admin',
@@ -45,9 +46,10 @@ const mockData = [
       avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
       badge: "",
       ornament: "",
-      age: 18,
+      birthday: "2010-01-01",
       email: "1063627264@qq.com",
-      sex: 0,
+      signature: "菲比啾比",
+      gender:"female",
       phone: 18579204655,
     },
     roles: [
@@ -72,10 +74,11 @@ const mockData = [
       avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
       badge: "",
       ornament: "",
-      age: 18,
+      birthday: "2010-01-01",
       email: "1063627264@qq.com",
-      sex: 0,
+      gender:"female",
       phone: 18579204655,
+      signature: "菲比啾比",
     },
     roles: [
       "guest"
@@ -95,10 +98,11 @@ const mockData = [
       avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
       badge: "",
       ornament: "",
-      age: 18,
+      birthday: "2010-01-01",
       email: "1063627264@qq.com",
-      sex: 0,
+      gender:"female",
       phone: 18579204655,
+      signature: "菲比啾比",
     },
     roles: [
       "member"
@@ -120,10 +124,11 @@ const mockData = [
       avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
       badge: "",
       ornament: "",
-      age: 18,
+      birthday: "2010-01-01",
       email: "1063627264@qq.com",
-      sex: 0,
+      gender: "female",
       phone: 18579204655,
+      signature: "菲比啾比",
     },
     roles: [
       "vip"
@@ -145,9 +150,9 @@ const mockData = [
       avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
       badge: "",
       ornament: "",
-      age: 18,
+      birthday: "2010-01-01",
       email: "1063627264@qq.com",
-      sex: 0,
+      gender: "female",
       phone: 18579204655,
     },
     roles: [
@@ -159,6 +164,7 @@ const mockData = [
       'user:block',
     ]
   },
+  
 ]
 
 

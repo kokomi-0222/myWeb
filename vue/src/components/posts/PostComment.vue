@@ -23,7 +23,7 @@
         </div>
       </div>
 
-      <!-- 评论列表（B站动态风格） -->
+      <!-- 评论列表 -->
       <ul v-if="comments.length" class="comment-list">
         <li v-for="comment in sortedComments" :key="comment.id" class="comment-item">
           <div class="comment-avatar">
