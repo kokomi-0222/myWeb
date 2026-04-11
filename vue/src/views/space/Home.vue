@@ -26,6 +26,7 @@
           autocomplete="off"
           placeholder="好的标题更容易被人发现哦，选填20字"
           @input="handleTitleInput"
+          :maxlength=setting.postTitleMaxLength
         />
         <div
           v-if="showPublishingTitleClear"
@@ -45,7 +46,7 @@
           v-model="publishingContentInnerValue"
           class="input-content"
           placeholder="写下你的想法吧"
-          maxlength="1000"
+          :maxlength=setting.postMaxLength
           @input="handleContentInput"
         />
         <div ref="previewContainerRef" class="image-preview-content"></div>
@@ -162,14 +163,14 @@ function clearTitleInput() {
 }
 
 //
-function handleTitleInput() {
+/* function handleTitleInput() {
   if (publishingTitleInnerValue.value.length > maxTitleLimit) {
     publishingTitleInnerValue.value = publishingTitleInnerValue.value.slice(
       0,
       maxTitleLimit
     );
   }
-}
+} */
 
 const textareaRef = ref(null);
 const publishingContentInnerValue = ref("");

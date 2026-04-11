@@ -209,7 +209,7 @@ const moreActionsHandle = (action) => {
   // 更好的方式：在 handler 内部调用 API，成功后再 emit
   // 这里我们简单调用，并手动处理 delete
   if (action.key === "delete") {
-    import("element-plus").then(({ ElMessageBox }) => {
+   /*  import("element-plus").then(({ ElMessageBox }) => {
       ElMessageBox.confirm("确定删除这条帖子？", "提示", {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
@@ -220,6 +220,7 @@ const moreActionsHandle = (action) => {
     });
   } else {
     action.handler(props.post);
+  } */
   }
 };
 

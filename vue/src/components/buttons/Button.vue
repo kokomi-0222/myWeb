@@ -72,7 +72,7 @@ function lighten(color, percent) {
 
 /* 默认类型 */
 .my-button--default {
-  --bg-color: #ffffff;
+  --bg-color: #ebebeb;
   --text-color: #606266;
   --hover-bg-color: #f5f5f5;
   --hover-text-color: #404040;

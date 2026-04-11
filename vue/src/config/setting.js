@@ -38,6 +38,14 @@ const setting = {
     postsPageSize: 3,
     //图片大小限制
     imageSize: 1024 * 1024 * 2, //2M
+    //评论最大长度
+    commentMaxLength: 500,
+    //帖子标题最大长度
+    postTitleMaxLength: 20,
+    //帖子最大长度
+    postMaxLength: 1000,
+    //个性签名最大长度
+    signatureMaxLength: 100,
 }
 
 export default setting

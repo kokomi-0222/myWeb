@@ -2,7 +2,6 @@
 import axios from 'axios'
 import setting from '@/config/setting'
 import { getAccessToken, removeAccessToken } from '@/utils/accessToken'
-import { ElMessage } from 'element-plus'
 import {handleMockRequest} from '@/mocks/index'
 
 // ======================
@@ -52,11 +51,11 @@ realService.interceptors.response.use(
   },
   (error) => {
     if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-      ElMessage.error('请求超时')
+      alert('请求超时')
     } else if (!window.navigator.onLine) {
-      ElMessage.error('网络连接失败')
+      alert('网络连接失败')
     } else {
-      ElMessage.error(error.message || '请求异常')
+      alert(error.message || '请求异常')
     }
     return Promise.reject(error)
   }

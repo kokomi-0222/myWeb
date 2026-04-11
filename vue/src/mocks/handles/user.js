@@ -7,7 +7,7 @@ const mockData = [
     user: {
       id: 1,
       name: "kokomi",
-      username: "kokomi",
+      username: "kokomi_00001",
       nameColor: "#e966b2",
       primaryRole: "moderator",
       avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
@@ -16,8 +16,8 @@ const mockData = [
       birthday: "2010-01-01",
       email: "1063627264@qq.com",
       gender: "female",
-      phone: 18579204655,
-      sign: "菲比啾比",
+      phone: "13879204655",
+      signature: "菲比啾比",
     },
     roles: [     // 角色表
       'admin',
@@ -40,17 +40,17 @@ const mockData = [
     user: {
       id: 2,
       name: "admin",
-      username: "admin",
+      username: "kokomi_00002",
       nameColor: "#cf0e0e",
       primaryRole: "admin",
       avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
       badge: "",
       ornament: "",
       birthday: "2010-01-01",
-      email: "1063627264@qq.com",
+      email: "1233@qq.com",
       signature: "菲比啾比",
       gender:"female",
-      phone: 18579204655,
+      phone: "",
     },
     roles: [
       "admin"
@@ -68,16 +68,16 @@ const mockData = [
     user: {
       id: 3,
       name: "张三",
-      username: "张三",
+      username: "kokomi_00003",
       nameColor: "#636161",
       primaryRole: "guest",
       avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
       badge: "",
       ornament: "",
       birthday: "2010-01-01",
-      email: "1063627264@qq.com",
+      email: "233@qq.com",
       gender:"female",
-      phone: 18579204655,
+      phone: "",
       signature: "菲比啾比",
     },
     roles: [
@@ -92,16 +92,16 @@ const mockData = [
     user: {
       id: 4,
       name: "李四",
-      username: "李四",
+      username: "kokomi_00004",
       nameColor: "#242323",
       primaryRole: "member",
       avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
       badge: "",
       ornament: "",
       birthday: "2010-01-01",
-      email: "1063627264@qq.com",
+      email: "433@qq.com",
       gender:"female",
-      phone: 18579204655,
+      phone: "",
       signature: "菲比啾比",
     },
     roles: [
@@ -118,16 +118,16 @@ const mockData = [
     user: {
       id: 5,
       name: "王五",
-      username: "王五",
+      username: "kokomi_00005",
       nameColor: "#ff6699",
       primaryRole: "vip",
       avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
       badge: "",
       ornament: "",
       birthday: "2010-01-01",
-      email: "1063627264@qq.com",
+      email: "545@qq.com",
       gender: "female",
-      phone: 18579204655,
+      phone: "",
       signature: "菲比啾比",
     },
     roles: [
@@ -144,16 +144,16 @@ const mockData = [
     user: {
       id: 6,
       name: "AAA",
-      username: "AAA",
+      username: "kokomi_00006",
       nameColor: "#ff6699",
       primaryRole: "vip",
       avatar: new URL("@/assets/images/kokomi.jpg", import.meta.url).href,
       badge: "",
       ornament: "",
       birthday: "2010-01-01",
-      email: "1063627264@qq.com",
+      email: "",
       gender: "female",
-      phone: 18579204655,
+      phone: "13377778888",
     },
     roles: [
       "vip"
@@ -170,19 +170,31 @@ const mockData = [
 
 
 const mockToken = {
-  'token-kokomi': { username: 'kokomi', sub: 1 },
-  'token-admin': { username: 'admin', sub: 2 },
-  'token-张三': { username: '张三', sub: 3 },
-  'token-李四': { username: '李四', sub: 4 },
-  'token-王五': { username: '王五', sub: 5 },
-  'token-AAA': { username: 'AAA', sub: 6 },
+  'token-kokomi': { username: 'kokomi_00001', sub: 1 },
+  'token-admin': { username: 'kokomi_00002', sub: 2 },
+  'token-张三': { username: 'kokomi_00003', sub: 3 },
+  'token-李四': { username: 'kokomi_00004', sub: 4 },
+  'token-王五': { username: 'kokomi_00005', sub: 5 },
+  'token-AAA': { username: 'kokomi_00006', sub: 6 },
 }
-
 export function mockLogin({ data }) {
-  const { username, password } = data
-  const userItem = mockData.find(item =>
-    item.user.username === username //&&item.user.password === password
-  );
+  // 注意：现在前端传的是 account + password
+  const { account, password } = data;
+  console.log('登录：', account, password);
+  // 没传账号直接返回错误
+  if (!account || !password) {
+    return { code: "401", message: '用户名/手机号/邮箱或密码错误' };
+  }
+
+  // 去 mockData 里匹配：用户名 OR 手机号 OR 邮箱
+  const userItem = mockData.find(item => {
+    const user = item.user;
+    return (
+      user.username === account ||    // 用户名登录
+      user.phone === account ||       // 手机号登录
+      user.email === account          // 邮箱登录
+    );
+  });
 
   if (userItem) {
     return {
@@ -195,9 +207,9 @@ export function mockLogin({ data }) {
       }
     };
   }
-  return { code: "401", message: '用户名或密码错误' }
-}
 
+  return { code: "401", message: '用户名/手机号/邮箱或密码错误' };
+}
 
 
 export function mockGetUserInfo({ headers, data }) {

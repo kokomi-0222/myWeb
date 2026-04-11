@@ -56,6 +56,7 @@
 <script setup>
 import { ref, watch, computed } from "vue";
 import { useUIStore } from "@/stores/ui";
+import setting from '@/config/setting'
 const uiStore = useUIStore();
 
 // 定义组件属性
@@ -73,7 +74,7 @@ const props = defineProps({
   // 最大字数限制
   maxLength: {
     type: Number,
-    default: 500,
+    default: setting.commentMaxLength,
   },
   // 是否禁用
   disabled: {
@@ -282,10 +283,10 @@ const handleSubmit = async () => {
   border: none;
   outline: none;
   resize: none;
-  line-height: 20px;
+  line-height: 24px;
   font-size: 0.9rem;
   color: #333;
-  min-height: 20px;
+  min-height: 24px;
 }
 
 /* 底部工具栏（独立区域） */
