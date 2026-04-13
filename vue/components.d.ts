@@ -46,6 +46,7 @@ declare module 'vue' {
     IconLight: typeof import('./src/components/icons/IconLight.vue')['default']
     IconLike: typeof import('./src/components/icons/IconLike.vue')['default']
     IconLikes: typeof import('./src/components/icons/IconLikes.vue')['default']
+    IconLock: typeof import('./src/components/icons/IconLock.vue')['default']
     IconLogout: typeof import('./src/components/icons/IconLogout.vue')['default']
     IconMessage: typeof import('./src/components/icons/IconMessage.vue')['default']
     IconMore: typeof import('./src/components/icons/IconMore.vue')['default']

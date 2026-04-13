@@ -4,22 +4,21 @@
       <!-- 头像 -->
       <div class="form-item">
         <label>头像:</label>
+
         <div class="avatar-upload">
           <!-- 预览当前头像 -->
-          <div class="avatar-preview">
-            <img :src="userInfo.avatar || '/default-avatar.png'" alt="头像" />
-          </div>
-
+          <Avatar :src="userInfo?.avatar" alt="头像" :size="60" />
           <!-- 上传按钮 -->
-          <el-upload
-            class="avatar-upload-btn"
-            :show-file-list="false"
-            :before-upload="beforeAvatarUpload"
-            :auto-upload="false"
-            @change="handleAvatarChange"
-          >
-            <el-button type="primary" size="small">更换头像</el-button>
-          </el-upload>
+          <Button type="bilibili" class="change-btn" @click="triggerAvatarChange">
+            更换头像
+            <input
+              ref="avatarFileInput"
+              type="file"
+              accept="image/*"
+              hidden
+              @change="handleAvatarChange"
+            />
+          </Button>
         </div>
       </div>
       <!-- 昵称 -->
@@ -104,7 +103,7 @@
 </template>
 
 <script setup>
-import { reactive, onMounted } from "vue";
+import { ref, reactive, onMounted } from "vue";
 import { useUserStore } from "@/stores/user";
 import { message } from "@/utils/message";
 import setting from "@/config/setting";
@@ -142,34 +141,29 @@ const disabledFutureDate = (time) => {
   return time.getTime() > Date.now();
 };
 
+const avatarFileInput = ref(null);
+const avatarFile = ref(null);
 
+//点击触发文件选择
+const triggerAvatarChange = () => {
+  avatarFileInput.value?.click();
+};
 
-// 上传前校验（限制大小、格式）
-const beforeAvatarUpload = (file) => {
-  const isImage = file.type.startsWith('image/')
-  const isLt2M = file.size / 1024 / 1024 < 2
+// 选择头像
+const handleAvatarChange = (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-  if (!isImage) {
-    ElMessage.warning('只能上传图片！')
+  if (file.size > setting.imageSize) {
+    message.warning("头像不能超过 2MB！");
+    e.target.value = ""; // 清空选择
+    return;
   }
-  if (!isLt2M) {
-    ElMessage.warning('头像不能超过 2MB！')
-  }
-  return isImage && isLt2M
-}
 
-// 选择图片后预览
-const handleAvatarChange = (file) => {
-  if (!file.raw) return
-
-  // 本地预览
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    userInfo.value.avatar = e.target.result
-  }
-  reader.readAsDataURL(file.raw)
-}
-
+  avatarFile.value = file;
+  const previewUrl = URL.createObjectURL(file);
+  userInfo.avatar = previewUrl;
+};
 
 // 保存
 const handleSave = () => {
@@ -287,33 +281,9 @@ onMounted(() => {
   border: 1px solid var(--primary-color);
 }
 
-/* 
-.date-input {
-  width: 225px;
-  height: 30px;
-  box-sizing: border-box;
-  padding: 2px 10px;
-  border: 1px solid #c3c6ca;
-  border-radius: 4px;
-  background: #fff;
-  color: #333;
-  font-size: 14px;
-  outline: none;
-}
-
-
-.date-input:focus {
-  border-color: var(--primary-color, #0099ff);
-}
-
-
-.date-input::-webkit-calendar-picker-indicator {
-  opacity: 0.6;
-  cursor: pointer;
-}
- */
 /* 按钮 */
 .btn-row {
+  justify-content: center;
   margin-top: 30px;
 }
 
@@ -327,9 +297,7 @@ onMounted(() => {
 }
 
 .avatar-upload {
-  display: flex;
-  align-items: center;
-  gap: 15px;
+  display: inline-block;
 }
 .avatar-preview {
   width: 60px;
@@ -342,5 +310,47 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.change-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10px;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .account-page {
+    padding: 10px 12px;
+  }
+
+  .account-card {
+    padding: 16px 12px;
+  }
+
+  .form-item {
+    flex-direction: column; /* 竖排：标签在上，输入框在下 */
+    margin-bottom: 20px;
+  }
+
+  .form-item label {
+    text-align: left;
+    margin-bottom: 6px;
+    margin-right: 0;
+  }
+
+  .form-item textarea {
+    width: 100%;
+  }
+
+  .gender-group {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 </style>

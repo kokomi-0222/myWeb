@@ -1,6 +1,6 @@
 <template>
   <div ref="mainView"></div>
-  <div  v-if="userStore.isLogin" class="home">
+  <div v-if="userStore.isLogin" class="home">
     <div class="user-info">
       <Avatar :src="userStore.user?.avatar" :alt="userStore.user?.name" :size="48" />
       <div class="user-name">
@@ -26,7 +26,7 @@
           autocomplete="off"
           placeholder="好的标题更容易被人发现哦，选填20字"
           @input="handleTitleInput"
-          :maxlength=setting.postTitleMaxLength
+          :maxlength="setting.postTitleMaxLength"
         />
         <div
           v-if="showPublishingTitleClear"
@@ -46,7 +46,7 @@
           v-model="publishingContentInnerValue"
           class="input-content"
           placeholder="写下你的想法吧"
-          :maxlength=setting.postMaxLength
+          :maxlength="setting.postMaxLength"
           @input="handleContentInput"
         />
         <div ref="previewContainerRef" class="image-preview-content"></div>
@@ -85,7 +85,7 @@
       </div>
     </div>
 
-    <div  class="user-posts">
+    <div class="user-posts">
       <PostCard
         v-for="post in userPosts.list"
         :key="post.id"
@@ -126,7 +126,15 @@
 <script setup>
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
-import { computed, ref, watch, reactive, onMounted, onBeforeUnmount,nextTick } from "vue";
+import {
+  computed,
+  ref,
+  watch,
+  reactive,
+  onMounted,
+  onBeforeUnmount,
+  nextTick,
+} from "vue";
 import setting from "@/config/setting";
 import { getUserPosts } from "@/api/posts";
 
@@ -198,6 +206,7 @@ const previewContainerRef = ref(null);
 const imageFiles = ref([]);
 function handleImageChange(files) {
   imageFiles.value = files;
+  console.log(files);
 }
 
 const handleSubmit = async () => {};
@@ -336,10 +345,14 @@ const handleDelete = (postId) => {};
   height: 100%;
   padding: 20px;
   --content-with: 700px;
+  max-width: 700px;
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .user-info {
   display: flex;
+  align-items: center;
 }
 
 .user-name {
@@ -376,7 +389,6 @@ const handleDelete = (postId) => {};
 
 .publishing {
   width: var(--content-with);
-  height: 100%;
   margin-top: 20px;
   padding: 20px;
   border-radius: 4px;
@@ -533,7 +545,6 @@ const handleDelete = (postId) => {};
   height: 100%;
 }
 
-
 .posts-content {
   padding: 10px 20px;
 }
@@ -550,4 +561,24 @@ const handleDelete = (postId) => {};
   color: #888;
 }
 
+@media (max-width: 768px) {
+  .home {
+    padding: 15px 12px;
+  }
+
+  .publishing {
+    padding: 12px;
+    border-radius: 6px;
+    width: 100%;
+  }
+
+  .user-tips {
+    margin-left: 0;
+  }
+
+  .user-posts {
+    margin-top: 20px;
+    width: 100%;
+  }
+}
 </style>

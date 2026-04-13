@@ -21,9 +21,30 @@
     <div class="drawer-content">
       <button class="close-btn" @click="closeDrawer">×</button>
       <nav class="menu-list">
-        <a href="/">首页</a>
-        <a href="/about">关于</a>
-        <a href="/contact">联系</a>
+        <div class="login-avatar">
+          <Avatar
+            :src="userStore.user?.avatar"
+            :alt="userStore.user?.name"
+            :size="40"
+            @click="handleLogin"
+          />
+          <div class="user-name">
+            <span
+              v-if="userStore.isLogin"
+              :style="{ color: userStore.user?.nameColor }"
+              >{{ userStore.user?.name }}</span
+            >
+            <span style="font-size: 1rem; font-weight: 400" v-else>未登录</span>
+          </div>
+        </div>
+        <div style="margin-bottom: 20px"></div>
+        <a style="padding-left: 1px" href="/">首页</a>
+        <a href="/space/home"><IconHome size="20" /> <span>动态管理</span> </a>
+        <a href="/space/account"><IconUser size="20" /> <span>个人信息</span> </a>
+        <a href="/space/password"><IconLock size="20" /><span>修改密码</span> </a>
+        <a href="#" @click="userStore.logout()">
+          <IconLogout size="20" /> <span>退出登录</span>
+        </a>
         <!-- 其他菜单项 -->
       </nav>
     </div>
@@ -60,6 +81,8 @@
 </template>
 <script setup>
 import { ref, reactive, nextTick } from "vue";
+import { useUserStore } from "@/stores/user";
+import { useUIStore } from "@/stores/ui";
 const drawerVisible = ref(false);
 const searchVisible = ref(false);
 const searchText = ref("");
@@ -69,9 +92,17 @@ const searchOptions = reactive([
   { label: "用户", value: "user" },
   { label: "分类", value: "category" },
 ]);
-const emit = defineEmits(['search']); // 声明 emit 事件
-const hotSearchTags = ref(["鬼泣5", "鬼泣", "尼禄", "但丁", "维吉尔","尤里曾","真魔人","二段跳",
-  "二段跳从入门到入土"
+const emit = defineEmits(["search"]); // 声明 emit 事件
+const hotSearchTags = ref([
+  "鬼泣5",
+  "鬼泣",
+  "尼禄",
+  "但丁",
+  "维吉尔",
+  "尤里曾",
+  "真魔人",
+  "二段跳",
+  "二段跳从入门到入土",
 ]);
 
 const toggleDrawer = () => {
@@ -95,7 +126,7 @@ const closeSearchMenu = () => {
   searchVisible.value = false;
 };
 
-function onSearch({keyword, type}) {
+function onSearch({ keyword, type }) {
   console.log("搜索关键词:", keyword, "类型:", type);
   emit("search", { keyword, type });
 }
@@ -105,8 +136,19 @@ const handleHotTagClick = (tag) => {
   searchText.value = tag;
   const keyword = tag;
   console.log("执行搜索:", tag);
-  emit("search", {keyword});
+  emit("search", { keyword });
 };
+
+const userStore = useUserStore();
+const uiStore = useUIStore();
+
+function handleLogin() {
+  // 判断是否登录
+  if (userStore.isLogin) {
+  } else {
+    uiStore.openLoginModal();
+  }
+}
 </script>
 <style scoped>
 /* 移动端导航栏 */
@@ -283,7 +325,9 @@ const handleHotTagClick = (tag) => {
   margin-top: 60px;
 }
 .menu-list a {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 12px 0;
   text-decoration: none;
   color: var(--text-primary);
@@ -350,7 +394,6 @@ const handleHotTagClick = (tag) => {
   font-size: 0.9rem;
   color: var(--text-secondary);
   margin-bottom: 12px;
-
 }
 
 .hot-tags {
@@ -372,6 +415,29 @@ const handleHotTagClick = (tag) => {
 
 .hot-tag:hover {
   background-color: var(--bg-hover);
+}
+
+.login-avatar {
+  display: flex;
+  align-items: center;
+}
+
+.user-name {
+  display: flex;
+  align-items: center;
+  margin-left: 12px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--text-primary);
+  transition: opacity 0.2s ease-in-out;
+}
+
+.login-button {
+  height: 36px;
+  width: 36px;
+  border-radius: 50%;
+  font-size: 0.9rem;
+  padding: 0px;
 }
 
 @media (max-width: 767px) {

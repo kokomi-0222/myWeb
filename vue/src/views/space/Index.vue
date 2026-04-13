@@ -1,6 +1,7 @@
 <template>
   <div class="space-app">
     <TopNavbar @search="handleGlobalSearch" />
+    <MobileNavbar @search="handleGlobalSearch" />
     <div class="header-banner">
       <img class="banner-img" src="@/assets/images/bgbili.png" alt="banner" />
     </div>
@@ -27,7 +28,7 @@
 
       <main class="main-content">
         <!-- 面包屑 -->
- <!--        <div class="breadcrumb">
+        <!--        <div class="breadcrumb">
           <span class="breadcrumb-divider">|</span>
           <span class="breadcrumb-item active">{{ currentMenuText }}</span>
         </div> -->
@@ -46,13 +47,14 @@ import IconHome from "@/components/icons/IconHome.vue";
 import IconUser from "@/components/icons/IconUser.vue";
 import IconMessage from "@/components/icons/IconMessage.vue";
 import router from "@/router";
+import IconLock from "@/components/icons/IconLock.vue";
 
 const menuList = [
   { path: "home", text: "首  页", icon: IconHome },
   { path: "account", text: "账号管理", icon: IconUser },
-  { path: "posts", text: "动态管理", icon: IconMessage },
+  { path: "message", text: "消息管理", icon: IconMessage },
+  { path: "password", text: "修改密码", icon: IconLock },
 ];
-
 
 const currentMenuText = computed(() => {
   const fullPath = router.currentRoute.value.path;
@@ -148,12 +150,12 @@ const handleGlobalSearch = (value) => {
 }
 
 .list-item.is-actived {
-  background-color: #00A1D7;
+  background-color: #00a1d7;
   color: #ffffff;
 }
 
 .list-item:not(.is-actived):hover {
-  background-color: var( --bg-hover);
+  background-color: var(--bg-hover);
   color: #424242;
 }
 
@@ -163,14 +165,16 @@ const handleGlobalSearch = (value) => {
   color: #bbb;
 }
 
-.list-item.is-actived .list-item-icon{
+.list-item.is-actived .list-item-icon {
   color: #eee;
-  
-} 
+}
 /* .list-item-icon:hover {
   opacity: 1;
 }
  */
+.list-item-text {
+  font-size: 1rem;
+}
 
 .sidebar-right {
   flex: 1;
@@ -183,7 +187,7 @@ const handleGlobalSearch = (value) => {
   height: 100%;
   max-width: 800px;
   min-height: 100vh;
-/*   border-right: 1px solid var(--border-color); */
+  /*   border-right: 1px solid var(--border-color); */
 }
 
 /* 面包屑 */
@@ -195,12 +199,10 @@ const handleGlobalSearch = (value) => {
   margin-bottom: 10px;
   background: transparent;
 
-/*   border-bottom: 1px solid var(--border-color); */
-
-
+  /*   border-bottom: 1px solid var(--border-color); */
   margin-top: -6px;
   margin-left: 0px;
-  height:55px;
+  height: 55px;
   font-size: 16px;
   font-weight: 500;
 }
@@ -217,5 +219,24 @@ const handleGlobalSearch = (value) => {
 .breadcrumb-divider {
   margin: 0 6px;
   color: #d62bc4;
+}
+
+/* 小屏 (<768px) */
+@media (max-width: 767px) {
+  .header-banner {
+    display: none !important;
+  }
+  .sidebar-left,
+  .sidebar-right {
+    display: none !important;
+  }
+  .app-main {
+    margin-top: 50px !important;
+    padding: 0;
+  }
+}
+
+/* 中屏 (768px ~ 1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
 }
 </style>

@@ -3,6 +3,7 @@ import axios from 'axios'
 import setting from '@/config/setting'
 import { getAccessToken, removeAccessToken } from '@/utils/accessToken'
 import {handleMockRequest} from '@/mocks/index'
+import message from './message'
 
 // ======================
 // 1. 真实请求实例（仅在非 mock 时使用）
@@ -51,11 +52,11 @@ realService.interceptors.response.use(
   },
   (error) => {
     if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-      alert('请求超时')
+      message.error('请求超时')
     } else if (!window.navigator.onLine) {
-      alert('网络连接失败')
+      message.error('网络连接失败')
     } else {
-      alert(error.message || '请求异常')
+      message.error(error.message || '请求异常')
     }
     return Promise.reject(error)
   }

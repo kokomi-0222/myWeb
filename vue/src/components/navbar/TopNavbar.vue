@@ -61,17 +61,18 @@
           </template>
         </Dropdown>
       </div>
-      <div v-if="showTools" class="header-bar-message" data-tippy-content="消息">
+     <!--  <div v-if="showTools" class="header-bar-message" data-tippy-content="消息">
         <IconMessage class="iconMessage" :size="24" />
       </div>
       <div v-if="showTools" class="header-bar-contact">
         <IconContact class="iconContact" :size="24" />
-      </div>
+      </div> -->
       <div v-if="showTools" class="header-bar-publish">
         <Button
           class="publish-button"
           backgroundColor="var(--header-bar-button-publish-bg)"
           hoverBackgroundColor="var(--header-bar-button-publish-bg-hover)"
+          @click="goPublish"
         >
           <IconUpload size="18px" color="#fff" />
           <span style="margin-left: 5px; color: white">发布</span>
@@ -122,8 +123,12 @@ function handleLogout() {
 }
 
 function goPublish() {
-  // TODO: 跳转发布页或打开发布弹窗
-  closeMobileMenu();
+  if (!userStore.isLogin) {
+    return;
+  }
+  router.push("/space/home").then(() => {
+    router.go(0);
+  });
 }
 
 //去往个人中心

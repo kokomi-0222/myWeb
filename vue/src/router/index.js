@@ -24,9 +24,14 @@ const router = createRouter({
           component: () => import('@/views/space/Account.vue'),
         },
         {
-          path: 'posts',
-          meta: { name: '帖子列表' },
-          component: () => import('@/views/space/Posts.vue'),
+          path: 'message',
+          meta: { name: '消息管理' },
+          component: () => import('@/views/space/Message.vue'),
+        },
+         {
+          path: 'password',
+          meta: { name: '修改密码' },
+          component: () => import('@/views/space/Password.vue'),
         },
       ],
     },
