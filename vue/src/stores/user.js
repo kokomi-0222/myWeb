@@ -22,7 +22,7 @@ export const useUserStore = defineStore('user', () => {
     try {
       const res = await apiLogin(loginData)
       if (!res.data) {
-        return { success: false, message: '登录失败，返回数据异常' }
+        return { success: false, message: res.msg || '登录失败，返回数据异常' }
       }
       if (setting.successCode.includes(res.code)) {
         token.value = res.data.token
@@ -32,10 +32,10 @@ export const useUserStore = defineStore('user', () => {
         initPermissions(res.data.permissions || [])
         return { success: true, data: res.data }
       }
-      return { success: false, message: res.message || '登录失败' }
+      return { success: false, message: res.msg || '登录失败' }
     } catch (err) {
       console.error(err)
-      return { success: false, message: '网络异常或服务器错误' }
+      return { success: false, message: res.msg }
     } finally {
       isLoading.value = false
     }
@@ -47,7 +47,7 @@ export const useUserStore = defineStore('user', () => {
       return { success: false, message: '未登录' }
     }
 
-    isLoading.value = true 
+    isLoading.value = true
     try {
       const res = await apiGetUserInfo()
       if (!res.data) {
@@ -66,7 +66,7 @@ export const useUserStore = defineStore('user', () => {
       console.error(err)
       return { success: false, message: '获取用户信息失败' }
     } finally {
-      isLoading.value = false 
+      isLoading.value = false
     }
   }
 
@@ -99,6 +99,6 @@ export const useUserStore = defineStore('user', () => {
     login,
     getUserInfo,
     logout,
-    register
+    register,
   }
 })
