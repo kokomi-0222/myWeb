@@ -150,7 +150,7 @@ const triggerAvatarChange = () => {
 };
 
 // 选择头像
-const handleAvatarChange = (e) => {
+const handleAvatarChange = async (e) => {
   const file = e.target.files?.[0];
   if (!file) return;
 
@@ -160,9 +160,14 @@ const handleAvatarChange = (e) => {
     return;
   }
 
-  avatarFile.value = file;
-  const previewUrl = URL.createObjectURL(file);
-  userInfo.avatar = previewUrl;
+  const res = await uploadAvatar(file)
+  console.log('uploadAvatar:',res)
+  if (!res.success) {
+    message.error(res.message)
+    return
+  }
+  // 前端预览
+  userInfo.avatar  = res.data
 };
 
 // 保存

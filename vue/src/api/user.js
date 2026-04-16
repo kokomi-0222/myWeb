@@ -14,13 +14,10 @@ export async function login(data) {
   })
 }
 
-export function getUserInfo(accessToken) {
+export function getUserInfo() {
   return request({
     url: '/user/info',
-    method: 'post',
-    data: {
-      [setting.tokenName]: accessToken,
-    },
+    method: 'get',
   })
 }
 
@@ -44,3 +41,7 @@ export function getUserPermissions() {
     method: 'get'
   })
 }
+
+
+
+

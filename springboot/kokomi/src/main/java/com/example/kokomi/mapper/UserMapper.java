@@ -10,10 +10,6 @@ import java.util.List;
  */
 public interface UserMapper {
 
-    //  根据用户名查用户
-    @Select("select * from user where username = #{username}")
-    User selectByUsername(String username);
-
     // 根据【账号】查询用户（支持 username / phone / email）
     @Select("""
             select * from user 
@@ -22,6 +18,9 @@ public interface UserMapper {
                or email = #{account}
             """)
     User selectByAccount(String account);
+
+    @Select("select * from user where id = #{id}")
+    User selectById(Long id);
 
 
     //  根据用户ID查所有角色编码

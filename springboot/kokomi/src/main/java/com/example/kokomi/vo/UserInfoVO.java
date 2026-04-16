@@ -7,23 +7,20 @@ import lombok.Data;
 import java.util.List;
 
 @Data
-public class LoginVO {
-    private String token;          // JWT token
+public class UserInfoVO {
     private UserVO user;       // 用户信息
     private List<String> roles;    // 角色
     private List<String> permissions; // 权限
+
 
     /**
      * 标准转换：BO → VO
      * 统一在这里封装
      */
-    public static LoginVO fromUserBO(UserBO bo) {
-        LoginVO vo = new LoginVO();
+    public static UserInfoVO fromUserBO(UserBO bo) {
+        UserInfoVO vo = new UserInfoVO();
 
-        String token = JwtUtil.generateToken(bo.getId());
-        vo.setToken(token);
-
-        // 用户信息转换（你写的完全正确）
+        // 用户信息转换
         UserVO userVO = new UserVO();
         userVO.setId(bo.getId());
         userVO.setUsername(bo.getUsername());

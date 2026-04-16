@@ -71,9 +71,6 @@ realService.interceptors.response.use(
  * @returns {Promise<T>}
  */
 export default function request(config) {
-  if (config.url === '/user/login') {
-    return realService(config)
-  }
   if (setting.mock) {
     // 🔸 Mock 模式：不走网络，直接返回模拟数据
     return handleMockRequest(config)

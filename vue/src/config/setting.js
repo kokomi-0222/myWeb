@@ -1,7 +1,7 @@
 
 const setting = {
 
-    mock:true,
+    mock:false,
     //app名称
     appName: 'my-web-app',
     //接口地址

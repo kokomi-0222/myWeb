@@ -7,6 +7,8 @@ import com.example.kokomi.entity.User;
 import com.example.kokomi.exception.CustomerException;
 import com.example.kokomi.mapper.UserMapper;
 import com.example.kokomi.service.UserService;
+import com.example.kokomi.util.JwtUtil;
+import com.example.kokomi.vo.UserInfoVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -38,6 +40,22 @@ public class UserServiceImpl implements UserService {
 
         return userBO;
     }
+
+    @Override
+    public UserBO findById(Long userId) {
+        // 1. 根据ID查询用户
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new CustomerException(401, "用户不存在");
+        }
+
+        UserBO userBO = convertToUserBO(user);
+        userBO.setRoles(userMapper.selectRolesByUserId(user.getId()));
+        userBO.setPermissions(userMapper.selectPermissionsByUserId(user.getId()));
+        return userBO;
+    }
+
+
 
     /**
      * 抽取：User → UserBO 转换方法
