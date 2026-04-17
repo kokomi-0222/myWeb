@@ -4,6 +4,7 @@ import com.example.kokomi.common.Result;
 import com.example.kokomi.dto.LoginDto;
 import com.example.kokomi.bo.UserBO;
 
+import com.example.kokomi.dto.UserUpdateDto;
 import com.example.kokomi.service.UserService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.vo.LoginVO;
@@ -28,9 +29,15 @@ public class UserController {
     @GetMapping("/info")
     public Result<UserInfoVO> info() {
         Long userId = LoginUserHolder.getUserId();
-        System.out.println("查询用户：" + userId);
+        //System.out.println("查询用户：" + userId);
         UserBO userBO = userService.findById(userId);
         UserInfoVO userInfo = UserInfoVO.fromUserBO(userBO);
         return Result.success(userInfo);
     }
+    @PostMapping("/update")
+    public Result<String> updateUserInfo(@RequestBody UserUpdateDto userUpdateDto) {
+        userService.updateUserInfo(userUpdateDto);
+        return Result.success("保存成功");
+    }
+
 }

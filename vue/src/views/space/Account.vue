@@ -8,6 +8,9 @@
         <div class="avatar-upload">
           <!-- 预览当前头像 -->
           <Avatar :src="userInfo?.avatar" alt="头像" :size="60" />
+          <div class="progress-bar" v-if="showProgress">
+            <div class="progress" :style="{ width: progress + '%' }"></div>
+          </div>
           <!-- 上传按钮 -->
           <Button type="bilibili" class="change-btn" @click="triggerAvatarChange">
             更换头像
@@ -19,6 +22,7 @@
               @change="handleAvatarChange"
             />
           </Button>
+          
         </div>
       </div>
       <!-- 昵称 -->
@@ -108,7 +112,7 @@ import { useUserStore } from "@/stores/user";
 import { message } from "@/utils/message";
 import setting from "@/config/setting";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
-
+import { uploadAvatar } from "@/api/file";
 // 个人信息数据
 const userInfo = reactive({
   avatar: "",
@@ -143,7 +147,8 @@ const disabledFutureDate = (time) => {
 
 const avatarFileInput = ref(null);
 const avatarFile = ref(null);
-
+const progress = ref(0)        // 进度百分比
+const showProgress = ref(false) // 是否显示进度条
 //点击触发文件选择
 const triggerAvatarChange = () => {
   avatarFileInput.value?.click();
@@ -156,18 +161,38 @@ const handleAvatarChange = async (e) => {
 
   if (file.size > setting.imageSize) {
     message.warning("头像不能超过 2MB！");
-    e.target.value = ""; // 清空选择
+    e.target.value = "";
     return;
   }
 
-  const res = await uploadAvatar(file)
-  console.log('uploadAvatar:',res)
-  if (!res.success) {
-    message.error(res.message)
-    return
+  // 开启进度条
+  showProgress.value = true;
+  progress.value = 0;
+
+  try {
+    // 上传并带进度监听
+    const res = await uploadAvatar(file, (event) => {
+      const percent = Math.floor((event.loaded / event.total) * 100);
+      progress.value = percent;
+    });
+
+    console.log("uploadAvatar:", res);
+    if (!setting.successCode.includes(res.code)) {
+      message.error(res.message);
+      return;
+    }
+    userInfo.avatar = res.data;
+    progress.value = 100;
+  } catch (err) {
+    console.error(err);
+    message.error("上传失败");
+  } finally {
+    // 延迟消失，更自然
+    setTimeout(() => {
+      showProgress.value = false;
+    }, 500);
+    avatarFileInput.value.value = "";
   }
-  // 前端预览
-  userInfo.avatar  = res.data
 };
 
 // 保存
@@ -327,6 +352,20 @@ onMounted(() => {
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #eee;
+  border-radius: 3px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.progress {
+  height: 100%;
+  background: #409eff;
+  transition: width 0.1s;
 }
 
 @media (max-width: 768px) {

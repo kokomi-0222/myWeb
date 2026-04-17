@@ -25,6 +25,9 @@ public class FileController {
             throw new CustomerException(400, "请选择上传文件");
         }
 
+        String projectPath = System.getProperty("user.dir");
+        String tempDir = projectPath + "/upload/temp/";
+
         String originalFilename = file.getOriginalFilename();
         String suffix = originalFilename.substring(originalFilename.lastIndexOf("."));
 
@@ -35,16 +38,17 @@ public class FileController {
 
         // 生成唯一文件名
         String fileName = UUID.randomUUID() + suffix;
-        File tempDir = new File("./upload/temp/");
+        File directory  = new File(tempDir);
 
-        if (!tempDir.exists()) {
-            tempDir.mkdirs();
+        if (!directory .exists()) {
+            directory .mkdirs();
         }
 
         try {
             // 先存到临时目录
-            file.transferTo(new File(tempDir, fileName));
+            file.transferTo(new File(directory, fileName));
         } catch (IOException e) {
+            e.printStackTrace();
             throw new CustomerException(500, "文件上传失败");
         }
 

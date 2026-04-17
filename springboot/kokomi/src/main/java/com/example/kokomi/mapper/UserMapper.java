@@ -33,4 +33,7 @@ public interface UserMapper {
             where role_code in (select role_code from user_role where user_id = #{userId})
             """)
     List<String> selectPermissionsByUserId(Long userId);
+
+    //根据id更新用户信息
+    int updateById(User user);
 }

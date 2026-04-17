@@ -6,7 +6,7 @@ import { handleMockRequest } from '@/mocks/index'
 import message from './message'
 
 // ======================
-// 1. 真实请求实例（仅在非 mock 时使用）
+//  真实请求实例（仅在非 mock 时使用）
 // ======================
 const realService = axios.create({
   baseURL: setting.baseURL,
@@ -62,7 +62,7 @@ realService.interceptors.response.use(
 )
 
 // ======================
-// 3. 智能请求入口（根据 setting.mock 自动选择）
+//  智能请求入口（根据 setting.mock 自动选择）
 // ======================
 /**
  * 通用请求方法
@@ -81,7 +81,7 @@ export default function request(config) {
 }
 
 // ======================
-// 4. 快捷方法（保持兼容）
+//  快捷方法（保持兼容）
 // ======================
 export const get = (url, params = {}) => request({ method: 'GET', url, params })
 export const post = (url, data = {}) => request({ method: 'POST', url, data })

@@ -3,15 +3,21 @@ package com.example.kokomi.service.impl;
 import com.example.kokomi.bo.UserBO;
 import com.example.kokomi.common.ResultCode;
 import com.example.kokomi.dto.LoginDto;
+import com.example.kokomi.dto.UserUpdateDto;
 import com.example.kokomi.entity.User;
 import com.example.kokomi.exception.CustomerException;
 import com.example.kokomi.mapper.UserMapper;
 import com.example.kokomi.service.UserService;
 import com.example.kokomi.util.JwtUtil;
+import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.vo.UserInfoVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 
 @Service
@@ -55,7 +61,54 @@ public class UserServiceImpl implements UserService {
         return userBO;
     }
 
+    @Override
+    @Transactional
+    public void updateUserInfo(UserUpdateDto dto) {
+        Long userId = LoginUserHolder.getUserId();
+        User oldUser = userMapper.selectById(userId); // 查询旧数据（MP自带方法）
 
+        // ==========================================
+        // 处理头像：从 temp 移动到 images
+        // ==========================================
+        String newAvatar = dto.getAvatar();
+        if (newAvatar != null && newAvatar.contains("/temp/")) {
+            try {
+                String projectPath = System.getProperty("user.dir");
+                String fileName = newAvatar.substring(newAvatar.lastIndexOf("/") + 1);
+
+                // 原文件（临时目录）
+                java.io.File tempFile = new java.io.File(projectPath + "/upload/temp/" + fileName);
+                // 目标目录
+                java.io.File destDir = new java.io.File(projectPath + "/upload/images/");
+                if (!destDir.exists()) destDir.mkdirs();
+
+                // 移动
+                tempFile.renameTo(new java.io.File(destDir, fileName));
+
+                // 删除旧头像
+                if (oldUser.getAvatar() != null) {
+                    String oldFileName = oldUser.getAvatar().substring(oldUser.getAvatar().lastIndexOf("/") + 1);
+                    java.io.File oldFile = new java.io.File(projectPath + "/upload/images/" + oldFileName);
+                    if (oldFile.exists()) oldFile.delete();
+                }
+
+            } catch (Exception e) {
+                throw new CustomerException(500, "头像保存失败");
+            }
+        }
+
+
+        // 更新用户资料
+        User updateUser = new User();
+        updateUser.setId(userId);
+        updateUser.setName(dto.getName());
+        updateUser.setSignature(dto.getSignature());
+        updateUser.setGender(dto.getGender());
+        updateUser.setBirthday(dto.getBirthday());
+        updateUser.setAvatar(newAvatar);
+
+        userMapper.updateById(updateUser);
+    }
 
     /**
      * 抽取：User → UserBO 转换方法

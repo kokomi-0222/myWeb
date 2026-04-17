@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: kokomi
+  servlet:
+    multipart:
+      max-file-size: 2MB          # 单个文件最大 2MB
+      max-request-size: 2MB       # 整个请求最大 2MB
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: root
