@@ -18,7 +18,7 @@ public class LoginInterceptor implements HandlerInterceptor {
         }
 
         String header = request.getHeader("Authorization");
-        System.out.println("header:" + header);
+        //System.out.println("header:" + header);
         // 无 token
         if (header == null || !header.startsWith("Bearer ")) {
             throw new CustomerException(401, "未登录，请先登录");
@@ -34,7 +34,7 @@ public class LoginInterceptor implements HandlerInterceptor {
         // 放入当前线程
         Long userId = JwtUtil.getUserId(token);
         LoginUserHolder.setUserId(userId);
-        System.out.println("登录信息校验成功！");
+        //System.out.println("登录信息校验成功！");
         return true;
     }
 

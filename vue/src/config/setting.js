@@ -15,9 +15,9 @@ const setting = {
     //操作正常code，支持String、Array、int多种类型
     successCode: [200, 0, "200", "0"],
     //登录失效code
-    invalidCode: 402,
+    invalidCode: 401,
     //无权限code
-    noPermissionCode: 401,
+    noPermissionCode: 402,
 
 
     //不经过token校验的路由
@@ -31,7 +31,7 @@ const setting = {
     //是否开启登录拦截
     loginInterception: true,
     //是否开启登录RSA加密
-    loginRSA: false,
+    loginRSA: true,
     //是否分页显示
     showPagination: false,
     //一次加载多少个帖子

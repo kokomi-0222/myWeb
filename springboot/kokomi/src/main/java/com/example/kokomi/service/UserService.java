@@ -1,15 +1,14 @@
 package com.example.kokomi.service;
 
 import com.example.kokomi.bo.UserBO;
-import com.example.kokomi.dto.LoginDto;
-import com.example.kokomi.dto.UserUpdateDto;
-import com.example.kokomi.vo.UserInfoVO;
+import com.example.kokomi.dto.LoginEncryptDTO;
+import com.example.kokomi.dto.UserUpdateDTO;
 
 public interface UserService {
     /**
      * 登录接口
      */
-    UserBO login(LoginDto loginDto);
+    UserBO login(LoginEncryptDTO dto);
     /**
     * 获取用户信息
     */
@@ -17,5 +16,5 @@ public interface UserService {
     /**
      * 更新用户信息
      */
-    void updateUserInfo(UserUpdateDto dto);
+    void updateUserInfo(UserUpdateDTO dto);
 }

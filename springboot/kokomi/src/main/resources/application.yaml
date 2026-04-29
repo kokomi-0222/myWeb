@@ -19,22 +19,27 @@ spring:
   web:
     resources:
       static-locations: file:${user.dir}/upload/
-
 # JWT 配置（标准写法：配置化）
 jwt:
   secret: kokomi_2026_secure_secret_key_abcdefghijklmnopqrstuvwxyz
+  #expire: 10000  # 10s 毫秒
   expire: 604800000  # 7天 毫秒
 
 # 放行路径（白名单）
 auth:
   excludePaths:
     - /user/login
-    - /temp/**
-    - /images/**
-    - /file/**
+    - /user/register
+    - /publicKey
+    - /upload/**
+#rsa秘钥对
+rsa:
+  public-key: "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC82jIhsD1tYS9LSfJRNV/SpqzxD5UZVoCIB09owY90xJtEE3GzDzVaDtkFb5/ki+Pfv2OObRS6UZKTg+hfk7WVnPomvYG2YNaSyf8cN+SM9x4N+Xsdf3ZBVu4Zj43+kNM/0ISWNZdNZnRUSoW5YCHClDZ3+DlrMN3NRu9ezQiO4QIDAQAB"
+  private-key: "MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBALzaMiGwPW1hL0tJ8lE1X9KmrPEPlRlWgIgHT2jBj3TEm0QTcbMPNVoO2QVvn+SL49+/Y45tFLpRkpOD6F+TtZWc+ia9gbZg1pLJ/xw35Iz3Hg35ex1/dkFW7hmPjf6Q0z/QhJY1l01mdFRKhblgIcKUNnf4OWsw3c1G717NCI7hAgMBAAECgYBfiL2tfxtD9tLW8lxrqmWECZ8Y/zn8rF6u8YvBQZGRj1fAM1nkLABgQ3yTnGk1U3L+IDJ7vUCsFFHi3+qwVueXHksI/9scJ8EnCzgjaQAhTlFG/jG3Cxs33w+WWUki9uZpJiniuqlHhIDG27kltPjGIlwaVjDhnVq3Jcxv+CLWlQJBAOQN1GsjjDnj7N3+Q701C/+iUJGENizy/z6JtyQGScTRcxp/bMuB8nV2l3g9tA7iER299bQw7h1etyTuQanrYMsCQQDT/pbKpC+FEutCs7U8abo6W2339GRmqCUwxiGYwrDhtcVLLnF2SKRStTwsO3RBVJxVwHJ+4Q4S5jjqW1JGJDWDAkAGAY88mx0QUT5lwlKKYyFDxESW8IJ0wJmUThAytK+wrUt4wS5eVbfK/CqVEhrx4WZOADi+XCOJRntQT64PCZHtAkEAnQeraMU/keIWtBzrtalXUdzh01aLfGM20S8iOcaVQUvkrbDkSMq8Naubu+P6VF45Q2e/J+7K/wLby/UDN4OgwwJAe8Npl1/8gRICLBuXi06+vX9HZSWSdO6tvxdsazxEH3PwbWlvdksS1q+YCGNAu4F/YmikOlTyZOdoL2LKXylsiA=="
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.example.kokomi.entity
   configuration:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     map-underscore-to-camel-case: true

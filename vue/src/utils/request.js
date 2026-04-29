@@ -37,25 +37,25 @@ realService.interceptors.response.use(
     if (setting.successCode.includes(res.code)) {
       return res
     }
-
+    message.error(res.msg)
     if (res.code == setting.invalidCode) {
       removeAccessToken()
-      return res//Promise.reject(new Error('登录已过期，请重新登录'))
+      return Promise.reject(new Error('登录已过期，请重新登录'))
     }
 
     if (res.code == setting.noPermissionCode) {
-      return res //Promise.reject(new Error('权限不足'))
+      return Promise.reject(new Error('权限不足'))
     }
-
-    return Promise.reject(new Error(res.message || '请求失败'))
+    
+    return Promise.reject(new Error(res.msg || '请求失败'))
   },
   (error) => {
-    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout') || error.message === 'Network Error') {
       message.error('请求超时')
     } else if (!window.navigator.onLine) {
       message.error('网络连接失败')
     } else {
-      message.error(error.message || '请求异常')
+      message.error('网络异常')
     }
     return Promise.reject(error)
   },

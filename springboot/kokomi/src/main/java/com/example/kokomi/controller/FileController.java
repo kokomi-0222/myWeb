@@ -53,7 +53,7 @@ public class FileController {
         }
 
         // 返回临时访问地址
-        String url = "http://localhost:8080/temp/" + fileName;
+        String url = "http://localhost:8080/upload/temp/" + fileName;
         return Result.success(url);
     }
 }

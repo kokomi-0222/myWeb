@@ -1,6 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getUserInfo as apiGetUserInfo, login as apiLogin } from '@/api/user'
+import {
+  getUserInfo as apiGetUserInfo,
+  login as apiLogin,
+  updateProfile as apiUpdateProfile,
+} from '@/api/user'
 import setting from '@/config/setting'
 import { getAccessToken, setAccessToken, removeAccessToken } from '@/utils/accessToken'
 import { initPermissions } from '@/utils/usePermission.js'
@@ -46,7 +50,6 @@ export const useUserStore = defineStore('user', () => {
     if (!token.value) {
       return { success: false, message: '未登录' }
     }
-
     isLoading.value = true
     try {
       const res = await apiGetUserInfo()
@@ -65,6 +68,25 @@ export const useUserStore = defineStore('user', () => {
     } catch (err) {
       console.error(err)
       return { success: false, message: '获取用户信息失败' }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const updateProfile = async (formData) => {
+    isLoading.value = true
+    try {
+      const res = await apiUpdateProfile(formData)
+      if (setting.successCode.includes(res.code)) {
+        // 更新成功后，自动重新拉取最新用户信息
+        await getUserInfo()
+        return { success: true, message: '保存成功' }
+      } else {
+        return { success: false, message: res.msg || '保存失败' }
+      }
+    } catch (err) {
+      console.error(err)
+      return { success: false, message: '保存请求异常' }
     } finally {
       isLoading.value = false
     }
@@ -100,5 +122,6 @@ export const useUserStore = defineStore('user', () => {
     getUserInfo,
     logout,
     register,
+    updateProfile,
   }
 })

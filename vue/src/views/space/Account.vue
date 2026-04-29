@@ -7,7 +7,7 @@
 
         <div class="avatar-upload">
           <!-- 预览当前头像 -->
-          <Avatar :src="userInfo?.avatar" alt="头像" :size="60" />
+          <Avatar :src="userInfo?.avatar" :key="userInfo?.avatar" alt="头像" :size="60" />
           <div class="progress-bar" v-if="showProgress">
             <div class="progress" :style="{ width: progress + '%' }"></div>
           </div>
@@ -22,7 +22,6 @@
               @change="handleAvatarChange"
             />
           </Button>
-          
         </div>
       </div>
       <!-- 昵称 -->
@@ -147,8 +146,8 @@ const disabledFutureDate = (time) => {
 
 const avatarFileInput = ref(null);
 const avatarFile = ref(null);
-const progress = ref(0)        // 进度百分比
-const showProgress = ref(false) // 是否显示进度条
+const progress = ref(0); // 进度百分比
+const showProgress = ref(false); // 是否显示进度条
 //点击触发文件选择
 const triggerAvatarChange = () => {
   avatarFileInput.value?.click();
@@ -196,13 +195,16 @@ const handleAvatarChange = async (e) => {
 };
 
 // 保存
-const handleSave = () => {
-  console.log("保存个人信息：", userInfo);
-  message.success("保存成功！");
-
-  // 这里后续写接口请求即可
-  // updateProfile(userInfo).then(...)
-};
+const handleSave = async () => {
+  console.log("保存个人信息：", userInfo)
+  // 等待接口执行完
+  const res = await userStore.updateProfile(userInfo)
+  if (res.success) {
+    message.success("保存成功！")
+  } else {
+    message.error(res.message || "保存失败")
+  }
+}
 
 onMounted(() => {
   loadUserInfo();

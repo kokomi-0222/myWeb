@@ -6,7 +6,7 @@ import lombok.Data;
 import java.time.LocalDate;
 
 @Data
-public class UserUpdateDto {
+public class UserUpdateDTO {
     private String name;            // 昵称
     private String signature;       // 签名
     private String gender;          // 性别 male/female/secret
