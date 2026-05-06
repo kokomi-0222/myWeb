@@ -3,7 +3,7 @@ package com.example.kokomi.controller;
 import com.example.kokomi.common.Result;
 import com.example.kokomi.bo.UserBO;
 
-import com.example.kokomi.dto.LoginEncryptDTO;
+import com.example.kokomi.dto.EncryptDataDTO;
 import com.example.kokomi.dto.UserUpdateDTO;
 import com.example.kokomi.service.UserService;
 import com.example.kokomi.util.LoginUserHolder;
@@ -23,11 +23,18 @@ public class UserController {
     private final RsaUtil rsaUtil;
 
     @PostMapping("/login")
-    public Result<LoginVO> login(@RequestBody LoginEncryptDTO dto) {
+    public Result<LoginVO> login(@RequestBody EncryptDataDTO dto) {
         UserBO userBO = userService.login(dto);
         LoginVO loginVO = LoginVO.fromUserBO(userBO);
         return Result.success(loginVO);
     }
+
+    @PostMapping("register")
+    public  Result<Void> register(@RequestBody EncryptDataDTO dto){
+        return userService.register(dto);
+    }
+
+
 
     @GetMapping("/info")
     public Result<UserInfoVO> info() {

@@ -46,6 +46,8 @@ const setting = {
     postMaxLength: 1000,
     //个性签名最大长度
     signatureMaxLength: 100,
+    //昵称最大长度
+    nameMaxLength: 20,
 }
 
 export default setting

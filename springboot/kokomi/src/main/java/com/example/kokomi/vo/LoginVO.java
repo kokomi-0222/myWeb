@@ -19,11 +19,11 @@ public class LoginVO {
      */
     public static LoginVO fromUserBO(UserBO bo) {
         LoginVO vo = new LoginVO();
-
+        System.out.println("AAAAAAAAAAAAAAAAAAAAAA");
         String token = JwtUtil.generateToken(bo.getId());
         vo.setToken(token);
-
-        // 用户信息转换（你写的完全正确）
+        System.out.println("BBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+        // 用户信息转换
         UserVO userVO = new UserVO();
         userVO.setId(bo.getId());
         userVO.setUsername(bo.getUsername());
@@ -43,7 +43,7 @@ public class LoginVO {
         vo.setUser(userVO);
         vo.setRoles(bo.getRoles());
         vo.setPermissions(bo.getPermissions());
-
+        System.out.println(vo);
         return vo;
     }
 }

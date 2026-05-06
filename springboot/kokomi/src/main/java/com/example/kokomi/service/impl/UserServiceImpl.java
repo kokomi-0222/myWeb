@@ -1,9 +1,15 @@
 package com.example.kokomi.service.impl;
 
+import cn.hutool.core.lang.RegexPool;
+import cn.hutool.core.lang.Validator;
+import cn.hutool.core.util.ReUtil;
+import cn.hutool.core.util.StrUtil;
 import com.example.kokomi.bo.UserBO;
+import com.example.kokomi.common.Result;
 import com.example.kokomi.common.ResultCode;
+import com.example.kokomi.dto.EncryptDataDTO;
 import com.example.kokomi.dto.LoginDTO;
-import com.example.kokomi.dto.LoginEncryptDTO;
+import com.example.kokomi.dto.RegisterDTO;
 import com.example.kokomi.dto.UserUpdateDTO;
 import com.example.kokomi.entity.User;
 import com.example.kokomi.exception.CustomerException;
@@ -32,37 +38,116 @@ public class UserServiceImpl implements UserService {
 
 
     @Override
-    public UserBO login(LoginEncryptDTO encryptedDto) {
-
+    public UserBO login(EncryptDataDTO encryptedDto) {
         //解密
         String json = rsaUtil.decrypt(encryptedDto.getEncryptedData());
         if (json == null) {
-            throw new CustomerException(ResultCode.LOGIN_ERROR, "解密失败");
+            throw new CustomerException(ResultCode.RSA_DECRYPT_ERROR, "解密失败");
         }
         //DTO
         LoginDTO dto;
         try {
             dto = objectMapper.readValue(json, LoginDTO.class);
         } catch (Exception e) {
-            throw new CustomerException(ResultCode.LOGIN_ERROR, "参数格式错误");
+            throw new CustomerException(ResultCode.PARAM_ERROR, "参数格式错误");
         }
         //System.out.println(dto);
-
         // 查询用户
         User user = userMapper.selectByAccount(dto.getAccount());
         if (user == null) {
+            System.out.println("账号不存在");
             throw new CustomerException(ResultCode.LOGIN_ERROR, "账号或密码不正确");
         }
         // 校验密码 String password = BCrypt.hashpw(原始明文密码, BCrypt.gensalt());
-        if (BCrypt.checkpw(dto.getPassword(), user.getPassword())) {
+        if (!BCrypt.checkpw(dto.getPassword(), user.getPassword())) {
+            System.out.println("密码校验失败" +"原始"+ dto.getPassword() + "加密" + user.getPassword());
             throw new CustomerException(ResultCode.LOGIN_ERROR, "账号或密码不正确");
         }
         //转换 + 赋值角色权限
         UserBO userBO = convertToUserBO(user);
         userBO.setRoles(userMapper.selectRolesByUserId(user.getId()));
         userBO.setPermissions(userMapper.selectPermissionsByUserId(user.getId()));
-
+        //System.out.println(userBO);
         return userBO;
+    }
+
+    public Result<Void> register(EncryptDataDTO encryptedDto){
+        //解密
+        String json = rsaUtil.decrypt(encryptedDto.getEncryptedData());
+        if (json == null) {
+            throw new CustomerException(ResultCode.RSA_DECRYPT_ERROR, "解密失败");
+        }
+        //DTO
+        RegisterDTO dto;
+        try {
+            dto = objectMapper.readValue(json, RegisterDTO.class);
+        } catch (Exception e) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "参数格式错误");
+        }
+
+        if (StrUtil.hasBlank(dto.getAccount(), dto.getPassword(), dto.getConfirmPassword())) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "账号、密码、确认密码不能为空");
+        }
+
+        String account = StrUtil.trim(dto.getAccount());
+        String password = StrUtil.trim(dto.getPassword());
+        String confirmPwd = StrUtil.trim(dto.getConfirmPassword());
+
+        // 两次密码一致
+        if (!StrUtil.equals(password, confirmPwd)) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "两次密码不一致");
+        }
+
+        // 密码长度 >=6
+        if (password.length() < 6) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "密码长度不能少于6位");
+        }
+
+        // 密码格式：字母+数字+下划线
+        if (!ReUtil.isMatch(RegexPool.GENERAL, password)) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "密码只能包含字母、数字、下划线");
+        }
+
+        // 账号必须是 邮箱 OR 手机号
+        boolean isEmail = Validator.isEmail(account);
+        boolean isPhone = Validator.isMobile(account);
+        if (!isEmail && !isPhone) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "账号必须是手机号或邮箱");
+        }
+
+        // 账号是否已注册
+        User exist = userMapper.selectByAccount(account);
+        if (exist != null) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "该账号已被注册");
+        }
+
+        // 密码加密
+        String encodePwd = BCrypt.hashpw(password, BCrypt.gensalt());
+
+        // 入库
+        User user = new User();
+        user.setPassword(encodePwd);
+        if (isEmail) user.setEmail(account);
+        if (isPhone) user.setPhone(account);
+        user.setPrimaryRole("member");
+        user.setNameColor("#18191c");
+        // 插入后自动获取自增 ID
+        int rows = userMapper.insert(user);
+        if(rows != 1){
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "用户创建失败");
+        }
+        // 生成 kokomi_00001 格式用户名
+        Long userId = user.getId();
+        String username = String.format("kokomi_%05d", userId);
+        // 设置用户名 & 昵称
+        user.setUsername(username);
+        user.setName(username);
+        // 更新信息
+        rows = userMapper.updateUsernameAndName(user);
+        if (rows != 1) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "操作失败");
+        }
+        return Result.success();
     }
 
     @Override
@@ -70,7 +155,7 @@ public class UserServiceImpl implements UserService {
         // 1. 根据ID查询用户
         User user = userMapper.selectById(userId);
         if (user == null) {
-            throw new CustomerException(401, "用户不存在");
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "用户不存在");
         }
 
         UserBO userBO = convertToUserBO(user);
@@ -78,6 +163,7 @@ public class UserServiceImpl implements UserService {
         userBO.setPermissions(userMapper.selectPermissionsByUserId(user.getId()));
         return userBO;
     }
+
 
     @Override
     @Transactional
@@ -86,8 +172,35 @@ public class UserServiceImpl implements UserService {
         User oldUser = userMapper.selectById(userId);
 
         if (oldUser == null) {
-            throw new CustomerException(400, "用户不存在");
+            throw new CustomerException(ResultCode.UPDATE_USER_ERROR, "用户不存在");
         }
+
+        // 昵称校验
+
+        // 不能为空、不能全是空格
+        if (StrUtil.isBlank(dto.getName())) {
+            throw new CustomerException(ResultCode.UPDATE_USER_ERROR, "昵称不能为空或空格");
+        }
+
+        // 去空格后再判断长度
+        String name = StrUtil.trim(dto.getName());
+        if (name.length() > 12) {
+            throw new CustomerException(ResultCode.UPDATE_USER_ERROR, "昵称长度不能超过12");
+        }
+
+        // 不能包含特殊字符（只允许：中文 + 英文 + 数字）
+        if (!ReUtil.isMatch(RegexPool.GENERAL, name)) {
+            throw new CustomerException(ResultCode.UPDATE_USER_ERROR, "昵称不能包含特殊字符，仅支持中文、英文、数字");
+        }
+
+        // 个性签名校验
+        if (StrUtil.isNotBlank(dto.getSignature())) {
+            String  signature = StrUtil.trim(dto.getSignature());
+            if (signature.length() > 100) {
+                throw new CustomerException(ResultCode.UPDATE_USER_ERROR, "个性签名长度不能超过100");
+            }
+        }
+
 
         // 最终要保存的头像（默认使用前端传的）
         String finalAvatar = dto.getAvatar();
@@ -125,7 +238,7 @@ public class UserServiceImpl implements UserService {
 
             } catch (Exception e) {
                 e.printStackTrace();
-                throw new CustomerException(500, "头像保存失败（移动失败）");
+                throw new CustomerException(ResultCode.SERVER_ERROR, "头像保存失败（移动失败）");
             }
         }
 
@@ -139,7 +252,10 @@ public class UserServiceImpl implements UserService {
         updateUser.setAvatar(finalAvatar); // 这里存新路径！
 
         // 更新数据库
-        userMapper.updateById(updateUser);
+        int rows = userMapper.updateById(updateUser);
+        if(rows != 1){
+            throw new CustomerException(ResultCode.SERVER_ERROR, "操作失败");
+        }
     }
 
     /**

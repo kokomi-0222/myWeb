@@ -1,14 +1,19 @@
 package com.example.kokomi.service;
 
 import com.example.kokomi.bo.UserBO;
-import com.example.kokomi.dto.LoginEncryptDTO;
+import com.example.kokomi.common.Result;
+import com.example.kokomi.dto.EncryptDataDTO;
 import com.example.kokomi.dto.UserUpdateDTO;
 
 public interface UserService {
     /**
      * 登录接口
      */
-    UserBO login(LoginEncryptDTO dto);
+    UserBO login(EncryptDataDTO dto);
+    /**
+     *注册接口
+     */
+    Result<Void> register(EncryptDataDTO dto);
     /**
     * 获取用户信息
     */

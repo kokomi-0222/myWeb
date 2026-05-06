@@ -1,7 +1,11 @@
 package com.example.kokomi.mapper;
 
 import com.example.kokomi.entity.User;
+import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
+
 import java.util.List;
 
 /**
@@ -36,4 +40,19 @@ public interface UserMapper {
 
     //根据id更新用户信息
     int updateById(User user);
+
+
+    // 插入用户，自动返回自增id
+    @Insert("insert into user(password, email, phone) " +
+            "values(#{password}, #{email}, #{phone})")
+    @Options(useGeneratedKeys = true, keyProperty = "id")
+    int insert(User user);
+
+    /**
+     * 【注册专用】只更新 用户名 和 昵称
+     * 不影响其他字段，和用户修改资料的方法分开
+     */
+    @Update("update user set username=#{username}, name=#{name} where id=#{id}")
+    int updateUsernameAndName(User user);
+
 }

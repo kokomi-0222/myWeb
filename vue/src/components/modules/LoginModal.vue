@@ -1,11 +1,7 @@
 <template>
   <!-- 蒙层 -->
-  <div
-    v-if="uiStore.loginModalOpen"
-    class="modal-overlay"
-    @click.self="closeModal"
-  >
-    <div class="modal-container" :style="dialogStyle">
+  <div v-if="uiStore.loginModalOpen" class="modal-overlay" @click.self="closeModal">
+    <div class="modal-container" :style="dialogStyle" :key="formType">
       <!-- 登录 -->
       <div v-if="formType === 'login'" class="form-body">
         <div class="login-title">用 户 登 录</div>
@@ -46,11 +42,17 @@
       </div>
 
       <!-- 注册 -->
-      <div v-else class="form-body">
+      <div v-else autocomplete="off" class="form-body">
         <div class="login-title">注 册 账 号</div>
-
+        <div
+          style="width: 0; height: 0; overflow: hidden; position: absolute; z-index: -1"
+        >
+          <input type="text" autocomplete="username" />
+          <input type="password" autocomplete="current-password" />
+        </div>
         <div class="form-item">
           <InputLine
+            ref="regAccRef"
             v-model="registerForm.account"
             label="请输入手机号/邮箱"
             type="text"
@@ -62,6 +64,7 @@
 
         <div class="form-item">
           <InputLine
+            ref="regPwdRef"
             v-model="registerForm.password"
             label="请输入密码"
             type="password"
@@ -73,13 +76,16 @@
 
         <div class="form-item">
           <InputLine
+            ref="regPwd2Ref"
             v-model="registerForm.confirmPassword"
             label="请确认密码"
             type="password"
             autocomplete="new-password"
             @focus="regErr.confirmPassword = ''"
           />
-          <div v-if="regErr.confirmPassword" class="err-tip">{{ regErr.confirmPassword }}</div>
+          <div v-if="regErr.confirmPassword" class="err-tip">
+            {{ regErr.confirmPassword }}
+          </div>
         </div>
 
         <div class="button-group">
@@ -99,15 +105,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from "vue";
+import { ref, reactive, nextTick } from "vue";
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
-import { message } from '@/utils/message'
+import { message } from "@/utils/message";
 
 const uiStore = useUIStore();
 const userStore = useUserStore();
 const formType = ref<"login" | "register">("login");
-
+const regAccRef = ref<any>(null);
+const regPwdRef = ref<any>(null);
+const regPwd2Ref = ref<any>(null);
 // ================ 登录 ================
 const loginForm = reactive({
   account: "",
@@ -212,15 +220,24 @@ const handleLogin = async () => {
 // ================ 注册 ================
 const registering = ref(false);
 const handleRegister = async () => {
+  //console.log("注册");
   if (!validateRegister() || registering.value) return;
 
   try {
     registering.value = true;
-    message.success("注册校验通过");
+    //message.success("注册校验通过");
   } catch (err) {
     message.error("注册异常");
   } finally {
     registering.value = false;
+  }
+
+  const res = await userStore.register(registerForm);
+  if (res.success) {
+    message.success("注册成功");
+    uiStore.closeLoginModal();
+  } else {
+    message.error(res.message || "注册失败");
   }
 };
 
@@ -239,6 +256,14 @@ const closeModal = () => {
 
 const goToRegister = () => {
   formType.value = "register";
+  registerForm.account = "";
+  registerForm.password = "";
+  registerForm.confirmPassword = "";
+  nextTick(() => {
+    if (regAccRef?.value?.input) regAccRef.value.input.value = "";
+    if (regPwdRef?.value?.input) regPwdRef.value.input.value = "";
+    if (regPwd2Ref?.value?.input) regPwd2Ref.value.input.value = "";
+  });
 };
 
 const goToLogin = () => {
@@ -265,7 +290,7 @@ const dialogStyle = {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: 2000;
 }
 
 .modal-container {

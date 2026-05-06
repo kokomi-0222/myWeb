@@ -71,6 +71,12 @@
             <artifactId>jbcrypt</artifactId>
             <version>0.4</version>
         </dependency>
+        <!--java工具类-->
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+            <version>5.8.40</version>
+        </dependency>
         <!-- 测试 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

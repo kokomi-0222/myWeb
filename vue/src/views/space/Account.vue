@@ -28,11 +28,15 @@
       <div class="form-item">
         <label>昵称:</label>
         <input
+          :maxlength="setting.nameMaxLength"
           class="name-input"
           v-model="userInfo.name"
           type="text"
           placeholder="请输入昵称"
         />
+        <div class="tip">
+          注：昵称长度不能超过 12 个字符
+        </div>
       </div>
       <!-- 用户名 -->
       <div class="form-item">
@@ -196,14 +200,22 @@ const handleAvatarChange = async (e) => {
 
 // 保存
 const handleSave = async () => {
+  if (!userInfo.avatar) {
+    message.warning("请选择头像");
+    return;
+  }
+  if (!userInfo.name) {
+    message.warning("请填写昵称");
+    return;
+  }
+ 
+
   console.log("保存个人信息：", userInfo)
   // 等待接口执行完
   const res = await userStore.updateProfile(userInfo)
-  if (res.success) {
+  if (res?.success) {
     message.success("保存成功！")
-  } else {
-    message.error(res.message || "保存失败")
-  }
+  } 
 }
 
 onMounted(() => {
@@ -224,6 +236,14 @@ onMounted(() => {
   display: flex;
   margin-bottom: 30px;
   /*   align-items: center; */
+}
+
+.tip{
+  margin-left: 20px;
+  color: #999;
+  font-size: 0.9rem;
+  display: inline-block;
+  line-height: 30px;
 }
 
 .form-item label {

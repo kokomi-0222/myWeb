@@ -44,6 +44,19 @@
           </template>
           <template #menu="{ close }">
             <div v-if="userStore.isLogin">
+              <div class="dropdown-user-info">
+                <div class="dropdown-user-name">
+                  <label style="width: 60px">昵称：</label>
+                  <span>{{ userStore.user.name }} </span>
+                </div>
+                <div class="dropdown-username">
+                  <label style="width: 60px">用户名：</label>
+                  <span>
+                    {{ userStore.user.username }}
+                  </span>
+                </div>
+              </div>
+              <div class="dropdown-item-divider"></div>
               <div class="dropdown-item" @click="gotoPersonalSpace">
                 <IconUser class="iconUser" :size="18" />
                 <span>个人中心</span>
@@ -51,6 +64,8 @@
               <div class="dropdown-item">
                 <IconLogout class="iconLogout" :size="18" />
                 <span @click="handleLogout"> 退出登录 </span>
+              </div>
+              <div class="dropdown-item-end">
               </div>
             </div>
             <div v-else>
@@ -61,7 +76,7 @@
           </template>
         </Dropdown>
       </div>
-     <!--  <div v-if="showTools" class="header-bar-message" data-tippy-content="消息">
+      <!--  <div v-if="showTools" class="header-bar-message" data-tippy-content="消息">
         <IconMessage class="iconMessage" :size="24" />
       </div>
       <div v-if="showTools" class="header-bar-contact">
@@ -120,6 +135,9 @@ function handleLogin() {
 
 function handleLogout() {
   userStore.logout();
+  router.push("/").then(() => {
+    router.go(0);
+  });
 }
 
 function goPublish() {
@@ -250,6 +268,42 @@ const gotoMainPage = () => {
 
 .login-avatar:hover {
   transform: scale(1.2);
+}
+
+.dropdown-user-info {
+  margin: 10px, 0;
+  padding: 10px;
+  color: var(--text-secondary);
+/*   margin-bottom: 12px; */
+/*   background-color: var(--bg-secondary); */
+  /*   display: none; */
+}
+
+.dropdown-user-name {
+  display: flex;
+  align-items: center;
+  /* justify-content: center; */
+  font-size: 0.9rem;
+  height: 30px;
+}
+
+.dropdown-username {
+  display: flex;
+  align-items: center;
+  /*   justify-content: center; */
+  font-size: 0.9rem;
+  height: 30px;
+}
+
+.dropdown-item-divider {
+  height: 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+.dropdown-item-end {
+  color: var(--text-secondary);
+  background-color: transparent;
+  height: 20px;
 }
 
 .dropdown-item {

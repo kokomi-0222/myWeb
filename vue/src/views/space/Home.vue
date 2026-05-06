@@ -9,7 +9,7 @@
         }}</span>
       </div>
       <div class="user-role" :style="{ backgroundColor: userStore.user?.nameColor }">
-        <span>{{ roleInfo?.name }}</span>
+        <span>{{ userStore.primaryRole?.name }}</span>
       </div>
     </div>
     <div class="user-tips">
@@ -141,18 +141,9 @@ import { getUserPosts } from "@/api/posts";
 const uiStore = useUIStore();
 const userStore = useUserStore();
 const id = `input-${Math.random().toString(36).substring(2, 11)}`;
-// 角色映射表：key = role，value = 中文名
-const roleOptions = [
-  { role: "admin", name: "管理员" },
-  { role: "moderator", name: "版主" },
-  { role: "editor", name: "编辑" },
-  { role: "vip", name: "会员" },
-  { role: "member", name: "会员" },
-  { role: "guest", name: "访客" },
-];
-const roleInfo = computed(() => {
-  return roleOptions.find((item) => item.role === userStore.user?.primaryRole);
-});
+
+
+
 
 const publishingTitleInnerValue = ref("");
 const maxTitleLimit = 20;

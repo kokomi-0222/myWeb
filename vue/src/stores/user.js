@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import {
   getUserInfo as apiGetUserInfo,
   login as apiLogin,
+  register as apiRegister,
   updateProfile as apiUpdateProfile,
 } from '@/api/user'
 import setting from '@/config/setting'
@@ -86,7 +87,7 @@ export const useUserStore = defineStore('user', () => {
       }
     } catch (err) {
       console.error(err)
-      return { success: false, message: '保存请求异常' }
+      return { success: false, message: err.msg || '保存失败' }
     } finally {
       isLoading.value = false
     }
@@ -104,7 +105,16 @@ export const useUserStore = defineStore('user', () => {
 
   // 注册
   const register = async (registerData) => {
-    throw new Error('register 接口暂未实现')
+    const res = await apiRegister(registerData)
+    try {
+      if (setting.successCode.includes(res.code)) {
+        return { success: true, data: res.data }
+      }
+      return { success: false, message: res.msg || '注册失败' }
+    } catch (err) {
+      console.error(err)
+      return { success: false, message: res.msg }
+    }
   }
 
   // 刷新页面时自动获取用户信息
@@ -112,12 +122,25 @@ export const useUserStore = defineStore('user', () => {
     getUserInfo()
   }
 
+  const roleOptions = [
+    { role: 'admin', name: '管理员', color: '#e966b2' },
+    { role: 'moderator', name: '版主', color: '#e966b2' },
+    { role: 'editor', name: '编辑', color: '#e966b2' },
+    { role: 'vip', name: '会员', color: '#e966b2' },
+    { role: 'member', name: '普通用户', color: '#636161' },
+    { role: 'guest', name: '访客', color: '#c0c4cc' },
+  ]
+  const primaryRole = computed(() => {
+    return roleOptions.find((item) => item.role === user.value?.primaryRole)
+  })
+
   return {
     user,
     roles,
     token,
     isLoading,
     isLogin,
+    primaryRole,
     login,
     getUserInfo,
     logout,
