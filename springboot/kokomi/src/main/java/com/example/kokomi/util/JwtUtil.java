@@ -30,14 +30,26 @@ public class JwtUtil {
     /**
      * 生成 Token
      */
-    public static String generateToken(Long userId) {
+    public static String generateToken(Long userId, Integer tokenVersion) {
         return Jwts.builder()
                 .setSubject(userId.toString())
+                .claim("tokenVersion", tokenVersion)
                 .setExpiration(new Date(System.currentTimeMillis() + jwtProperties.getExpire()))
                 .signWith(getSecretKey())  //
                 .compact();
     }
 
+    /**
+     * 解析 Token 获取 tokenVersion
+     */
+    public static Integer getTokenVersion(String token) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(getSecretKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+        return claims.get("tokenVersion", Integer.class);
+    }
     /**
      * 解析 Token 获取 userId
      */

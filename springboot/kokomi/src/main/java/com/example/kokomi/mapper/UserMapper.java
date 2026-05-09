@@ -1,10 +1,7 @@
 package com.example.kokomi.mapper;
 
 import com.example.kokomi.entity.User;
-import org.apache.ibatis.annotations.Insert;
-import org.apache.ibatis.annotations.Options;
-import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.Update;
+import org.apache.ibatis.annotations.*;
 
 import java.util.List;
 
@@ -27,17 +24,6 @@ public interface UserMapper {
     User selectById(Long id);
 
 
-    //  根据用户ID查所有角色编码
-    @Select("select role_code from user_role where user_id = #{userId}")
-    List<String> selectRolesByUserId(Long userId);
-
-    //  根据用户ID查所有权限编码
-    @Select("""
-            select perm_code from role_permission 
-            where role_code in (select role_code from user_role where user_id = #{userId})
-            """)
-    List<String> selectPermissionsByUserId(Long userId);
-
     //根据id更新用户信息
     int updateById(User user);
 
@@ -54,5 +40,12 @@ public interface UserMapper {
      */
     @Update("update user set username=#{username}, name=#{name} where id=#{id}")
     int updateUsernameAndName(User user);
+
+    /**
+     * 更新密码 且 让所有旧登录失效
+     */
+    @Update("UPDATE user SET password = #{newPassword}, token_version = token_version + 1 WHERE id = #{userId}")
+    int updatePasswordAndVersion(@Param("userId") Long userId, @Param("newPassword") String newPassword);
+
 
 }

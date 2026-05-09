@@ -5,6 +5,7 @@ import {
   login as apiLogin,
   register as apiRegister,
   updateProfile as apiUpdateProfile,
+  updatePassword as apiUpdatePassword,
 } from '@/api/user'
 import setting from '@/config/setting'
 import { getAccessToken, setAccessToken, removeAccessToken } from '@/utils/accessToken'
@@ -117,6 +118,21 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  // 更新密码
+  const updatePassword = async (updateData) => {
+    const res = await apiUpdatePassword(updateData)
+    try {
+      if (setting.successCode.includes(res.code)) {
+        return { success: true, data: res.data }
+      }
+      return { success: false, message: res.msg || '更新密码失败' }
+    } catch (err) {
+      console.error(err)
+      return { success: false, message: res.msg }
+    }
+  }
+
+
   // 刷新页面时自动获取用户信息
   if (token.value) {
     getUserInfo()
@@ -146,5 +162,6 @@ export const useUserStore = defineStore('user', () => {
     logout,
     register,
     updateProfile,
+    updatePassword,
   }
 })

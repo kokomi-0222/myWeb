@@ -183,6 +183,9 @@ const validateRegister = (): boolean => {
   } else if (pwd.length < 6) {
     regErr.value.password = "密码至少6位";
     ok = false;
+  } else if (pwd.length > 32) {
+    regErr.value.password = "密码过长";
+    ok = false;
   }
 
   if (!registerForm.confirmPassword) {
@@ -211,7 +214,7 @@ const handleLogin = async () => {
       message.error(res.message || "登录失败");
     }
   } catch (err) {
-    message.error("登录异常");
+    //message.error("登录异常");
   } finally {
     logging.value = false;
   }

@@ -19,6 +19,7 @@ public class UserBO {
     private String gender;
     private String phone;
     private String signature;
+    private Integer tokenVersion;
 
     // 角色、权限
     private List<String> roles;

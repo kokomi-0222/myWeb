@@ -22,4 +22,9 @@ public interface UserService {
      * 更新用户信息
      */
     void updateUserInfo(UserUpdateDTO dto);
+
+    /**
+     * 修改密码
+     */
+    Result<String> updatePassword(EncryptDataDTO dto);
 }

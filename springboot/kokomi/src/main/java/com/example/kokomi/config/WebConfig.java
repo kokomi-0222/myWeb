@@ -12,7 +12,8 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Resource
     private AuthProperties authProperties;
-
+    @Resource
+    private LoginInterceptor loginInterceptor;
     // 静态资源映射（正确！）
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
@@ -25,7 +26,7 @@ public class WebConfig implements WebMvcConfigurer {
     // 拦截器
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(new LoginInterceptor())
+        registry.addInterceptor(loginInterceptor)
                 .addPathPatterns("/**")
                 .excludePathPatterns(authProperties.getExcludePaths())
                 // 必须放行静态图片！！！

@@ -19,10 +19,10 @@ public class LoginVO {
      */
     public static LoginVO fromUserBO(UserBO bo) {
         LoginVO vo = new LoginVO();
-        System.out.println("AAAAAAAAAAAAAAAAAAAAAA");
-        String token = JwtUtil.generateToken(bo.getId());
+        //System.out.println("AAAAAAAAAAAAAAAAAAAAAA");
+        String token = JwtUtil.generateToken(bo.getId(), bo.getTokenVersion());
         vo.setToken(token);
-        System.out.println("BBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+        //System.out.println("BBBBBBBBBBBBBBBBBBBBBBBBBBBB");
         // 用户信息转换
         UserVO userVO = new UserVO();
         userVO.setId(bo.getId());

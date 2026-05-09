@@ -58,3 +58,16 @@ export function getUserPermissions() {
     method: 'get',
   })
 }
+
+export async function updatePassword(data) {
+  if (setting.loginRSA) {
+    data = await encryptedData(data)
+    return request({
+      url: '/user/password',
+      method: 'post',
+      data: {
+        encryptedData: data,
+      },
+    })
+  }
+}

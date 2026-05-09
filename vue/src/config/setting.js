@@ -47,7 +47,7 @@ const setting = {
     //个性签名最大长度
     signatureMaxLength: 100,
     //昵称最大长度
-    nameMaxLength: 20,
+    nameMaxLength: 12,
 }
 
 export default setting

@@ -18,7 +18,7 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 【关键】处理请求方法错误：POST访问GET接口 → 直接返回友好提示
+     * 处理请求方法错误：POST访问GET接口 → 直接返回友好提示
      */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public Result<?> handleMethodNotSupported() {

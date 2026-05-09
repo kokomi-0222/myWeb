@@ -7,16 +7,16 @@ import cn.hutool.core.util.StrUtil;
 import com.example.kokomi.bo.UserBO;
 import com.example.kokomi.common.Result;
 import com.example.kokomi.common.ResultCode;
-import com.example.kokomi.dto.EncryptDataDTO;
-import com.example.kokomi.dto.LoginDTO;
-import com.example.kokomi.dto.RegisterDTO;
-import com.example.kokomi.dto.UserUpdateDTO;
+import com.example.kokomi.dto.*;
 import com.example.kokomi.entity.User;
 import com.example.kokomi.exception.CustomerException;
+import com.example.kokomi.mapper.RolePermissionMapper;
 import com.example.kokomi.mapper.UserMapper;
+import com.example.kokomi.mapper.UserRoleMapper;
 import com.example.kokomi.service.UserService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.util.RsaUtil;
+import com.example.kokomi.util.UserTokenVersionCache;
 import lombok.RequiredArgsConstructor;
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.stereotype.Service;
@@ -33,6 +33,8 @@ import java.nio.file.StandardCopyOption;
 public class UserServiceImpl implements UserService {
 
     private final UserMapper userMapper;
+    private final UserRoleMapper userRoleMapper;
+    private final RolePermissionMapper rolePermissionMapper;
     private final RsaUtil rsaUtil;
     private final ObjectMapper objectMapper;
 
@@ -65,12 +67,13 @@ public class UserServiceImpl implements UserService {
         }
         //转换 + 赋值角色权限
         UserBO userBO = convertToUserBO(user);
-        userBO.setRoles(userMapper.selectRolesByUserId(user.getId()));
-        userBO.setPermissions(userMapper.selectPermissionsByUserId(user.getId()));
+        userBO.setRoles(userRoleMapper.selectRolesByUserId(user.getId()));
+        userBO.setPermissions(rolePermissionMapper.selectPermissionsByUserId(user.getId()));
         //System.out.println(userBO);
         return userBO;
     }
 
+    @Override
     public Result<Void> register(EncryptDataDTO encryptedDto){
         //解密
         String json = rsaUtil.decrypt(encryptedDto.getEncryptedData());
@@ -101,6 +104,10 @@ public class UserServiceImpl implements UserService {
         // 密码长度 >=6
         if (password.length() < 6) {
             throw new CustomerException(ResultCode.REGISTER_ERROR, "密码长度不能少于6位");
+        }
+
+        if (password.length() > 32) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "密码长度不能超过32位");
         }
 
         // 密码格式：字母+数字+下划线
@@ -159,8 +166,8 @@ public class UserServiceImpl implements UserService {
         }
 
         UserBO userBO = convertToUserBO(user);
-        userBO.setRoles(userMapper.selectRolesByUserId(user.getId()));
-        userBO.setPermissions(userMapper.selectPermissionsByUserId(user.getId()));
+        userBO.setRoles(userRoleMapper.selectRolesByUserId(user.getId()));
+        userBO.setPermissions(rolePermissionMapper.selectPermissionsByUserId(user.getId()));
         return userBO;
     }
 
@@ -222,12 +229,10 @@ public class UserServiceImpl implements UserService {
                 // 4. 真正移动（replaceExisting = 覆盖）
                 Files.move(tempPath, destPath, StandardCopyOption.REPLACE_EXISTING);
 
-                // 5. 拼接完整可访问地址（前端直接显示！）
+                // 5. 拼接完整可访问地址
                 finalAvatar = "http://localhost:8080/upload/images/" + fileName;
 
-                // ==========================
                 // 删除旧头像
-                // ==========================
                 if (oldUser.getAvatar() != null) {
                     try {
                         String oldFileName = oldUser.getAvatar().substring(oldUser.getAvatar().lastIndexOf("/") + 1);
@@ -258,6 +263,77 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+
+    public Result<String> updatePassword(EncryptDataDTO encryptedDto){
+        //解密
+        String json = rsaUtil.decrypt(encryptedDto.getEncryptedData());
+        if (json == null) {
+            throw new CustomerException(ResultCode.RSA_DECRYPT_ERROR, "解密失败");
+        }
+        //DTO
+        PasswordDTO dto;
+        try {
+            dto = objectMapper.readValue(json, PasswordDTO.class);
+        } catch (Exception e) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "参数格式错误");
+        }
+
+        String oldPassword = dto.getOldPassword();
+        String newPassword = dto.getNewPassword();
+        String confirmPassword = dto.getConfirmPassword();
+
+        // 1. 旧密码不能为空
+        if (StrUtil.isBlank(oldPassword)) {
+            throw new CustomerException(ResultCode.UPDATE_PASSWORD_ERROR, "请输入当前密码");
+        }
+
+        // 2. 新密码不能为空
+        if (StrUtil.isBlank(newPassword)) {
+            throw new CustomerException(ResultCode.UPDATE_PASSWORD_ERROR, "请输入新密码");
+        }
+
+        // 3. 新密码长度 >=6
+        if (newPassword.length() < 6) {
+            throw new CustomerException(ResultCode.UPDATE_PASSWORD_ERROR, "新密码至少 6 位");
+        }
+
+        // 4. 新密码长度 <=32
+        if (newPassword.length() > 32) {
+            throw new CustomerException(ResultCode.UPDATE_PASSWORD_ERROR, "新密码不超过32位");
+        }
+
+        // 5. 两次密码不一致
+        if (!newPassword.equals(confirmPassword)) {
+            throw new CustomerException(ResultCode.UPDATE_PASSWORD_ERROR, "两次输入的新密码不一致");
+        }
+
+        // 6. 新密码不能与原密码相同
+        if (oldPassword.equals(newPassword)) {
+            throw new CustomerException(ResultCode.UPDATE_PASSWORD_ERROR, "新密码不能与原密码相同");
+        }
+        Long userId = LoginUserHolder.getUserId();
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new CustomerException(ResultCode.UPDATE_PASSWORD_ERROR, "用户不存在");
+        }
+        if (!BCrypt.checkpw(oldPassword, user.getPassword())) {
+            throw new CustomerException(ResultCode.UPDATE_PASSWORD_ERROR, "原密码不正确");
+        }
+
+        String encodeNewPwd = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+
+        // 只更新密码，安全！
+        int rows = userMapper.updatePasswordAndVersion(userId, encodeNewPwd);
+        if(rows != 1){
+            throw new CustomerException(ResultCode.SERVER_ERROR, "操作失败");
+        }
+        UserTokenVersionCache.removeVersion(userId);
+        return Result.success("密码修改成功");
+    }
+
+
+
+
     /**
      * 抽取：User → UserBO 转换方法
      */
@@ -277,7 +353,7 @@ public class UserServiceImpl implements UserService {
         userBO.setGender(user.getGender());
         userBO.setPhone(user.getPhone());
         userBO.setSignature(user.getSignature());
-
+        userBO.setTokenVersion(user.getTokenVersion());
         return userBO;
     }
 }

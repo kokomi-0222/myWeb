@@ -63,6 +63,7 @@ declare module 'vue' {
     InputImage: typeof import('./src/components/inputs/InputImage.vue')['default']
     InputLine: typeof import('./src/components/inputs/InputLine.vue')['default']
     InputSearch: typeof import('./src/components/inputs/InputSearch.vue')['default']
+    InputText: typeof import('./src/components/inputs/InputText.vue')['default']
     InputTextarea: typeof import('./src/components/inputs/InputTextarea.vue')['default']
     LoginModal: typeof import('./src/components/modules/LoginModal.vue')['default']
     MobileNavbar: typeof import('./src/components/navbar/MobileNavbar.vue')['default']

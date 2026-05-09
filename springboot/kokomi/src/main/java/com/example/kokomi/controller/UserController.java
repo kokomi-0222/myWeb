@@ -51,4 +51,10 @@ public class UserController {
         return Result.success("保存成功");
     }
 
+    @PostMapping("/password")
+    public Result<String> updatePassword(@RequestBody EncryptDataDTO dto){
+        return userService.updatePassword(dto);
+    }
+
+
 }

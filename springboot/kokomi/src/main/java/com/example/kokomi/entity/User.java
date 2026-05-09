@@ -11,7 +11,6 @@ import lombok.Data;
  * 只包含数据库字段，不参与业务逻辑
  */
 @Data
-
 public class User {
     private Long id;
     private String username;
@@ -28,6 +27,6 @@ public class User {
     private String phone;
     private String signature;
     private LocalDateTime createTime;
-
+    private Integer tokenVersion;
 
 }
