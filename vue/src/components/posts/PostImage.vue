@@ -17,7 +17,7 @@
       </div>
       <img
         class="img"
-        :src="item.thumbnail_url"
+        :src="item.thumbnailUrl"
         :alt="item.alt"
         v-if="item.status === 'success'"
       />
@@ -86,7 +86,7 @@
           </div>
           <img
             class="preview-img"
-            :src="currentPreviewItem?.preview_url"
+            :src="currentPreviewItem?.previewUrl"
             alt="预览"
             v-show="!isPreviewError"
             @load="handlePreviewImgLoad"
@@ -167,10 +167,10 @@ const initMediaStatus = () => {
 
 const loadImage = (idx) => {
   const item = gridMediaList.value[idx];
-  if (!item || !item.thumbnail_url) return;
+  if (!item || !item.thumbnailUrl) return;
   item.status = "loading";
   const img = new Image();
-  img.src = item.thumbnail_url;
+  img.src = item.thumbnailUrl;
   img.onload = () => {
     item.status = "success";
     emits("load", idx);
@@ -267,7 +267,7 @@ const handleRotate = () => (rotateDeg.value += 90);
 const handleFlipHorizontal = () => (flipHorizontal.value = !flipHorizontal.value);
 
 const handleDownload = () => {
-  const url = currentPreviewItem.value?.row_url || currentPreviewItem.value?.preview_url;
+  const url = currentPreviewItem.value?.rawUrl || currentPreviewItem.value?.previewUrl;
   if (!url) return;
   const a = document.createElement("a");
   a.href = url;

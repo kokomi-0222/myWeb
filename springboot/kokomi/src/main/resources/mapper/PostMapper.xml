@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.kokomi.mapper.PostMapper">
+    <select id="selectPostPage" resultType="com.example.kokomi.entity.Post">
+        SELECT * FROM post
+        <where>
+            <if test="query.type != null and query.type != ''">
+                AND type = #{query.type}
+            </if>
+            <if test="query.keyword != null and query.keyword != ''">
+                AND (title LIKE CONCAT('%', #{query.keyword}, '%')
+                OR content LIKE CONCAT('%', #{query.keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY
+        <choose>
+            <when test="query.sort == 'likes'">likes DESC</when>
+            <when test="query.sort == 'views'">views DESC</when>
+            <otherwise>created_at DESC</otherwise>
+        </choose>
+        LIMIT #{offset}, #{query.pageSize}
+    </select>
+
+    <select id="selectPostCount" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM post
+        <where>
+            <if test="query.type != null and query.type != ''">
+                AND type = #{query.type}
+            </if>
+            <if test="query.keyword != null and query.keyword != ''">
+                AND (title LIKE CONCAT('%', #{query.keyword}, '%')
+                OR content LIKE CONCAT('%', #{query.keyword}, '%'))
+            </if>
+        </where>
+    </select>
+</mapper>

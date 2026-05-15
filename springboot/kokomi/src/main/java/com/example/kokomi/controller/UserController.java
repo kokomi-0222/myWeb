@@ -7,7 +7,7 @@ import com.example.kokomi.dto.EncryptDataDTO;
 import com.example.kokomi.dto.UserUpdateDTO;
 import com.example.kokomi.service.UserService;
 import com.example.kokomi.util.LoginUserHolder;
-import com.example.kokomi.util.RsaUtil;
+
 import com.example.kokomi.vo.LoginVO;
 import com.example.kokomi.vo.UserInfoVO;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
 
     private final UserService userService;
-    private final RsaUtil rsaUtil;
 
     @PostMapping("/login")
     public Result<LoginVO> login(@RequestBody EncryptDataDTO dto) {

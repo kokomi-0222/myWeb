@@ -156,7 +156,7 @@ const loadPosts = async (isLoadMore = false) => {
     if (setting.successCode.includes(res.code)) {
       const newPosts = res.data.list || [];
       const newTotal = res.data.total || 0;
-
+      console.log("getPosts:", res);
       if (isLoadMore) {
         posts.list.push(...newPosts);
         posts.currentPage += 1; // 已成功加载下一页

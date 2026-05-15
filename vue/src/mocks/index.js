@@ -14,10 +14,10 @@ const MOCK_ROUTES = [
     { url: '/user/permissions', method: 'get', handler: user.mockGetUserPermissions },
 
     // 帖子
-    { url: '/posts/getPosts', method: 'get', handler: post.mockGetPosts },
-    { url: '/posts/createPost', method: 'post', handler: post.mockCreatePost },
-    { url: '/posts/deleteById/', method: 'delete', handler: post.mockDeletePost, extractIdFromUrl: true },
-    { url: '/posts/getUserPosts', method: 'get', handler: post.mockGetUserPosts },
+    { url: '/post/getPosts', method: 'get', handler: post.mockGetPosts },
+    { url: '/post/createPost', method: 'post', handler: post.mockCreatePost },
+    { url: '/post/deleteById/', method: 'delete', handler: post.mockDeletePost, extractIdFromUrl: true },
+    { url: '/post/getUserPosts', method: 'get', handler: post.mockGetUserPosts },
 
     // 评论
     { url: '/comments/getComments', method: 'get', handler: comment.mockGetComments },

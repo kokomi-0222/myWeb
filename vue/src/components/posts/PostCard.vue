@@ -64,13 +64,8 @@
       <h3 v-if="post.title" class="post-card__title">{{ post.title }}</h3>
       <div class="post-card__content" v-html="sanitizeContent(post.content)"></div>
       <!-- 图片展示 -->
-       <div
-        v-if="post.media && post.media.length"
-        class="post-card__media"
-      >
-        <PostImage
-          :media="post.media"
-        />
+      <div v-if="post.media && post.media.length" class="post-card__media">
+        <PostImage :media="post.media" />
       </div>
     </div>
     <!-- 底部操作区 -->
@@ -142,7 +137,7 @@ const commentVisible = ref(false);
 const commentCount = computed(() => {
   const p = props.post || {};
   const raw =
-    p.commentsCount ??
+    p.comments ??
     p.commentCount ??
     p.comments_count ??
     p.comment_count ??
@@ -170,8 +165,6 @@ const forwardCount = computed(() => {
 const isAuthor = computed(() => {
   return userStore.user?.id === props.post.author.id;
 });
-
-
 
 const currentUser = computed(() => userStore.user);
 
@@ -209,7 +202,7 @@ const moreActionsHandle = (action) => {
   // 更好的方式：在 handler 内部调用 API，成功后再 emit
   // 这里我们简单调用，并手动处理 delete
   if (action.key === "delete") {
-   /*  import("element-plus").then(({ ElMessageBox }) => {
+    /*  import("element-plus").then(({ ElMessageBox }) => {
       ElMessageBox.confirm("确定删除这条帖子？", "提示", {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
@@ -249,7 +242,7 @@ const toggleComment = () => {
   border-radius: 4px;
   padding: 16px 20px;
   margin-bottom: 18px;
-/*   box-shadow: 0 4px 12px var(--box-shadow); */
+  /*   box-shadow: 0 4px 12px var(--box-shadow); */
   border: 1px solid var(--border-color);
   transition: background-color 0.7s ease, color 0.7s ease;
 }
@@ -368,7 +361,6 @@ const toggleComment = () => {
   gap: 8px;
   width: fit-content;
   overflow: hidden;
-  
 }
 
 .post-card__footer {

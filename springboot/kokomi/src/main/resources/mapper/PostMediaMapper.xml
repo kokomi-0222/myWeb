@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.kokomi.mapper.PostMediaMapper">
+
+    <select id="selectByPostId" resultType="com.example.kokomi.entity.PostMedia">
+        SELECT
+            id,
+            post_id,
+            thumbnail_url,
+            preview_url,
+            raw_url,
+            type,
+            width,
+            height,
+            size,
+            alt,
+            format,
+            is_animated,
+            sort,
+            created_at
+        FROM post_media
+        WHERE post_id = #{postId}
+        ORDER BY sort ASC
+    </select>
+
+</mapper>

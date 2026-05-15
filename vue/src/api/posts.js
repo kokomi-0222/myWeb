@@ -2,7 +2,7 @@ import request from '@/utils/request'
 
 export function getPosts(pageNum, pageSize, sort, keyword, type) {
   return request({
-    url: '/posts/getPosts',
+    url: '/post/getPosts',
     method: 'get',
     params: {
       pageNum,
@@ -17,7 +17,7 @@ export function getPosts(pageNum, pageSize, sort, keyword, type) {
 /* 获取用户自身帖子 */
 export function getUserPosts(pageNum, pageSize, sort, keyword, type) {
   return request({
-    url: '/posts/getUserPosts',
+    url: '/post/getUserPosts',
     method: 'get',
     params: {
       pageNum,
@@ -31,14 +31,14 @@ export function getUserPosts(pageNum, pageSize, sort, keyword, type) {
 
 export function createPosts() {
   return request({
-    url: '/posts/createPost',
+    url: '/post/createPost',
     method: 'post'
   })
 }
 
 export function deletePosts(id) {
   return request({
-    url: `/posts/deleteById/${id}`,
+    url: `/post/deleteById/${id}`,
     method: 'delete'
   })
 }

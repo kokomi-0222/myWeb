@@ -5,7 +5,7 @@ import java.util.List;
 
 @Data
 public class PageVO<T> {
-    private List<T> records;   // 当前页数据
+    private List<T> list;   // 当前页数据
     private Long total;        // 总条数
     private Integer pageNum;   // 当前页
     private Integer pageSize;  // 每页条数
@@ -14,7 +14,7 @@ public class PageVO<T> {
     // 构建分页结果
     public static <T> PageVO<T> build(List<T> list, Long total, Integer pageNum, Integer pageSize) {
         PageVO<T> vo = new PageVO<>();
-        vo.setRecords(list);
+        vo.setList(list);
         vo.setTotal(total);
         vo.setPageNum(pageNum);
         vo.setPageSize(pageSize);
