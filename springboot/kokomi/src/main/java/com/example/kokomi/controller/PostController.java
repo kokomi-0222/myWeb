@@ -18,8 +18,21 @@ public class PostController {
 
     private final PostService postService;
 
+    // 首页
     @GetMapping("/getPosts")
     public Result<PageVO<PostDetailVO>> getPosts(PostPageQueryDTO query) {
         return Result.success(postService.getPostPage(query));
+    }
+
+    // 我的帖子
+    @GetMapping("/getMyPosts")
+    public Result<PageVO<PostDetailVO>> getMyPosts(PostPageQueryDTO dto) {
+        return Result.success(postService.getMyPosts(dto));
+    }
+
+    // 他人帖子
+    @GetMapping("/getUserPosts")
+    public Result<PageVO<PostDetailVO>> getUserPosts(PostPageQueryDTO dto) {
+        return Result.success(postService.getUserPosts(dto));
     }
 }

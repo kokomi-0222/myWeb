@@ -6,6 +6,10 @@
     <select id="selectPostPage" resultType="com.example.kokomi.entity.Post">
         SELECT * FROM post
         <where>
+            <if test="query.userId != null">
+                user_id = #{query.userId}
+            </if>
+
             <if test="query.type != null and query.type != ''">
                 AND type = #{query.type}
             </if>
@@ -26,6 +30,9 @@
     <select id="selectPostCount" resultType="java.lang.Long">
         SELECT COUNT(*) FROM post
         <where>
+            <if test="query.userId != null">
+                user_id = #{query.userId}
+            </if>
             <if test="query.type != null and query.type != ''">
                 AND type = #{query.type}
             </if>

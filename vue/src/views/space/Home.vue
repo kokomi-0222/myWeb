@@ -136,7 +136,7 @@ import {
   nextTick,
 } from "vue";
 import setting from "@/config/setting";
-import { getUserPosts } from "@/api/posts";
+import { getMyPosts } from "@/api/posts";
 
 const uiStore = useUIStore();
 const userStore = useUserStore();
@@ -252,12 +252,12 @@ const loadPosts = async (isLoadMore = false) => {
   const targetPage = isLoadMore ? userPosts.currentPage + 1 : userPosts.currentPage;
 
   try {
-    const res = await getUserPosts(
+    const res = await getMyPosts(
       targetPage,
       userPosts.pageSize,
       "",
       searchParams.keyword,
-      searchParams.type
+      searchParams.type,
     );
 
     if (setting.successCode.includes(res.code)) {

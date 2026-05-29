@@ -13,4 +13,10 @@ public interface PostService {
      */
     PageVO<PostDetailVO> getPostPage(PostPageQueryDTO dto);
 
+    // 我的帖子
+    PageVO<PostDetailVO> getMyPosts(PostPageQueryDTO dto);
+
+    // 指定用户帖子
+    PageVO<PostDetailVO> getUserPosts(PostPageQueryDTO dto);
+
 }

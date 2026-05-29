@@ -17,4 +17,7 @@ public class PostPageQueryDTO {
 
     // 类型筛选（不传默认全部）
     private String type;
+
+    //用户id
+    private Long userId;
 }

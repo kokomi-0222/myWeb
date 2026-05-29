@@ -15,7 +15,22 @@ export function getPosts(pageNum, pageSize, sort, keyword, type) {
 }
 
 /* 获取用户自身帖子 */
-export function getUserPosts(pageNum, pageSize, sort, keyword, type) {
+export function getMyPosts(pageNum, pageSize, sort, keyword, type) {
+  return request({
+    url: '/post/getMyPosts',
+    method: 'get',
+    params: {
+      pageNum,
+      pageSize,
+      sort,
+      keyword,
+      type
+    }
+  })
+}
+
+
+export function getUserPosts(pageNum, pageSize, sort, keyword, type, userId) {
   return request({
     url: '/post/getUserPosts',
     method: 'get',
@@ -24,7 +39,8 @@ export function getUserPosts(pageNum, pageSize, sort, keyword, type) {
       pageSize,
       sort,
       keyword,
-      type
+      type,
+      userId
     }
   })
 }
