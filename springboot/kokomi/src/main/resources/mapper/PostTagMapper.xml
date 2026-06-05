@@ -8,4 +8,12 @@
         SELECT tag_name FROM post_tag WHERE post_id = #{postId}
     </select>
 
+    <insert id="insertBatch" parameterType="list">
+        INSERT INTO post_tag (post_id, tag_name)
+        VALUES
+        <foreach collection="tags" item="tag" separator=",">
+            (#{postId}, #{tag})
+        </foreach>
+    </insert>
+
 </mapper>

@@ -25,4 +25,14 @@
         ORDER BY sort ASC
     </select>
 
+    <insert id="insertBatch" parameterType="list">
+        INSERT INTO post_media (post_id, thumbnail_url, preview_url, raw_url, type, width, height, size, alt, format, is_animated, sort, created_at)
+        VALUES
+        <foreach collection="mediaList" item="media" separator=",">
+            (#{media.postId}, #{media.thumbnailUrl}, #{media.previewUrl}, #{media.rawUrl},
+             #{media.type}, #{media.width}, #{media.height}, #{media.size},
+             #{media.alt}, #{media.format}, #{media.isAnimated}, #{media.sort}, NOW())
+        </foreach>
+    </insert>
+
 </mapper>

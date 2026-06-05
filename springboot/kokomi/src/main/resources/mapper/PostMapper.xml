@@ -42,4 +42,9 @@
             </if>
         </where>
     </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO post (title, content, user_id, created_at, updated_at)
+        VALUES (#{title}, #{content}, #{userId}, NOW(), NOW())
+    </insert>
 </mapper>

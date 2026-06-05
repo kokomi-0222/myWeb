@@ -1,6 +1,8 @@
 package com.example.kokomi.service.impl;
 
 
+import com.example.kokomi.dto.CreatePostDTO;
+import com.example.kokomi.dto.PostMediaDTO;
 import com.example.kokomi.dto.PostPageQueryDTO;
 import com.example.kokomi.entity.Post;
 import com.example.kokomi.entity.PostMedia;
@@ -16,8 +18,18 @@ import com.example.kokomi.vo.PostAuthorVO;
 import com.example.kokomi.vo.PostDetailVO;
 import com.example.kokomi.vo.PostMediaVO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 @Service
@@ -28,6 +40,9 @@ public class PostServiceImpl implements PostService {
     private final PostMediaMapper postMediaMapper;
     private final PostTagMapper postTagMapper;
     private final UserMapper userMapper;
+
+    @Value("${app.base-url}")
+    private String baseUrl;
 
     @Override
     public PageVO<PostDetailVO> getPostPage(PostPageQueryDTO dto) {
@@ -47,6 +62,78 @@ public class PostServiceImpl implements PostService {
             return PageVO.build(new ArrayList<>(), 0L, dto.getPageNum(), dto.getPageSize());
         }
         return getPostList(dto);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PostDetailVO createPost(CreatePostDTO dto) {
+        Long userId = LoginUserHolder.getUserId();
+
+        Post post = new Post();
+        post.setTitle(dto.getTitle() != null ? dto.getTitle().trim() : "");
+        post.setContent(dto.getContent() != null ? dto.getContent().trim() : "");
+        post.setUserId(userId);
+
+        postMapper.insert(post);
+
+        // 插入媒体（将图片从 temp 移到 images）
+        if (dto.getMedia() != null && !dto.getMedia().isEmpty()) {
+            // 确保 images 目录存在
+            String projectPath = System.getProperty("user.dir");
+            File imagesDirFile = new File(projectPath + "/upload/images/");
+            if (!imagesDirFile.exists()) {
+                imagesDirFile.mkdirs();
+            }
+
+            List<PostMedia> mediaList = new ArrayList<>();
+            int sort = 0;
+            for (PostMediaDTO md : dto.getMedia()) {
+                PostMedia m = new PostMedia();
+                m.setPostId(post.getId());
+
+                // 将 temp 目录中的图片移动到 images 目录
+                String originalUrl = md.getUrl();
+                String finalUrl = originalUrl;
+                if (originalUrl != null && originalUrl.contains("/upload/temp/")) {
+                    String filename = originalUrl.substring(originalUrl.lastIndexOf("/") + 1);
+                    File tempFile = new File(projectPath + "/upload/temp/" + filename);
+                    File imageFile = new File(projectPath + "/upload/images/" + filename);
+                    if (tempFile.exists()) {
+                        try {
+                            Files.move(tempFile.toPath(), imageFile.toPath(),
+                                StandardCopyOption.REPLACE_EXISTING);
+                            finalUrl = baseUrl + "/upload/images/" + filename;
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+
+                m.setThumbnailUrl(finalUrl);
+                m.setPreviewUrl(finalUrl);
+                m.setRawUrl(finalUrl);
+                m.setType(md.getType() != null ? md.getType() : "image");
+                m.setWidth(md.getWidth());
+                m.setHeight(md.getHeight());
+                m.setSize(md.getSize());
+                m.setAlt(md.getAlt() != null ? md.getAlt() : "");
+                m.setFormat(md.getFormat() != null ? md.getFormat() : "");
+                m.setIsAnimated(md.getIsAnimated() != null ? md.getIsAnimated() : 0);
+                m.setSort(sort);
+                sort++;
+                mediaList.add(m);
+            }
+            if (!mediaList.isEmpty()) {
+                postMediaMapper.insertBatch(mediaList);
+            }
+        }
+
+        // 插入标签
+        if (dto.getTags() != null && !dto.getTags().isEmpty()) {
+            postTagMapper.insertBatch(post.getId(), dto.getTags());
+        }
+
+        return convertToVO(post);
     }
 
     private PageVO<PostDetailVO> getPostList(PostPageQueryDTO dto) {

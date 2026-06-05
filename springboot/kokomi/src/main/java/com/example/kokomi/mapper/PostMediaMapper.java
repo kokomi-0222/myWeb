@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface PostMediaMapper {
     List<PostMedia> selectByPostId(@Param("postId") Long postId);
+
+    int insertBatch(@Param("mediaList") List<PostMedia> mediaList);
 }

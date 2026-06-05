@@ -1,5 +1,6 @@
 package com.example.kokomi.service;
 
+import com.example.kokomi.dto.CreatePostDTO;
 import com.example.kokomi.dto.PostPageQueryDTO;
 import com.example.kokomi.entity.Post;
 import com.example.kokomi.vo.PageVO;
@@ -19,4 +20,6 @@ public interface PostService {
     // 指定用户帖子
     PageVO<PostDetailVO> getUserPosts(PostPageQueryDTO dto);
 
+    // 发布帖子
+    PostDetailVO createPost(CreatePostDTO dto);
 }

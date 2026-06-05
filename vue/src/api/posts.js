@@ -45,10 +45,12 @@ export function getUserPosts(pageNum, pageSize, sort, keyword, type, userId) {
   })
 }
 
-export function createPosts() {
+// 发布帖子
+export function createPosts(data) {
   return request({
     url: '/post/createPost',
-    method: 'post'
+    method: 'post',
+    data
   })
 }
 

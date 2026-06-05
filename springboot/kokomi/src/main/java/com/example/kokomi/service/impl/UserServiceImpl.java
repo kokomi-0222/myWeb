@@ -19,6 +19,7 @@ import com.example.kokomi.util.RsaUtil;
 import com.example.kokomi.util.UserTokenVersionCache;
 import lombok.RequiredArgsConstructor;
 import org.mindrot.jbcrypt.BCrypt;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
@@ -37,6 +38,9 @@ public class UserServiceImpl implements UserService {
     private final RolePermissionMapper rolePermissionMapper;
     private final RsaUtil rsaUtil;
     private final ObjectMapper objectMapper;
+
+    @Value("${app.base-url}")
+    private String baseUrl;
 
 
     @Override
@@ -62,7 +66,6 @@ public class UserServiceImpl implements UserService {
         }
         // 校验密码 String password = BCrypt.hashpw(原始明文密码, BCrypt.gensalt());
         if (!BCrypt.checkpw(dto.getPassword(), user.getPassword())) {
-            System.out.println("密码校验失败" +"原始"+ dto.getPassword() + "加密" + user.getPassword());
             throw new CustomerException(ResultCode.LOGIN_ERROR, "账号或密码不正确");
         }
         //转换 + 赋值角色权限
@@ -173,7 +176,7 @@ public class UserServiceImpl implements UserService {
 
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void updateUserInfo(UserUpdateDTO dto) {
         Long userId = LoginUserHolder.getUserId();
         User oldUser = userMapper.selectById(userId);
@@ -230,7 +233,7 @@ public class UserServiceImpl implements UserService {
                 Files.move(tempPath, destPath, StandardCopyOption.REPLACE_EXISTING);
 
                 // 5. 拼接完整可访问地址
-                finalAvatar = "http://localhost:8080/upload/images/" + fileName;
+                finalAvatar = baseUrl + "/upload/images/" + fileName;
 
                 // 删除旧头像
                 if (oldUser.getAvatar() != null) {

@@ -76,10 +76,11 @@
             type="bilibili"
             @click.stop="handleSubmit"
             :disabled="
-              !publishingTitleInnerValue.trim() && !publishingContentInnerValue.trim()
+              (!publishingTitleInnerValue.trim() && !publishingContentInnerValue.trim()) ||
+              submitting
             "
           >
-            发布
+                        {{ submitting ? '发布中...' : '发布' }}
           </Button>
         </div>
       </div>
@@ -137,10 +138,17 @@ import {
 } from "vue";
 import setting from "@/config/setting";
 import { getMyPosts } from "@/api/posts";
+import { createPosts } from "@/api/posts";
+import { uploadPostImage } from "@/api/file";
+import message from "@/utils/message";
 
 const uiStore = useUIStore();
 const userStore = useUserStore();
 const id = `input-${Math.random().toString(36).substring(2, 11)}`;
+
+const submitting = ref(false);
+
+
 
 
 
@@ -197,10 +205,67 @@ const previewContainerRef = ref(null);
 const imageFiles = ref([]);
 function handleImageChange(files) {
   imageFiles.value = files;
-  console.log(files);
 }
 
-const handleSubmit = async () => {};
+const handleSubmit = async () => {
+  const title = publishingTitleInnerValue.value.trim();
+  const content = publishingContentInnerValue.value.trim();
+
+  if (!title && !content) return;
+
+  submitting.value = true;
+  try {
+    // 上传图片
+    const mediaList = [];
+    if (imageFiles.value.length > 0) {
+      for (const file of imageFiles.value) {
+        try {
+          const res = await uploadPostImage(file);
+          if (setting.successCode.includes(res.code)) {
+            mediaList.push({
+              url: res.data.url,
+              type: res.data.type || 'image',
+              size: res.data.size || file.size,
+              format: res.data.format || '',
+            });
+          }
+        } catch (err) {
+          console.error('图片上传失败:', err);
+        }
+      }
+    }
+
+    // 发布帖子
+    const res = await createPosts({
+      title,
+      content,
+      media: mediaList.length > 0 ? mediaList : undefined,
+    });
+
+    if (setting.successCode.includes(res.code)) {
+      message.success('发布成功!');
+
+      // 清空表单
+      publishingTitleInnerValue.value = '';
+      publishingContentInnerValue.value = '';
+      imageFiles.value = [];
+      if (textareaRef.value) {
+        textareaRef.value.style.height = 'auto';
+      }
+
+      // 重新加载帖子列表
+      userPosts.currentPage = 1;
+      await loadPosts();
+    } else {
+      message.error(res.msg || '发布失败');
+    }
+  } catch (err) {
+    console.error('发布失败:', err);
+    message.error('发布失败');
+  } finally {
+    submitting.value = false;
+  }
+};
 
 //用户帖子记录
 const userPosts = reactive({
