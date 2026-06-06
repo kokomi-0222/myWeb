@@ -35,4 +35,8 @@
         </foreach>
     </insert>
 
+    <delete id="deleteByPostId">
+        DELETE FROM post_media WHERE post_id = #{postId}
+    </delete>
+
 </mapper>

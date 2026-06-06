@@ -1,13 +1,23 @@
 package com.example.kokomi.service.impl;
 
-import cn.hutool.core.lang.RegexPool;
-import cn.hutool.core.lang.Validator;
-import cn.hutool.core.util.ReUtil;
-import cn.hutool.core.util.StrUtil;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+
+import org.mindrot.jbcrypt.BCrypt;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.example.kokomi.bo.UserBO;
 import com.example.kokomi.common.Result;
 import com.example.kokomi.common.ResultCode;
-import com.example.kokomi.dto.*;
+import com.example.kokomi.dto.EncryptDataDTO;
+import com.example.kokomi.dto.LoginDTO;
+import com.example.kokomi.dto.PasswordDTO;
+import com.example.kokomi.dto.RegisterDTO;
+import com.example.kokomi.dto.UserUpdateDTO;
 import com.example.kokomi.entity.User;
 import com.example.kokomi.exception.CustomerException;
 import com.example.kokomi.mapper.RolePermissionMapper;
@@ -17,17 +27,13 @@ import com.example.kokomi.service.UserService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.util.RsaUtil;
 import com.example.kokomi.util.UserTokenVersionCache;
-import lombok.RequiredArgsConstructor;
-import org.mindrot.jbcrypt.BCrypt;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.ObjectMapper;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import cn.hutool.core.lang.RegexPool;
+import cn.hutool.core.lang.Validator;
+import cn.hutool.core.util.ReUtil;
+import cn.hutool.core.util.StrUtil;
+import lombok.RequiredArgsConstructor;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 @RequiredArgsConstructor
@@ -38,6 +44,9 @@ public class UserServiceImpl implements UserService {
     private final RolePermissionMapper rolePermissionMapper;
     private final RsaUtil rsaUtil;
     private final ObjectMapper objectMapper;
+
+    @Value("${app.upload-path}")
+    private String uploadPath;
 
     @Value("${app.base-url}")
     private String baseUrl;
@@ -192,14 +201,14 @@ public class UserServiceImpl implements UserService {
             throw new CustomerException(ResultCode.UPDATE_USER_ERROR, "昵称不能为空或空格");
         }
 
-        // 去空格后再判断长度
-        String name = StrUtil.trim(dto.getName());
+        // 去空格：去除首尾空格 + 内部所有空白字符
+        String name = StrUtil.trim(dto.getName()).replaceAll("\\s+", "");
         if (name.length() > 12) {
             throw new CustomerException(ResultCode.UPDATE_USER_ERROR, "昵称长度不能超过12");
         }
 
         // 不能包含特殊字符（只允许：中文 + 英文 + 数字）
-        if (!ReUtil.isMatch(RegexPool.GENERAL, name)) {
+        if (!ReUtil.isMatch("^[\\u4e00-\\u9fa5a-zA-Z0-9_]+$", name)) {
             throw new CustomerException(ResultCode.UPDATE_USER_ERROR, "昵称不能包含特殊字符，仅支持中文、英文、数字");
         }
 
@@ -220,11 +229,10 @@ public class UserServiceImpl implements UserService {
             try {
                 // 1. 截取文件名
                 String fileName = dto.getAvatar().substring(dto.getAvatar().lastIndexOf("/") + 1);
-                String projectPath = System.getProperty("user.dir");
 
                 // 2. 源路径 & 目标路径
-                Path tempPath = Paths.get(projectPath + "/upload/temp/" + fileName);
-                Path destPath = Paths.get(projectPath + "/upload/images/" + fileName);
+                Path tempPath = Paths.get(uploadPath + "temp/" + fileName);
+                Path destPath = Paths.get(uploadPath + "avatars/" + fileName);
 
                 // 3. 确保目标目录存在
                 Files.createDirectories(destPath.getParent());
@@ -233,13 +241,13 @@ public class UserServiceImpl implements UserService {
                 Files.move(tempPath, destPath, StandardCopyOption.REPLACE_EXISTING);
 
                 // 5. 拼接完整可访问地址
-                finalAvatar = baseUrl + "/upload/images/" + fileName;
+                finalAvatar = baseUrl + "/upload/avatars/" + fileName;
 
                 // 删除旧头像
                 if (oldUser.getAvatar() != null) {
                     try {
                         String oldFileName = oldUser.getAvatar().substring(oldUser.getAvatar().lastIndexOf("/") + 1);
-                        Path oldPath = Paths.get(projectPath + "/upload/images/" + oldFileName);
+                        Path oldPath = Paths.get(uploadPath + "avatars/" + oldFileName);
                         Files.deleteIfExists(oldPath);
                     } catch (Exception ignored) {}
                 }

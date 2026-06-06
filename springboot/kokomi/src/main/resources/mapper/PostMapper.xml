@@ -47,4 +47,12 @@
         INSERT INTO post (title, content, user_id, created_at, updated_at)
         VALUES (#{title}, #{content}, #{userId}, NOW(), NOW())
     </insert>
+
+    <select id="selectById" resultType="com.example.kokomi.entity.Post">
+        SELECT * FROM post WHERE id = #{id}
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM post WHERE id = #{id}
+    </delete>
 </mapper>

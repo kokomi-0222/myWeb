@@ -105,6 +105,9 @@ import DOMPurify from "dompurify"; // 防 XSS
 import { usePermission } from "@/utils/usePermission";
 import { ALL_ACTIONS } from "@/utils/postActions";
 import { formatRelativeTime, formatAbsoluteTime } from "@/utils/time";
+import { deletePosts } from "@/api/posts";
+
+import message from "@/utils/message";
 // Props
 const props = defineProps({
   post: {
@@ -193,27 +196,44 @@ const moreActions = computed(() => {
 
 // 处理点击
 const moreActionsHandle = (action) => {
-  // 临时 hack：把 emit 传给 handler（更优雅的方式是让 handler 返回 promise 或回调）
-  const wrappedHandler = action.handler.toString();
-  if (wrappedHandler.includes("emit")) {
-    // 不推荐，建议重构 handler 为接收上下文
-  }
-
-  // 更好的方式：在 handler 内部调用 API，成功后再 emit
-  // 这里我们简单调用，并手动处理 delete
   if (action.key === "delete") {
-    /*  import("element-plus").then(({ ElMessageBox }) => {
-      ElMessageBox.confirm("确定删除这条帖子？", "提示", {
-        confirmButtonText: "确定",
+    ElMessageBox.confirm("确定删除这条帖子？", "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    })
+      .then(async () => {
+        try {
+          await deletePosts(props.post.id);
+          message.success("删除成功");
+          emit("delete", props.post.id);
+        } catch (e) {
+          // 错误已在拦截器中处理
+        }
+      })
+      .catch(() => {});
+  } else if (action.key === "adminDelete") {
+    ElMessageBox.confirm(
+      `确定以管理员身份删除 ${props.post.author.name} 的帖子？`,
+      "管理员操作",
+      {
+        confirmButtonText: "强制删除",
         cancelButtonText: "取消",
-        type: "warning",
-      }).then(() => {
-        emit("delete", props.post.id);
-      });
-    });
+        type: "error",
+      }
+    )
+      .then(async () => {
+        try {
+          await deletePosts(props.post.id);
+          message.success("删除成功");
+          emit("delete", props.post.id);
+        } catch (e) {
+          // 错误已在拦截器中处理
+        }
+      })
+      .catch(() => {});
   } else {
     action.handler(props.post);
-  } */
   }
 };
 

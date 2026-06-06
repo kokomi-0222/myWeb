@@ -20,19 +20,7 @@ export const ALL_ACTIONS = [
     label: '删除',
     requiredPermission: ({ isOwnPost }) => isOwnPost,
     danger: true,
-    handler: (post) => {
-      // 使用 Element Plus 弹窗
-      /* import('element-plus').then(({ ElMessageBox }) => {
-        ElMessageBox.confirm('确定删除这条帖子？', '提示', {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          type: 'warning'
-        }).then(() => {
-          // 触发删除事件
-          // 注意：handler 不直接 emit，需在组件中绑定
-        })
-      }) */
-    }
+    handler: () => {}
   },
 
   // —— 他人的帖子 ——
@@ -69,16 +57,6 @@ export const ALL_ACTIONS = [
     label: '强制删除',
     requiredPermission: ({ isOwnPost }) => !isOwnPost && usePermission().hasPermission('post:delete'),
     danger: true,
-    handler: (post) => {
-     /*  import('element-plus').then(({ ElMessageBox }) => {
-        ElMessageBox.confirm(`确定以管理员身份删除 ${post.author.name} 的帖子？`, '管理员操作', {
-          confirmButtonText: '强制删除',
-          cancelButtonText: '取消',
-          type: 'error'
-        }).then(() => {
-          console.log('管理员删除', post.id)
-        })
-      }) */
-    }
+    handler: () => {}
   }
 ]

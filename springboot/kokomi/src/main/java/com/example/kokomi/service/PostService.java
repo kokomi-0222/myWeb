@@ -22,4 +22,7 @@ public interface PostService {
 
     // 发布帖子
     PostDetailVO createPost(CreatePostDTO dto);
+
+    // 删除帖子
+    void deletePost(Long postId);
 }

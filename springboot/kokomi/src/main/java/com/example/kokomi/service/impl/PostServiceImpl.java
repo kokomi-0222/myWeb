@@ -1,37 +1,38 @@
 package com.example.kokomi.service.impl;
 
 
-import com.example.kokomi.dto.CreatePostDTO;
-import com.example.kokomi.dto.PostMediaDTO;
-import com.example.kokomi.dto.PostPageQueryDTO;
-import com.example.kokomi.entity.Post;
-import com.example.kokomi.entity.PostMedia;
-import com.example.kokomi.entity.User;
-import com.example.kokomi.mapper.PostMapper;
-import com.example.kokomi.mapper.PostMediaMapper;
-import com.example.kokomi.mapper.PostTagMapper;
-import com.example.kokomi.mapper.UserMapper;
-import com.example.kokomi.service.PostService;
-import com.example.kokomi.util.LoginUserHolder;
-import com.example.kokomi.vo.PageVO;
-import com.example.kokomi.vo.PostAuthorVO;
-import com.example.kokomi.vo.PostDetailVO;
-import com.example.kokomi.vo.PostMediaVO;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.example.kokomi.common.ResultCode;
+import com.example.kokomi.dto.CreatePostDTO;
+import com.example.kokomi.dto.PostMediaDTO;
+import com.example.kokomi.dto.PostPageQueryDTO;
+import com.example.kokomi.entity.Post;
+import com.example.kokomi.entity.PostMedia;
+import com.example.kokomi.entity.User;
+import com.example.kokomi.exception.CustomerException;
+import com.example.kokomi.mapper.PostMapper;
+import com.example.kokomi.mapper.PostMediaMapper;
+import com.example.kokomi.mapper.PostTagMapper;
+import com.example.kokomi.mapper.UserMapper;
+import com.example.kokomi.mapper.UserRoleMapper;
+import com.example.kokomi.service.PostService;
+import com.example.kokomi.util.LoginUserHolder;
+import com.example.kokomi.vo.PageVO;
+import com.example.kokomi.vo.PostAuthorVO;
+import com.example.kokomi.vo.PostDetailVO;
+import com.example.kokomi.vo.PostMediaVO;
+
+import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class PostServiceImpl implements PostService {
@@ -40,6 +41,10 @@ public class PostServiceImpl implements PostService {
     private final PostMediaMapper postMediaMapper;
     private final PostTagMapper postTagMapper;
     private final UserMapper userMapper;
+    private final UserRoleMapper userRoleMapper;
+
+    @Value("${app.upload-path}")
+    private String uploadPath;
 
     @Value("${app.base-url}")
     private String baseUrl;
@@ -79,8 +84,7 @@ public class PostServiceImpl implements PostService {
         // 插入媒体（将图片从 temp 移到 images）
         if (dto.getMedia() != null && !dto.getMedia().isEmpty()) {
             // 确保 images 目录存在
-            String projectPath = System.getProperty("user.dir");
-            File imagesDirFile = new File(projectPath + "/upload/images/");
+            File imagesDirFile = new File(uploadPath + "images/");
             if (!imagesDirFile.exists()) {
                 imagesDirFile.mkdirs();
             }
@@ -96,8 +100,8 @@ public class PostServiceImpl implements PostService {
                 String finalUrl = originalUrl;
                 if (originalUrl != null && originalUrl.contains("/upload/temp/")) {
                     String filename = originalUrl.substring(originalUrl.lastIndexOf("/") + 1);
-                    File tempFile = new File(projectPath + "/upload/temp/" + filename);
-                    File imageFile = new File(projectPath + "/upload/images/" + filename);
+                    File tempFile = new File(uploadPath + "temp/" + filename);
+                    File imageFile = new File(uploadPath + "images/" + filename);
                     if (tempFile.exists()) {
                         try {
                             Files.move(tempFile.toPath(), imageFile.toPath(),
@@ -136,6 +140,44 @@ public class PostServiceImpl implements PostService {
         return convertToVO(post);
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deletePost(Long postId) {
+        Long currentUserId = LoginUserHolder.getUserId();
+
+        // 查询帖子是否存在
+        Post post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "帖子不存在");
+        }
+
+        // 检查权限：帖子作者 或 管理员
+        boolean isOwner = post.getUserId().equals(currentUserId);
+        boolean isAdmin = userRoleMapper.selectRolesByUserId(currentUserId).contains("admin");
+
+        if (!isOwner && !isAdmin) {
+            throw new CustomerException(ResultCode.NO_PERMISSION, "无权删除该帖子");
+        }
+
+        // 删除帖子关联的图片文件
+        List<PostMedia> mediaList = postMediaMapper.selectByPostId(postId);
+        for (PostMedia media : mediaList) {
+            String url = media.getThumbnailUrl();
+            if (url != null && url.contains("/upload/images/")) {
+                String filename = url.substring(url.lastIndexOf("/") + 1);
+                File imageFile = new File(uploadPath + "images/" + filename);
+                if (imageFile.exists()) {
+                    imageFile.delete();
+                }
+            }
+        }
+
+        // 删除关联数据：媒体、标签、帖子
+        postMediaMapper.deleteByPostId(postId);
+        postTagMapper.deleteByPostId(postId);
+        postMapper.deleteById(postId);
+    }
+
     private PageVO<PostDetailVO> getPostList(PostPageQueryDTO dto) {
         int offset = (dto.getPageNum() - 1) * dto.getPageSize();
 
@@ -166,7 +208,7 @@ public class PostServiceImpl implements PostService {
         User user = userMapper.selectById(post.getUserId());
         PostAuthorVO authorVO = new PostAuthorVO();
         authorVO.setId(user.getId());
-        authorVO.setName(user.getUsername());
+        authorVO.setName(user.getName());
         authorVO.setNameColor(user.getNameColor());
         authorVO.setPrimaryRole(user.getPrimaryRole());
         authorVO.setAvatar(user.getAvatar());

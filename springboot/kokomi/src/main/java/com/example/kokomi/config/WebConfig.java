@@ -2,6 +2,7 @@ package com.example.kokomi.config;
 
 import com.example.kokomi.interceptor.LoginInterceptor;
 import jakarta.annotation.Resource;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
@@ -14,14 +15,16 @@ public class WebConfig implements WebMvcConfigurer {
     private AuthProperties authProperties;
     @Resource
     private LoginInterceptor loginInterceptor;
-    // 静态资源映射（正确！）
+
+    @Value("${app.upload-path}")
+    private String uploadPath;
+
+    // 静态资源映射
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // 访问 /file/xxx → 映射到本地 upload/ 文件夹
         registry.addResourceHandler("/upload/**")
-                .addResourceLocations("file:./upload/");
+                .addResourceLocations("file:" + uploadPath);
     }
-
 
     // 拦截器
     @Override
@@ -29,7 +32,7 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(loginInterceptor)
                 .addPathPatterns("/**")
                 .excludePathPatterns(authProperties.getExcludePaths())
-                // 必须放行静态图片！！！
+                // 必须放行静态图片
                 .excludePathPatterns("/upload/**");
     }
 }

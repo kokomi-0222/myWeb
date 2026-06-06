@@ -392,7 +392,10 @@ const handleLike = (postId) => {};
 const handleComment = (postId) => {};
 const handleReply = (postId, commentId) => {};
 const handleEdit = (postId) => {};
-const handleDelete = (postId) => {};
+const handleDelete = (postId) => {
+  userPosts.list = userPosts.list.filter((p) => p.id !== postId);
+  userPosts.total = Math.max(0, userPosts.total - 1);
+};
 </script>
 
 <style scoped>

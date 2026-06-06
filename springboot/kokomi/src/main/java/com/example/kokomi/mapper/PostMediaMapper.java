@@ -8,4 +8,6 @@ public interface PostMediaMapper {
     List<PostMedia> selectByPostId(@Param("postId") Long postId);
 
     int insertBatch(@Param("mediaList") List<PostMedia> mediaList);
+
+    int deleteByPostId(@Param("postId") Long postId);
 }

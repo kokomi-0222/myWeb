@@ -16,4 +16,8 @@
         </foreach>
     </insert>
 
+    <delete id="deleteByPostId">
+        DELETE FROM post_tag WHERE post_id = #{postId}
+    </delete>
+
 </mapper>

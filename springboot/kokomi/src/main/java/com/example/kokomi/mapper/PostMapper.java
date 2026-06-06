@@ -17,4 +17,10 @@ public interface PostMapper {
 
     // 插入帖子，返回影响行数，主键回填到post.id
     int insert(Post post);
+
+    // 根据ID查询帖子
+    Post selectById(@Param("id") Long id);
+
+    // 根据ID删除帖子
+    int deleteById(@Param("id") Long id);
 }

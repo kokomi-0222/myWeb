@@ -41,4 +41,11 @@ public class PostController {
     public Result<PostDetailVO> createPost(@Valid @RequestBody CreatePostDTO dto) {
         return Result.success(postService.createPost(dto));
     }
+
+    // 删除帖子
+    @DeleteMapping("/{postId}")
+    public Result<Void> deletePost(@PathVariable Long postId) {
+        postService.deletePost(postId);
+        return Result.success();
+    }
 }

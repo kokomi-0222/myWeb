@@ -56,7 +56,7 @@ export function createPosts(data) {
 
 export function deletePosts(id) {
   return request({
-    url: `/post/deleteById/${id}`,
+    url: `/post/${id}`,
     method: 'delete'
   })
 }

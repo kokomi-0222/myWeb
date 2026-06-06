@@ -1,5 +1,6 @@
 app:
   base-url: http://localhost:8080
+  upload-path: ${user.dir}/upload/
 
 server:
   port: 8080
@@ -19,9 +20,7 @@ spring:
     hikari:
       connection-test-query: SELECT 1
       max-lifetime: 1800000
-  web:
-    resources:
-      static-locations: file:${user.dir}/upload/
+
 # JWT 配置（标准写法：配置化）
 jwt:
   secret: kokomi_2026_secure_secret_key_abcdefghijklmnopqrstuvwxyz

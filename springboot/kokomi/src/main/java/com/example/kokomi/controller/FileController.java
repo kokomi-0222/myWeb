@@ -1,14 +1,23 @@
 package com.example.kokomi.controller;
 
-import com.example.kokomi.common.Result;
-import com.example.kokomi.exception.CustomerException;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.example.kokomi.common.Result;
+import com.example.kokomi.exception.CustomerException;
 
 @RestController
 @RequestMapping("/file")
@@ -16,6 +25,9 @@ public class FileController {
 
     @Value("${app.base-url}")
     private String baseUrl;
+
+    @Value("${app.upload-path}")
+    private String uploadPath;
 
     private static final Set<String> ALLOWED_IMAGE_EXT = new HashSet<>(
         Arrays.asList(".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
@@ -30,8 +42,7 @@ public class FileController {
             throw new CustomerException(400, "请选择上传文件");
         }
 
-        String projectPath = System.getProperty("user.dir");
-        String tempDir = projectPath + "/upload/temp/";
+        String tempDir = uploadPath + "temp/";
 
         String originalFilename = file.getOriginalFilename();
         String suffix = getSuffix(originalFilename);
@@ -67,8 +78,7 @@ public class FileController {
             throw new CustomerException(400, "请选择上传文件");
         }
 
-        String projectPath = System.getProperty("user.dir");
-        String tempDir = projectPath + "/upload/temp/";
+        String tempDir = uploadPath + "temp/";
 
         String originalFilename = file.getOriginalFilename();
         String suffix = getSuffix(originalFilename);
