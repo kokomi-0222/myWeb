@@ -18,6 +18,8 @@ const MOCK_ROUTES = [
     { url: '/post/createPost', method: 'post', handler: post.mockCreatePost },
     { url: '/post/deleteById/', method: 'delete', handler: post.mockDeletePost, extractIdFromUrl: true },
     { url: '/post/getUserPosts', method: 'get', handler: post.mockGetUserPosts },
+    { urlPattern: /^\/post\/(\d+)\/like$/, method: 'post', handler: post.mockLikePost },
+    { urlPattern: /^\/post\/(\d+)\/like$/, method: 'delete', handler: post.mockUnlikePost },
 
     // 评论
     { url: '/comments/getComments', method: 'get', handler: comment.mockGetComments },
@@ -35,6 +37,16 @@ export function handleMockRequest(config) {
     // 精确匹配（支持 /api/posts/123 这种带参数的 URL）
     const matchedRoute = MOCK_ROUTES.find(route => {
         if (route.method !== normalizedMethod) return false
+
+        // 正则匹配：如 /post/123/like
+        if (route.urlPattern) {
+            const match = url.match(route.urlPattern)
+            if (match) {
+                extraParams = { id: Number(match[1]) }
+                return route
+            }
+            return false
+        }
 
         // 处理带参数的路径，如 /api/posts/123
         if (route.extractIdFromUrl && url.startsWith(route.url)) {

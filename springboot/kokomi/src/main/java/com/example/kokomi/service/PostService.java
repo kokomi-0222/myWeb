@@ -25,4 +25,10 @@ public interface PostService {
 
     // 删除帖子
     void deletePost(Long postId);
+
+    // 点赞
+    void like(Long postId);
+
+    // 取消点赞
+    void unlike(Long postId);
 }

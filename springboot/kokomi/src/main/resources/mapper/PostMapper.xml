@@ -55,4 +55,12 @@
     <delete id="deleteById">
         DELETE FROM post WHERE id = #{id}
     </delete>
+
+    <update id="incrementLikes">
+        UPDATE post SET likes = likes + 1 WHERE id = #{id}
+    </update>
+
+    <update id="decrementLikes">
+        UPDATE post SET likes = likes - 1 WHERE id = #{id} AND likes > 0
+    </update>
 </mapper>

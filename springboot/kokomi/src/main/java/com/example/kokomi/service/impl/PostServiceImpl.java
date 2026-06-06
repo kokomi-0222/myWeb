@@ -17,9 +17,11 @@ import com.example.kokomi.dto.CreatePostDTO;
 import com.example.kokomi.dto.PostMediaDTO;
 import com.example.kokomi.dto.PostPageQueryDTO;
 import com.example.kokomi.entity.Post;
+import com.example.kokomi.entity.PostLike;
 import com.example.kokomi.entity.PostMedia;
 import com.example.kokomi.entity.User;
 import com.example.kokomi.exception.CustomerException;
+import com.example.kokomi.mapper.PostLikeMapper;
 import com.example.kokomi.mapper.PostMapper;
 import com.example.kokomi.mapper.PostMediaMapper;
 import com.example.kokomi.mapper.PostTagMapper;
@@ -39,6 +41,7 @@ public class PostServiceImpl implements PostService {
 
     private final PostMapper postMapper;
     private final PostMediaMapper postMediaMapper;
+    private final PostLikeMapper postLikeMapper;
     private final PostTagMapper postTagMapper;
     private final UserMapper userMapper;
     private final UserRoleMapper userRoleMapper;
@@ -178,6 +181,47 @@ public class PostServiceImpl implements PostService {
         postMapper.deleteById(postId);
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void like(Long postId) {
+        Long userId = LoginUserHolder.getUserId();
+
+        Post post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "帖子不存在");
+        }
+
+        // 检查是否已点赞
+        if (postLikeMapper.existsByPostIdAndUserId(postId, userId) > 0) {
+            return; // 已点赞，幂等处理
+        }
+
+        PostLike like = new PostLike();
+        like.setPostId(postId);
+        like.setUserId(userId);
+        postLikeMapper.insert(like);
+        postMapper.incrementLikes(postId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void unlike(Long postId) {
+        Long userId = LoginUserHolder.getUserId();
+
+        Post post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "帖子不存在");
+        }
+
+        // 检查是否已点赞
+        if (postLikeMapper.existsByPostIdAndUserId(postId, userId) == 0) {
+            return; // 未点赞，幂等处理
+        }
+
+        postLikeMapper.deleteByPostIdAndUserId(postId, userId);
+        postMapper.decrementLikes(postId);
+    }
+
     private PageVO<PostDetailVO> getPostList(PostPageQueryDTO dto) {
         int offset = (dto.getPageNum() - 1) * dto.getPageSize();
 
@@ -239,7 +283,12 @@ public class PostServiceImpl implements PostService {
 
         // 标签
         vo.setTag(postTagMapper.selectTagNamesByPostId(post.getId()));
-        vo.setLikedByMe(false);
+
+        // 当前用户是否已点赞
+        Long currentUserId = LoginUserHolder.getUserId();
+        boolean likedByMe = currentUserId != null
+                && postLikeMapper.existsByPostIdAndUserId(post.getId(), currentUserId) > 0;
+        vo.setLikedByMe(likedByMe);
         return vo;
     }
 }

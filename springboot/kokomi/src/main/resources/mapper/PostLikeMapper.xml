@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.kokomi.mapper.PostLikeMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO post_like (post_id, user_id, created_at)
+        VALUES (#{postId}, #{userId}, NOW())
+    </insert>
+
+    <delete id="deleteByPostIdAndUserId">
+        DELETE FROM post_like WHERE post_id = #{postId} AND user_id = #{userId}
+    </delete>
+
+    <select id="existsByPostIdAndUserId" resultType="int">
+        SELECT COUNT(*) FROM post_like WHERE post_id = #{postId} AND user_id = #{userId}
+    </select>
+
+    <select id="countByPostId" resultType="int">
+        SELECT COUNT(*) FROM post_like WHERE post_id = #{postId}
+    </select>
+
+</mapper>

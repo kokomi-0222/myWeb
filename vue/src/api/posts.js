@@ -60,3 +60,19 @@ export function deletePosts(id) {
     method: 'delete'
   })
 }
+
+// 点赞
+export function likePost(id) {
+  return request({
+    url: `/post/${id}/like`,
+    method: 'post'
+  })
+}
+
+// 取消点赞
+export function unlikePost(id) {
+  return request({
+    url: `/post/${id}/like`,
+    method: 'delete'
+  })
+}

@@ -83,7 +83,11 @@
           <IconComment size="18" />
           {{ commentCount > 0 ? formatNumber(commentCount) : "评论" }}
         </div>
-        <div class="post-card__stat">
+        <div
+          class="post-card__stat"
+          :class="{ active: post.likedByMe }"
+          @click="toggleLike"
+        >
           <IconLike size="18" />
           {{ likeCount > 0 ? formatNumber(likeCount) : "点赞" }}
         </div>
@@ -105,7 +109,7 @@ import DOMPurify from "dompurify"; // 防 XSS
 import { usePermission } from "@/utils/usePermission";
 import { ALL_ACTIONS } from "@/utils/postActions";
 import { formatRelativeTime, formatAbsoluteTime } from "@/utils/time";
-import { deletePosts } from "@/api/posts";
+import { deletePosts, likePost, unlikePost } from "@/api/posts";
 
 import message from "@/utils/message";
 // Props
@@ -246,8 +250,25 @@ const sanitizeContent = (html) => {
   return DOMPurify.sanitize(html);
 };
 
-const toggleLike = () => {
-  emit("like", props.post.id);
+const toggleLike = async () => {
+  const post = props.post;
+  if (post.likedByMe) {
+    try {
+      await unlikePost(post.id);
+      post.likedByMe = false;
+      post.likes = Math.max(0, (post.likes || 0) - 1);
+    } catch (e) {
+      // 错误已在拦截器中处理
+    }
+  } else {
+    try {
+      await likePost(post.id);
+      post.likedByMe = true;
+      post.likes = (post.likes || 0) + 1;
+    } catch (e) {
+      // 错误已在拦截器中处理
+    }
+  }
 };
 
 const toggleComment = () => {

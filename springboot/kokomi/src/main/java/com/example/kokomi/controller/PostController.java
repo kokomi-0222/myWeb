@@ -48,4 +48,18 @@ public class PostController {
         postService.deletePost(postId);
         return Result.success();
     }
+
+    // 点赞
+    @PostMapping("/{postId}/like")
+    public Result<Void> like(@PathVariable Long postId) {
+        postService.like(postId);
+        return Result.success();
+    }
+
+    // 取消点赞
+    @DeleteMapping("/{postId}/like")
+    public Result<Void> unlike(@PathVariable Long postId) {
+        postService.unlike(postId);
+        return Result.success();
+    }
 }

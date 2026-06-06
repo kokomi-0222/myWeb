@@ -109,6 +109,7 @@ import { ref, reactive, nextTick } from "vue";
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
 import { message } from "@/utils/message";
+import router from "@/router";
 
 const uiStore = useUIStore();
 const userStore = useUserStore();
@@ -217,6 +218,9 @@ const handleLogin = async () => {
     //message.error("登录异常");
   } finally {
     logging.value = false;
+    router.push("/").then(() => {
+    router.go(0);
+  });
   }
 };
 

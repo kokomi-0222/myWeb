@@ -23,4 +23,10 @@ public interface PostMapper {
 
     // 根据ID删除帖子
     int deleteById(@Param("id") Long id);
+
+    // 点赞数 +1
+    int incrementLikes(@Param("id") Long id);
+
+    // 点赞数 -1
+    int decrementLikes(@Param("id") Long id);
 }

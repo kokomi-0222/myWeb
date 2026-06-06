@@ -510,6 +510,30 @@ export function mockDeletePost({ params }) {
   return { code: '200', message: '删除成功' }
 }
 
+// 点赞
+export function mockLikePost({ params }) {
+  const { id } = params
+  const post = posts.find((p) => p.id === Number(id))
+  if (post) {
+    post.likedByMe = true
+    post.likes = (post.likes || 0) + 1
+    return { code: '200', message: '点赞成功' }
+  }
+  return { code: '400', message: '帖子不存在' }
+}
+
+// 取消点赞
+export function mockUnlikePost({ params }) {
+  const { id } = params
+  const post = posts.find((p) => p.id === Number(id))
+  if (post) {
+    post.likedByMe = false
+    post.likes = Math.max(0, (post.likes || 0) - 1)
+    return { code: '200', message: '取消点赞成功' }
+  }
+  return { code: '400', message: '帖子不存在' }
+}
+
 /**
  * 生成指定范围的随机整数
  * @param {number} min 最小值（包含）
