@@ -36,6 +36,12 @@ public class PostController {
         return Result.success(postService.getUserPosts(dto));
     }
 
+    // 帖子详情
+    @GetMapping("/{postId}")
+    public Result<PostDetailVO> getPostById(@PathVariable Long postId) {
+        return Result.success(postService.getPostById(postId));
+    }
+
     // 发布帖子
     @PostMapping("/createPost")
     public Result<PostDetailVO> createPost(@Valid @RequestBody CreatePostDTO dto) {

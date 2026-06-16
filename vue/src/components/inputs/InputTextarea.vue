@@ -34,20 +34,22 @@
           v-if="showImage"
           :preview-container="previewContainerRef"
           @change="handleImageChange"
-          :max-count="9"
+          :max-count="maxImageCount"
         />
       </div>
       <!-- 右侧功能按钮组 -->
       <div class="toolbar-right">
-        <!-- 发送按钮 -->
-        <Button
-          class="comment-submit-button"
-          type="bilibili"
-          @click.stop="handleSubmit"
-          :disabled="disabled || !inputValue.trim()"
-        >
-          发送
-        </Button>
+        <!-- 发送按钮（用 span 包裹防止点击失焦） -->
+        <span @mousedown.prevent>
+          <Button
+            class="comment-submit-button"
+            type="bilibili"
+            @click.stop="handleSubmit"
+            :disabled="disabled || (!inputValue.trim() && !imageFiles.length)"
+          >
+            发送
+          </Button>
+        </span>
       </div>
     </div>
   </div>
@@ -95,6 +97,10 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  maxImageCount: {
+    type: Number,
+    default: 9,
+  },
 });
 
 // 定义组件事件
@@ -114,6 +120,8 @@ const wrapperRef = ref(null);
 const isFocused = ref(false);
 // 是否正在提交（防重复提交）
 const isSubmitting = ref(false);
+// 防止 blur 隐藏工具栏（点击工具栏按钮时）
+const preventBlur = ref(false);
 // 防抖计时器
 let debounceTimer = null;
 
@@ -179,6 +187,11 @@ const handleBlur = () => {
   // 点击工具栏/按钮时，textarea 会先 blur，但我们不希望工具栏立刻消失
   // 这里延迟一拍判断：如果焦点仍在组件内部，就维持 focused 状态
   setTimeout(() => {
+    if (preventBlur.value) {
+      preventBlur.value = false;
+      isFocused.value = true;
+      return;
+    }
     if (showEmojiPanel.value) {
       isFocused.value = true;
       return;
@@ -210,6 +223,7 @@ watch(showEmojiPanel, (visible) => {
 
 const handleToolbarMouseDown = () => {
   if (props.disabled) return;
+  preventBlur.value = true;
   textareaRef.value?.focus();
 };
 
@@ -232,8 +246,10 @@ function handleImageChange(files) {
 
 // 修改提交逻辑：携带图片文件
 const handleSubmit = async () => {
+  console.log("提交评论");
   if (isSubmitting.value || props.disabled) return;
   // 空内容校验：文字+图片都为空时不提交
+  console.log(inputValue.value, imageFiles.value);
   if (!inputValue.value.trim() && !imageFiles.value) return;
 
   try {
@@ -245,7 +261,9 @@ const handleSubmit = async () => {
     });
     // 提交后清空
     inputValue.value = "";
-    clearImage();
+    imageFiles.value = [];
+    // 保持聚焦，让用户继续输入
+    textareaRef.value?.focus();
   } catch (err) {
     console.error("评论提交失败：", err);
   } finally {

@@ -19,13 +19,13 @@
         <Avatar :src="userStore.user?.avatar" alt="" :size="40" />
         <div class="comment-input-area">
           <div v-if="!userStore.isLogin" class="comment-login-tip">登录后可发表评论~</div>
-          <InputTextarea v-else v-model="commentContent" placeholder="天青色等烟雨，而我在等你..." @submit="handleCommentSubmit" />
+          <InputTextarea v-else v-model="commentContent" placeholder="天青色等烟雨，而我在等你..." @submit="handleCommentSubmit" :max-image-count="1" />
         </div>
       </div>
 
       <!-- 评论列表 -->
-      <ul v-if="comments.length" class="comment-list">
-        <li v-for="comment in sortedComments" :key="comment.id" class="comment-item">
+      <ul v-if="displayedComments.length" class="comment-list">
+        <li v-for="comment in displayedComments" :key="comment.id" class="comment-item">
           <div class="comment-avatar">
             <Avatar :src="comment.author.avatar" alt="" :size="40" />
           </div>
@@ -40,6 +40,13 @@
               <p class="comment-text">
                 {{ comment.content }}
               </p>
+              <img
+                v-if="comment.image"
+                :src="comment.image"
+                class="comment-image"
+                alt="评论图片"
+                @click="previewImage(comment.image)"
+              />
             </div>
 
             <div class="comment-footer">
@@ -47,7 +54,7 @@
                 {{ formatRelativeTime(comment.createdAt) }}
               </span>
               <div class="comment-actions">
-                <button class="comment-action">
+                <button class="comment-action" :class="{ liked: likedComments.has(comment.id) }" @click="handleCommentLike(comment)">
                   <IconLike size="14" />
                   <span v-if="(comment.likes ?? 0) > 0" class="comment-like-count">
                     {{ comment.likes }}
@@ -55,6 +62,13 @@
                 </button>
                 <button class="comment-action" @click="toggleReplyInput(comment.id, null)">
                   回复
+                </button>
+                <button
+                  v-if="userStore.user?.id === comment.author.id"
+                  class="comment-action comment-action--danger"
+                  @click="handleCommentDelete(comment)"
+                >
+                  删除
                 </button>
               </div>
             </div>
@@ -77,7 +91,7 @@
                   </div>
                   <div class="reply-meta">
                     <span class="reply-time">{{ formatAbsoluteTime(reply.createdAt) }}</span>
-                    <button class="reply-meta-action">
+                    <button class="reply-meta-action" :class="{ liked: likedComments.has(reply.id) }" @click="handleCommentLike(reply)">
                       <IconLike size="14" />
                       <span v-if="(reply.likes ?? 0) > 0" class="reply-like-count">
                         {{ reply.likes }}
@@ -85,6 +99,13 @@
                     </button>
                     <button class="reply-meta-action" @click="toggleReplyInput(comment.id, reply.author.name)">
                       回复
+                    </button>
+                    <button
+                      v-if="userStore.user?.id === reply.author.id"
+                      class="reply-meta-action reply-meta-action--danger"
+                      @click="handleCommentDelete(reply)"
+                    >
+                      删除
                     </button>
                   </div>
                 </div>
@@ -143,27 +164,36 @@
           </div>
         </li>
       </ul>
-      <div v-else class="no-more-comments">没有更多评论</div>
+      <div v-else-if="mode !== 'full'" class="no-more-comments">没有更多评论</div>
 
-      <!-- 加载更多 / 没有更多（B站样式） -->
-      <div class="comment-more">
-        <button v-if="hasMoreComments" class="load-more" @click="loadMoreComments">
-          加载更多评论
-        </button>
+      <!-- 预览模式：查看更多评论 -->
+      <div v-if="hasMorePreview" class="comment-more">
+        <span class="load-more" @click="navigateToFull">
+          查看更多评论
+        </span>
+      </div>
+
+      <!-- 全量模式：无限滚动加载 -->
+      <div v-if="mode === 'full'" ref="sentinelRef" class="comment-sentinel">
+        <span v-if="fullLoading">加载中...</span>
+        <span v-else-if="!fullHasMore && displayedComments.length > 0" class="no-more-comments">没有更多评论</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, onUnmounted, computed, nextTick } from "vue";
+import { useRouter } from "vue-router";
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
 import { formatRelativeTime, formatAbsoluteTime } from "@/utils/time";
-import { get } from "@/utils/request";
+import { getComments, getCommentsPaginated, createComment, deleteComment, likeComment, unlikeComment } from "@/api/posts";
+import { uploadPostImage } from "@/api/file";
 import IconLike from "@/components/icons/IconLike.vue";
 const ui = useUIStore();
 const userStore = useUserStore();
+const router = useRouter();
 
 const sortOptions = [
   { label: "最热", sortBy: "likes" },
@@ -182,16 +212,21 @@ const currentSort = ref(sortOptions[0].sortBy);
 const props = defineProps({
   postId: [String, Number], // 接收帖子ID，用于请求数据
   commentsCount: { type: Number, default: 0 },
+  mode: { type: String, default: "preview" }, // 'preview' | 'full'
+  maxComments: { type: Number, default: 10 },  // 预览模式最多显示条数
 });
 
-const emit = defineEmits(["close", "comment", "reply"]);
+const emit = defineEmits(["close", "comment", "reply", "comment-deleted", "comments-loaded"]);
 
 const handleSort = (sortBy) => {
   currentSort.value = sortBy;
+  updateSortedComments();
 };
 
-const sortedComments = computed(() => {
-  const list = Array.isArray(comments.value) ? comments.value : [];
+const sortedComments = ref([]);
+
+const updateSortedComments = () => {
+  const list = Array.isArray(comments.value) ? [...comments.value] : [];
   const sortBy = currentSort.value;
 
   const byCreatedAtDesc = (a, b) =>
@@ -201,23 +236,42 @@ const sortedComments = computed(() => {
     return diff !== 0 ? diff : byCreatedAtDesc(a, b);
   };
 
-  const sorted = [...list].sort(sortBy === "update" ? byCreatedAtDesc : byLikesDesc);
-  return sorted;
-});
+  sortedComments.value = list.sort(sortBy === "update" ? byCreatedAtDesc : byLikesDesc);
+};
 
 // 评论区相关逻辑
 const commentContent = ref("");
 
 
 
-// 发布评论（修复变量绑定）
-const handleCommentSubmit = () => {
-  if (!commentContent.value.trim()) return;
+// 发布评论
+const handleCommentSubmit = async (payload) => {
+  const content = payload?.content || commentContent.value;
+  const imageFiles = payload?.image;
+/*   if (!content.trim() && (!imageFiles || imageFiles.length === 0)) return; */
   if (!userStore.isLogin) {
     ui.openLoginModal();
     return;
   }
-  emit("comment", { postId: props.postId, content: commentContent.value });
+  try {
+    // 上传图片（如果有）
+    let imageUrl = null;
+    if (imageFiles && imageFiles.length > 0) {
+      const uploadRes = await uploadPostImage(imageFiles[0]);
+      imageUrl = uploadRes.data?.url || uploadRes.data;
+    }
+
+    const res = await createComment(props.postId, { content: content.trim(), image: imageUrl });
+    // 新评论添加到列表顶部（全量模式仅添加顶级评论，回复不影响列表）
+    const newComment = res.data;
+    if (!newComment.parentId || props.mode === "full") {
+      comments.value.unshift(newComment);
+    }
+    updateSortedComments();
+    emit("comment");
+  } catch (e) {
+    console.error("发表评论失败", e);
+  }
   commentContent.value = "";
 };
 
@@ -240,14 +294,29 @@ const toggleReplyInput = (commentId, targetName) => {
   }
 };
 
-const submitReply = (commentId) => {
+const submitReply = async (commentId) => {
   let content = replyInputs.value[commentId]?.trim();
   if (!content) return;
   const target = replyTargets.value[commentId];
   if (target && !content.startsWith(`@${target}`)) {
     content = `@${target} ${content}`;
   }
-  emit("reply", { commentId, content, replyTo: target || null });
+  try {
+    const res = await createComment(props.postId, {
+      content,
+      parentId: commentId,
+      replyTo: target || null
+    });
+    // 将新回复添加到对应评论的子回复列表
+    const parentComment = comments.value.find(c => c.id === commentId);
+    if (parentComment) {
+      if (!parentComment.replies) parentComment.replies = [];
+      parentComment.replies.push(res.data);
+    }
+    emit("reply", { commentId, content, replyTo: target || null });
+  } catch (e) {
+    console.error("回复失败", e);
+  }
   replyInputs.value[commentId] = "";
   showReplyInputId.value = null;
   replyTargets.value[commentId] = null;
@@ -333,22 +402,200 @@ const getAuthorStyle = (author) => ({
 
 const comments = ref([]);
 
-const hasMoreComments = ref(false);
-const loadMoreComments = () => { };
+// 本地追踪点赞状态（当前会话内有效）
+const likedComments = ref(new Set());
+
+// 全量模式分页状态
+const fullPageNum = ref(1);
+const fullTotalPages = ref(1);
+const fullLoading = ref(false);
+const fullHasMore = ref(true);
+const LOAD_MORE_SIZE = 20;
+const sentinelRef = ref(null);
+
+// 切换到全量模式加载
+const loadFullComments = async (reset = false) => {
+  if (!props.postId || fullLoading.value) return;
+  if (!reset && !fullHasMore.value) return;
+  fullLoading.value = true;
+  try {
+    const page = reset ? 1 : fullPageNum.value;
+    const res = await getCommentsPaginated(props.postId, page, LOAD_MORE_SIZE);
+    const pageData = res?.data;
+    const list = pageData?.list || [];
+    if (reset) {
+      comments.value = list;
+    } else {
+      comments.value = [...comments.value, ...list];
+    }
+    fullTotalPages.value = pageData?.pages || 1;
+    fullPageNum.value = page + 1;
+    fullHasMore.value = fullPageNum.value <= fullTotalPages.value;
+    // 初始化点赞状态
+    const newLiked = new Set(likedComments.value);
+    const walk = (items) => {
+      for (const c of items) {
+        if (c.likedByMe) newLiked.add(c.id);
+        if (c.replies) walk(c.replies);
+      }
+    };
+    walk(list);
+    likedComments.value = newLiked;
+    updateSortedComments();
+  } catch (e) {
+    console.error("加载评论失败", e);
+  } finally {
+    fullLoading.value = false;
+  }
+};
+
+// 预览模式：全量加载
+const loadPreviewComments = async () => {
+  if (!props.postId) return;
+  try {
+    const res = await getComments(props.postId);
+    comments.value = res?.data || [];
+    const newLiked = new Set();
+    const walk = (list) => {
+      for (const c of list) {
+        if (c.likedByMe) newLiked.add(c.id);
+        if (c.replies) walk(c.replies);
+      }
+    };
+    walk(comments.value);
+    likedComments.value = newLiked;
+    updateSortedComments();
+  } catch (e) {
+    console.error("加载评论失败", e);
+  }
+};
+
+// 显示的评论列表：预览模式截取前 N 条
+const displayedComments = computed(() => {
+  if (props.mode === "preview") {
+    return sortedComments.value.slice(0, props.maxComments);
+  }
+  return sortedComments.value;
+});
+
+// 预览模式下是否还有更多
+const hasMorePreview = computed(() => {
+  return props.mode === "preview" && comments.value.length > props.maxComments;
+});
+
+// 进入全量模式（通过路由跳转）
+const navigateToFull = () => {
+  router.push(`/post/${props.postId}`);
+};
+
+// 无限滚动观察器
+let observer = null;
+const setupInfiniteScroll = () => {
+  if (props.mode !== "full") return;
+  nextTick(() => {
+    if (!sentinelRef.value) return;
+    observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && fullHasMore.value && !fullLoading.value) {
+          loadFullComments();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinelRef.value);
+  });
+};
+
+onUnmounted(() => {
+  if (observer) {
+    observer.disconnect();
+    observer = null;
+  }
+});
 
 const loadComments = async () => {
-  if (!props.postId) return;
-  if ((props.commentsCount ?? 0) <= 0) {
-    comments.value = [];
-    return;
+  if (props.mode === "full") {
+    await loadFullComments(true);
+    setupInfiniteScroll();
+  } else {
+    await loadPreviewComments();
   }
-  const res = await get("/comments/getComments", { postId: props.postId });
-  comments.value = res?.data?.list || [];
 };
 
 onMounted(() => {
   loadComments();
 });
+
+// 点赞/取消点赞评论
+const handleCommentLike = async (comment) => {
+  if (!userStore.isLogin) {
+    ui.openLoginModal();
+    return;
+  }
+  const commentId = comment.id;
+  const isLiked = likedComments.value.has(commentId);
+  // 乐观更新
+  if (isLiked) {
+    likedComments.value.delete(commentId);
+    comment.likes = Math.max(0, (comment.likes || 0) - 1);
+  } else {
+    likedComments.value.add(commentId);
+    comment.likes = (comment.likes || 0) + 1;
+  }
+  try {
+    if (isLiked) {
+      await unlikeComment(commentId);
+    } else {
+      await likeComment(commentId);
+    }
+  } catch (e) {
+    // 回滚
+    if (isLiked) {
+      likedComments.value.add(commentId);
+      comment.likes = (comment.likes || 0) + 1;
+    } else {
+      likedComments.value.delete(commentId);
+      comment.likes = Math.max(0, (comment.likes || 0) - 1);
+    }
+  }
+};
+
+// 删除评论
+const handleCommentDelete = async (comment) => {
+  try {
+    await ElMessageBox.confirm("确定删除这条评论？", "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
+    await deleteComment(comment.id);
+    // 检查是否是顶级评论
+    const topLevelIndex = comments.value.findIndex(c => c.id === comment.id);
+    if (topLevelIndex !== -1) {
+      comments.value.splice(topLevelIndex, 1);
+    } else {
+      // 是子回复，从父评论中移除
+      for (const c of comments.value) {
+        if (c.replies) {
+          const replyIndex = c.replies.findIndex(r => r.id === comment.id);
+          if (replyIndex !== -1) {
+            c.replies.splice(replyIndex, 1);
+            break;
+          }
+        }
+      }
+    }
+    // 立即刷新排序后的显示列表
+    updateSortedComments();
+    emit("comment-deleted");
+  } catch (e) {
+    // 取消或错误（已在拦截器处理）
+  }
+};
+
+const previewImage = (url) => {
+  window.open(url, "_blank");
+};
 </script>
 
 <style scoped>
@@ -497,6 +744,16 @@ onMounted(() => {
   white-space: pre-wrap;
 }
 
+.comment-image {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 6px;
+  margin-top: 8px;
+  cursor: pointer;
+  object-fit: cover;
+  border: 1px solid var(--border-color);
+}
+
 .comment-footer {
   display: flex;
   align-items: center;
@@ -532,6 +789,14 @@ onMounted(() => {
 
 .comment-action:hover {
   color: var(--primary-color);
+}
+
+.comment-action.liked {
+  color: var(--primary-color);
+}
+
+.comment-action--danger:hover {
+  color: #ff4d4f;
 }
 
 .reply-list {
@@ -604,6 +869,14 @@ onMounted(() => {
   color: var(--primary-color);
 }
 
+.reply-meta-action.liked {
+  color: var(--primary-color);
+}
+
+.reply-meta-action--danger:hover {
+  color: #ff4d4f;
+}
+
 .reply-like-count {
   min-width: 10px;
   text-align: left;
@@ -624,7 +897,7 @@ onMounted(() => {
 .comment-more {
   display: flex;
   justify-content: center;
-  padding: 12px 0 4px;
+  padding: 4px 0 4px;
   font-size: 0.85rem;
   color: var(--text-secondary);
 }
@@ -725,4 +998,26 @@ onMounted(() => {
 .reply-page-ellipsis {
   user-select: none;
 }
+
+.comment-sentinel {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.load-more{
+  display: flex;
+  justify-content: center;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.load-more:hover{
+  cursor: pointer;
+  color: var(--primary-color);
+}
+
+
 </style>

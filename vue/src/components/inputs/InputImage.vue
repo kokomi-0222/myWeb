@@ -57,6 +57,21 @@ function triggerUpload() {
 function handleSelect(e) {
   const files = Array.from(e.target.files || []);
   if (!files.length) return;
+
+  // 单图模式：替换已有图片
+  if (props.maxCount === 1) {
+    imageList.value.forEach((item) => URL.revokeObjectURL(item.url));
+    const file = files[0];
+    imageList.value = [{
+      file,
+      url: URL.createObjectURL(file),
+      id: Math.random().toString(36).slice(2),
+    }];
+    emit("change", [file]);
+    e.target.value = "";
+    return;
+  }
+
   const available = props.maxCount - imageList.value.length;
   const newFiles = files.slice(0, available);
 

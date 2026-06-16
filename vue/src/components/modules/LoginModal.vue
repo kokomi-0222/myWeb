@@ -211,16 +211,16 @@ const handleLogin = async () => {
     if (res.success) {
       message.success("登录成功");
       uiStore.closeLoginModal();
-    } else {
-      message.error(res.message || "登录失败");
+      // 登录成功后才刷新页面，重置状态
+      router.push("/").then(() => {
+        router.go(0);
+      });
     }
+    // 失败消息已在请求拦截器中提示，不再重复弹窗
   } catch (err) {
-    //message.error("登录异常");
+    message.error("登录异常");
   } finally {
     logging.value = false;
-    router.push("/").then(() => {
-    router.go(0);
-  });
   }
 };
 

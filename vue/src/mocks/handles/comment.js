@@ -10,6 +10,7 @@ const makeReply = ({
   likes = 0,
   isHot = false,
   replyTo = null,
+  likedByMe = false,
 }) => ({
   id,
   content,
@@ -17,6 +18,7 @@ const makeReply = ({
   createdAt,
   likes,
   isHot,
+  likedByMe,
   replyTo,
 });
 
@@ -27,6 +29,7 @@ const COMMENTS_BY_POST_ID = {
       content: "这条动态太棒了！",
       author: { id: 101, name: "李四", nameColor: "#242323", avatar: defaultAvatar },
       likes: 3,
+      likedByMe: false,
       createdAt: "2026-01-06T09:00:00Z",
       replies: [
         makeReply({
@@ -239,10 +242,73 @@ export function mockGetComments({ params }) {
   const list = COMMENTS_BY_POST_ID[postId] || [];
   return {
     code: "200",
+    data: list,
+  };
+}
+
+// 分页获取评论（模拟）
+export function mockGetCommentsPaginated({ params }) {
+  const postId = String(params?.postId ?? "");
+  const allList = COMMENTS_BY_POST_ID[postId] || [];
+  const pageNum = Number(params?.pageNum) || 1;
+  const pageSize = Number(params?.pageSize) || 20;
+  const total = allList.length;
+  const pages = Math.ceil(total / pageSize) || 1;
+  const start = (pageNum - 1) * pageSize;
+  const list = allList.slice(start, start + pageSize);
+  return {
+    code: "200",
+    data: { list, total, pageNum, pageSize, pages },
+  };
+}
+
+// 发表评论（模拟）
+let nextCommentId = 9000;
+export function mockCreateComment({ params, data, headers }) {
+  const token = headers?.authorization || "";
+  if (!token || token === "Bearer null" || token === "Bearer undefined") {
+    return { code: "401", msg: "请先登录" };
+  }
+  return {
+    code: "200",
     data: {
-      list,
-      total: list.length,
+      id: `mock-c-${++nextCommentId}`,
+      postId: Number(params?.postId),
+      content: data?.content || "",
+      author: { id: 999, name: "当前用户", nameColor: "#40a9ff", avatar: "https://picsum.photos/32/32" },
+      likes: 0,
+      isHot: false,
+      createdAt: new Date().toISOString(),
+      replies: [],
+      replyTo: data?.replyTo || null,
     },
   };
+}
+
+// 删除评论（模拟）
+export function mockDeleteComment({ headers }) {
+  const token = headers?.authorization || "";
+  if (!token || token === "Bearer null" || token === "Bearer undefined") {
+    return { code: "401", msg: "请先登录" };
+  }
+  return { code: "200", data: null };
+}
+
+// 点赞评论（模拟）
+export function mockLikeComment({ headers }) {
+  const token = headers?.authorization || "";
+  if (!token || token === "Bearer null" || token === "Bearer undefined") {
+    return { code: "401", msg: "请先登录" };
+  }
+  return { code: "200", data: null };
+}
+
+// 取消点赞评论（模拟）
+export function mockUnlikeComment({ headers }) {
+  const token = headers?.authorization || "";
+  if (!token || token === "Bearer null" || token === "Bearer undefined") {
+    return { code: "401", msg: "请先登录" };
+  }
+  return { code: "200", data: null };
 }
 

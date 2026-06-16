@@ -95,8 +95,15 @@
     </footer>
 
     <!-- 评论区 -->
-    <section class="post-card__comments" v-if="commentVisible">
-      <PostComment :post-id="post.id" :comments-count="commentCount" />
+    <section class="post-card__comments" v-if="showComments && commentVisible">
+      <PostComment
+        :post-id="post.id"
+        :comments-count="commentCount"
+        mode="preview"
+        :max-comments="10"
+        @comment="handleComment"
+        @comment-deleted="handleCommentDeleted"
+      />
     </section>
   </article>
 </template>
@@ -120,6 +127,10 @@ const props = defineProps({
     validator(value) {
       return value.id && value.author && value.content !== undefined;
     },
+  },
+  showComments: {
+    type: Boolean,
+    default: true,
   },
 });
 
@@ -146,6 +157,7 @@ const commentCount = computed(() => {
   const raw =
     p.comments ??
     p.commentCount ??
+    p.commentsCount ??
     p.comments_count ??
     p.comment_count ??
     p.comments?.length ??
@@ -273,6 +285,22 @@ const toggleLike = async () => {
 
 const toggleComment = () => {
   commentVisible.value = !commentVisible.value;
+};
+
+const handleComment = () => {
+  // 评论数 +1（本地更新，避免刷新整个列表）
+  if (props.post) {
+    const current = Number(props.post.commentsCount ?? props.post.comments ?? 0);
+    props.post.commentsCount = current + 1;
+  }
+};
+
+const handleCommentDeleted = () => {
+  // 评论数 -1（本地更新）
+  if (props.post) {
+    const current = Number(props.post.commentsCount ?? props.post.comments ?? 0);
+    props.post.commentsCount = Math.max(0, current - 1);
+  }
 };
 </script>
 

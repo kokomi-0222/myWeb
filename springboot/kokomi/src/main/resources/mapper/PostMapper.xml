@@ -63,4 +63,12 @@
     <update id="decrementLikes">
         UPDATE post SET likes = likes - 1 WHERE id = #{id} AND likes > 0
     </update>
+
+    <update id="incrementComments">
+        UPDATE post SET comments = comments + 1 WHERE id = #{id}
+    </update>
+
+    <update id="decrementComments">
+        UPDATE post SET comments = comments - 1 WHERE id = #{id} AND comments > 0
+    </update>
 </mapper>

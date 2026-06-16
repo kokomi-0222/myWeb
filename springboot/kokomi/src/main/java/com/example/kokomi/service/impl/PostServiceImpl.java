@@ -8,6 +8,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.example.kokomi.mapper.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,12 +22,6 @@ import com.example.kokomi.entity.PostLike;
 import com.example.kokomi.entity.PostMedia;
 import com.example.kokomi.entity.User;
 import com.example.kokomi.exception.CustomerException;
-import com.example.kokomi.mapper.PostLikeMapper;
-import com.example.kokomi.mapper.PostMapper;
-import com.example.kokomi.mapper.PostMediaMapper;
-import com.example.kokomi.mapper.PostTagMapper;
-import com.example.kokomi.mapper.UserMapper;
-import com.example.kokomi.mapper.UserRoleMapper;
 import com.example.kokomi.service.PostService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.vo.PageVO;
@@ -45,12 +40,22 @@ public class PostServiceImpl implements PostService {
     private final PostTagMapper postTagMapper;
     private final UserMapper userMapper;
     private final UserRoleMapper userRoleMapper;
+    private final CommentMapper commentMapper;
 
     @Value("${app.upload-path}")
     private String uploadPath;
 
     @Value("${app.base-url}")
     private String baseUrl;
+
+    @Override
+    public PostDetailVO getPostById(Long id) {
+        Post post = postMapper.selectById(id);
+        if (post == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "帖子不存在");
+        }
+        return convertToVO(post);
+    }
 
     @Override
     public PageVO<PostDetailVO> getPostPage(PostPageQueryDTO dto) {
@@ -175,9 +180,10 @@ public class PostServiceImpl implements PostService {
             }
         }
 
-        // 删除关联数据：媒体、标签、帖子
+        // 删除关联数据：媒体、标签、评论、帖子
         postMediaMapper.deleteByPostId(postId);
         postTagMapper.deleteByPostId(postId);
+        commentMapper.deleteByPostId(postId);
         postMapper.deleteById(postId);
     }
 

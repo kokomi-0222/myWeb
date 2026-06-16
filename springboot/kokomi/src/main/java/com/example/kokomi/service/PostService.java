@@ -14,6 +14,9 @@ public interface PostService {
      */
     PageVO<PostDetailVO> getPostPage(PostPageQueryDTO dto);
 
+    // 根据ID获取单个帖子
+    PostDetailVO getPostById(Long id);
+
     // 我的帖子
     PageVO<PostDetailVO> getMyPosts(PostPageQueryDTO dto);
 

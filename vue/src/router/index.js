@@ -9,6 +9,11 @@ const router = createRouter({
       component: () => import('@/views/Index.vue'),
     },
     {
+      path: '/post/:id',
+      meta: { title: '帖子详情' },
+      component: () => import('@/views/PostDetail.vue'),
+    },
+    {
       path: '/space',
       meta: { title: '个人空间' },
       component: () => import('@/views/space/Index.vue'),

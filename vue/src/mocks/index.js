@@ -22,7 +22,12 @@ const MOCK_ROUTES = [
     { urlPattern: /^\/post\/(\d+)\/like$/, method: 'delete', handler: post.mockUnlikePost },
 
     // 评论
-    { url: '/comments/getComments', method: 'get', handler: comment.mockGetComments },
+    { url: '/comments', method: 'get', handler: comment.mockGetComments },
+    { url: '/comments/page', method: 'get', handler: comment.mockGetCommentsPaginated },
+    { url: '/comments', method: 'post', handler: comment.mockCreateComment },
+    { urlPattern: /^\/comments\/(\d+)$/, method: 'delete', handler: comment.mockDeleteComment },
+    { urlPattern: /^\/comments\/(\d+)\/like$/, method: 'post', handler: comment.mockLikeComment },
+    { urlPattern: /^\/comments\/(\d+)\/like$/, method: 'delete', handler: comment.mockUnlikeComment },
 ]
 
 /**

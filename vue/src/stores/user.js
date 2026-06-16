@@ -41,7 +41,7 @@ export const useUserStore = defineStore('user', () => {
       return { success: false, message: res.msg || '登录失败' }
     } catch (err) {
       console.error(err)
-      return { success: false, message: res.msg }
+      return { success: false, message: err?.message || '登录失败' }
     } finally {
       isLoading.value = false
     }

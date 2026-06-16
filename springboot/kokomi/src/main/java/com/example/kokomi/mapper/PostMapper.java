@@ -1,10 +1,11 @@
 package com.example.kokomi.mapper;
 
+import java.util.List;
+
+import org.apache.ibatis.annotations.Param;
+
 import com.example.kokomi.dto.PostPageQueryDTO;
 import com.example.kokomi.entity.Post;
-import com.example.kokomi.entity.PostMedia;
-import org.apache.ibatis.annotations.Param;
-import java.util.List;
 
 public interface PostMapper {
 
@@ -29,4 +30,10 @@ public interface PostMapper {
 
     // 点赞数 -1
     int decrementLikes(@Param("id") Long id);
+
+    // 评论数 +1
+    int incrementComments(@Param("id") Long id);
+
+    // 评论数 -1
+    int decrementComments(@Param("id") Long id);
 }

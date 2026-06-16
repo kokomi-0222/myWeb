@@ -35,6 +35,7 @@ auth:
     - /publicKey
     - /upload/**
     - /post/getPosts
+    - /comments
 #rsa秘钥对
 rsa:
   public-key: "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC82jIhsD1tYS9LSfJRNV/SpqzxD5UZVoCIB09owY90xJtEE3GzDzVaDtkFb5/ki+Pfv2OObRS6UZKTg+hfk7WVnPomvYG2YNaSyf8cN+SM9x4N+Xsdf3ZBVu4Zj43+kNM/0ISWNZdNZnRUSoW5YCHClDZ3+DlrMN3NRu9ezQiO4QIDAQAB"
