@@ -15,4 +15,5 @@ public class Post {
     private Integer likes;
     private Integer comments;
     private Integer forwards;
+    private String type;
 }

@@ -19,6 +19,7 @@ import com.example.kokomi.mapper.CommentLikeMapper;
 import com.example.kokomi.mapper.CommentMapper;
 import com.example.kokomi.mapper.PostMapper;
 import com.example.kokomi.mapper.UserMapper;
+import com.example.kokomi.mapper.UserRoleMapper;
 import com.example.kokomi.service.CommentService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.vo.CommentAuthorVO;
@@ -35,6 +36,7 @@ public class CommentServiceImpl implements CommentService {
     private final CommentLikeMapper commentLikeMapper;
     private final PostMapper postMapper;
     private final UserMapper userMapper;
+    private final UserRoleMapper userRoleMapper;
 
     @Value("${app.upload-path}")
     private String uploadPath;
@@ -165,10 +167,15 @@ public class CommentServiceImpl implements CommentService {
             throw new CustomerException(ResultCode.PARAM_ERROR, "评论不存在");
         }
 
-        // 只有评论作者或管理员可以删除
+        // 只有评论作者、帖子作者（仅顶级评论）或管理员可以删除
         boolean isOwner = comment.getUserId().equals(currentUserId);
-        if (!isOwner) {
-            // 简单起见，这里只允许作者删除。管理员权限可以后续添加
+        boolean isPostAuthor = false;
+        if (comment.getParentId() == null) {
+            var post = postMapper.selectById(comment.getPostId());
+            isPostAuthor = post != null && post.getUserId().equals(currentUserId);
+        }
+        boolean isAdmin = userRoleMapper.selectRolesByUserId(currentUserId).contains("admin");
+        if (!isOwner && !isPostAuthor && !isAdmin) {
             throw new CustomerException(ResultCode.NO_PERMISSION, "无权删除该评论");
         }
 
@@ -195,6 +202,7 @@ public class CommentServiceImpl implements CommentService {
         vo.setLikes(comment.getLikes());
         vo.setIsHot(comment.getIsHot() != null && comment.getIsHot() == 1);
         vo.setCreatedAt(comment.getCreatedAt());
+        vo.setParentId(comment.getParentId());
         vo.setReplyTo(comment.getReplyTo());
         vo.setImage(comment.getImage());
 
@@ -237,7 +245,7 @@ public class CommentServiceImpl implements CommentService {
                         StandardCopyOption.REPLACE_EXISTING);
                 return baseUrl + "/upload/images/" + filename;
             } catch (IOException e) {
-                e.printStackTrace();
+                // ignore move failure and keep original image URL
             }
         }
         return imageUrl;

@@ -61,7 +61,10 @@
 
     <!-- 帖子主体 -->
     <div class="post-card__body">
-      <h3 v-if="post.title" class="post-card__title">{{ post.title }}</h3>
+      <div class="post-card__title-row">
+        <h3 v-if="post.title" class="post-card__title">{{ post.title }}</h3>
+        <span v-if="post.type" class="post-card__type-tag">{{ typeLabel }}</span>
+      </div>
       <div class="post-card__content" v-html="sanitizeContent(post.content)"></div>
       <!-- 图片展示 -->
       <div v-if="post.media && post.media.length" class="post-card__media">
@@ -98,6 +101,7 @@
     <section class="post-card__comments" v-if="showComments && commentVisible">
       <PostComment
         :post-id="post.id"
+        :post-author-id="post.author.id"
         :comments-count="commentCount"
         mode="preview"
         :max-comments="10"
@@ -179,6 +183,9 @@ const forwardCount = computed(() => {
   const n = Number(raw);
   return Number.isFinite(n) ? n : 0;
 });
+
+const TYPE_MAP = { tech: '技术', life: '生活', game: '游戏', music: '音乐', movie: '影视', other: '其他' };
+const typeLabel = computed(() => TYPE_MAP[props.post?.type] || props.post?.type || '');
 
 // Computed
 const isAuthor = computed(() => {
@@ -413,10 +420,29 @@ const handleCommentDeleted = () => {
   margin-left: var(--post-card-align-indent);
 }
 
+.post-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .post-card__title {
   font-size: 1.25rem;
-  margin: 0 0 12px;
+  margin: 0;
   color: var(--text-primary);
+}
+
+.post-card__type-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  font-size: 0.7rem;
+  color: var(--primary-color);
+  background: transparent;
+  border: 1px solid var(--primary-color);
+  border-radius: 10px;
+  white-space: nowrap;
+  opacity: 0.8;
 }
 
 .post-card__content {

@@ -86,6 +86,7 @@ public class PostServiceImpl implements PostService {
         post.setTitle(dto.getTitle() != null ? dto.getTitle().trim() : "");
         post.setContent(dto.getContent() != null ? dto.getContent().trim() : "");
         post.setUserId(userId);
+        post.setType(dto.getType() != null ? dto.getType().trim() : "");
 
         postMapper.insert(post);
 
@@ -253,6 +254,7 @@ public class PostServiceImpl implements PostService {
         vo.setLikes(post.getLikes());
         vo.setCommentsCount(post.getComments());
         vo.setForward(post.getForwards());
+        vo.setType(post.getType());
 
         // 作者
         User user = userMapper.selectById(post.getUserId());

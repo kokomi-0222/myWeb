@@ -18,4 +18,5 @@ public class PostDetailVO {
     private Integer likes;
     private Integer commentsCount;
     private Boolean likedByMe;
+    private String type;
 }

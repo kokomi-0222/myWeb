@@ -15,4 +15,5 @@ public class CreatePostDTO {
 
     private List<PostMediaDTO> media;
     private List<String> tags;
+    private String type;
 }

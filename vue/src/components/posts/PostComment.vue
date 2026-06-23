@@ -64,7 +64,7 @@
                   回复
                 </button>
                 <button
-                  v-if="userStore.user?.id === comment.author.id"
+                  v-if="canDeleteComment(comment)"
                   class="comment-action comment-action--danger"
                   @click="handleCommentDelete(comment)"
                 >
@@ -211,6 +211,7 @@ const currentSort = ref(sortOptions[0].sortBy);
 
 const props = defineProps({
   postId: [String, Number], // 接收帖子ID，用于请求数据
+  postAuthorId: [String, Number],
   commentsCount: { type: Number, default: 0 },
   mode: { type: String, default: "preview" }, // 'preview' | 'full'
   maxComments: { type: Number, default: 10 },  // 预览模式最多显示条数
@@ -224,6 +225,15 @@ const handleSort = (sortBy) => {
 };
 
 const sortedComments = ref([]);
+
+const isAdmin = computed(() => userStore.roles?.includes("admin"));
+const canDeleteComment = (comment) => {
+  const currentUserId = userStore.user?.id;
+  if (!currentUserId) return false;
+  const isOwner = currentUserId === comment.author?.id;
+  const isPostAuthor = comment.parentId == null && currentUserId === Number(props.postAuthorId);
+  return isOwner || isAdmin.value || isPostAuthor;
+};
 
 const updateSortedComments = () => {
   const list = Array.isArray(comments.value) ? [...comments.value] : [];

@@ -15,6 +15,7 @@ public class CommentVO {
     private Boolean isHot;
     private LocalDateTime createdAt;
     private String image;       // 评论图片URL
+    private Long parentId;
     private List<CommentVO> replies; // 子回复
     private String replyTo;          // 回复的用户名
     private Boolean likedByMe;       // 当前用户是否已点赞

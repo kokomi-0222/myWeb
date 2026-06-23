@@ -60,6 +60,7 @@ CREATE TABLE `post` (
   `likes` int DEFAULT '0' COMMENT '点赞数',
   `comments` int DEFAULT '0' COMMENT '评论数',
   `forwards` int DEFAULT '0' COMMENT '转发数',
+  `type` varchar(32) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '帖子分类',
   PRIMARY KEY (`id`),
   KEY `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='帖子主表';
@@ -104,17 +105,19 @@ CREATE TABLE `post_like` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='帖子点赞记录表';
 
 
-CREATE TABLE comment (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    post_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL,
-    content TEXT NOT NULL,
-    parent_id BIGINT DEFAULT NULL,
-    reply_to VARCHAR(50) DEFAULT NULL,
-    likes INT DEFAULT 0,
-    is_hot TINYINT DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+CREATE TABLE `comment` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `post_id` bigint NOT NULL,
+  `user_id` bigint NOT NULL,
+  `content` text COLLATE utf8mb4_general_ci NOT NULL,
+  `parent_id` bigint DEFAULT NULL,
+  `reply_to` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `likes` int DEFAULT '0',
+  `is_hot` tinyint DEFAULT '0',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `image` varchar(500) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=44 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE comment_like (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,

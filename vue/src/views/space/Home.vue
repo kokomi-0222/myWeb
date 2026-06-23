@@ -40,6 +40,19 @@
         </div>
       </div>
 
+      <!-- 分类选择 -->
+      <div class="publishing-category">
+        <span
+          v-for="cat in postCategories"
+          :key="cat.value"
+          class="category-tag"
+          :class="{ active: selectedCategory === cat.value }"
+          @click="selectedCategory = selectedCategory === cat.value ? '' : cat.value"
+        >
+          {{ cat.label }}
+        </span>
+      </div>
+
       <div class="publishing-content">
         <textarea
           ref="textareaRef"
@@ -148,6 +161,17 @@ const id = `input-${Math.random().toString(36).substring(2, 11)}`;
 
 const submitting = ref(false);
 
+// 分类选项
+const postCategories = [
+  { label: '技术', value: 'tech' },
+  { label: '生活', value: 'life' },
+  { label: '游戏', value: 'game' },
+  { label: '音乐', value: 'music' },
+  { label: '影视', value: 'movie' },
+  { label: '其他', value: 'other' },
+];
+const selectedCategory = ref('');
+
 
 
 
@@ -239,6 +263,7 @@ const handleSubmit = async () => {
     const res = await createPosts({
       title,
       content,
+      type: selectedCategory.value || undefined,
       media: mediaList.length > 0 ? mediaList : undefined,
     });
 
@@ -248,6 +273,7 @@ const handleSubmit = async () => {
       // 清空表单
       publishingTitleInnerValue.value = '';
       publishingContentInnerValue.value = '';
+      selectedCategory.value = '';
       imageFiles.value = [];
       if (textareaRef.value) {
         textareaRef.value.style.height = 'auto';
@@ -513,6 +539,39 @@ const handleDelete = (postId) => {
   line-height: 24px;
   display: flex;
   align-items: center;
+}
+
+.publishing-category {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: 20px;
+  padding-right: 30px;
+  margin-top: 12px;
+  user-select: none;
+}
+
+.category-tag {
+  display: inline-block;
+  padding: 2px 12px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  background: var(--bg-nomarl);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.category-tag:hover {
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.category-tag.active {
+  color: #fff;
+  background: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
 .publishing-content {

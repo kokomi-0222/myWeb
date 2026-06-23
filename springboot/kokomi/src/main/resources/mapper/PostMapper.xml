@@ -22,6 +22,8 @@
         <choose>
             <when test="query.sort == 'likes'">likes DESC</when>
             <when test="query.sort == 'views'">views DESC</when>
+            <when test="query.sort == 'comments'">comments DESC</when>
+            <when test="query.sort == 'update'">created_at DESC</when>
             <otherwise>created_at DESC</otherwise>
         </choose>
         LIMIT #{offset}, #{query.pageSize}
@@ -44,8 +46,8 @@
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO post (title, content, user_id, created_at, updated_at)
-        VALUES (#{title}, #{content}, #{userId}, NOW(), NOW())
+        INSERT INTO post (title, content, user_id, type, created_at, updated_at)
+        VALUES (#{title}, #{content}, #{userId}, #{type}, NOW(), NOW())
     </insert>
 
     <select id="selectById" resultType="com.example.kokomi.entity.Post">

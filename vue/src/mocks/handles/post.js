@@ -70,12 +70,13 @@ let posts = [
     likes: 0,
     commentsCount: 0,
     likedByMe: false,
+    type: 'life',
   },
   {
     id: '2',
-    title: '今天去爬山了',
-    tag: ['爬山', '旅游'],
-    content: '<p>住在大山里针不戳</p>',
+    title: 'Vue 3 组合式 API 入门',
+    tag: ['Vue', '前端'],
+    content: '<p>组合式 API 让代码组织更清晰</p>',
     media: [
       {
         id: 'media_2_1', // 媒体唯一ID（必加）
@@ -125,6 +126,7 @@ let posts = [
     likes: 1,
     commentsCount: 2,
     likedByMe: false,
+    type: 'tech',
   },
   {
     id: '3',
@@ -162,6 +164,7 @@ let posts = [
     forward: 0,
     commentsCount: 2,
     likedByMe: false,
+    type: 'game',
   },
   {
     id: '4',
@@ -215,7 +218,9 @@ let posts = [
     views: 1,
     likes: 1,
     commentsCount: 2,
+    forward: 0,
     likedByMe: false,
+    type: 'music',
   },
   {
     id: '5',
@@ -253,6 +258,7 @@ let posts = [
     forward: 0,
     commentsCount: 2,
     likedByMe: false,
+    type: 'movie',
   },
   {
     id: '6',
@@ -308,6 +314,7 @@ let posts = [
     forward: 0,
     commentsCount: 2,
     likedByMe: false,
+    type: 'game',
   },
   {
     id: '7',
@@ -378,6 +385,7 @@ let posts = [
     likes: 0,
     commentsCount: 0,
     likedByMe: false,
+    type: 'life',
   },
   {
     id: '8',
@@ -448,6 +456,7 @@ let posts = [
     likes: 0,
     commentsCount: 0,
     likedByMe: false,
+    type: 'tech',
   },
 ]
 
@@ -458,8 +467,34 @@ export function mockGetPosts({ params }) {
   console.log(`[MOCK] 排序参数: sort=${sort}`)
   console.log(`[MOCK] 关键字参数: keyword=${keyword}`)
   console.log(`[MOCK] 类型参数: type=${type}`)
-  const total = posts.length
-  const list = posts.slice((pageNum - 1) * pageSize, pageNum * pageSize)
+
+  // 过滤
+  let filtered = posts
+  if (type) {
+    filtered = filtered.filter((p) => p.type === type)
+  }
+  if (keyword) {
+    const kw = keyword.toLowerCase()
+    filtered = filtered.filter(
+      (p) =>
+        p.title?.toLowerCase().includes(kw) ||
+        p.content?.toLowerCase().includes(kw)
+    )
+  }
+  // 排序
+  if (sort === 'likes') {
+    filtered.sort((a, b) => (b.likes || 0) - (a.likes || 0))
+  } else if (sort === 'views') {
+    filtered.sort((a, b) => (b.views || 0) - (a.views || 0))
+  } else if (sort === 'comments') {
+    filtered.sort((a, b) => (b.commentsCount || 0) - (a.commentsCount || 0))
+  } else {
+    // 默认按创建时间倒序
+    filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  }
+
+  const total = filtered.length
+  const list = filtered.slice((pageNum - 1) * pageSize, pageNum * pageSize)
   return {
     code: '200',
     data: { list, total },
@@ -467,7 +502,7 @@ export function mockGetPosts({ params }) {
 }
 
 export function mockGetUserPosts({ headers, params }) {
-  console.log('[MOCK] 获取帖子列表')
+  console.log('[MOCK] 获取用户帖子列表')
   const { pageNum = 1, pageSize = 10, sort, keyword, type } = params
   console.log(`[MOCK] 分页参数: pageNum=${pageNum}, pageSize=${pageSize}`)
   console.log(`[MOCK] 排序参数: sort=${sort}`)
@@ -486,12 +521,32 @@ export function mockGetUserPosts({ headers, params }) {
   }
 
   const userInfo = res.data.user
-  //console.log(`[MOCK] 获取用户信息成功: ${JSON.stringify(userInfo)}`)
-  const userPosts = posts.filter((p) => p.author.id === userInfo.id)
+  let userPosts = posts.filter((p) => p.author.id === userInfo.id)
+
+  // 过滤
+  if (type) {
+    userPosts = userPosts.filter((p) => p.type === type)
+  }
+  if (keyword) {
+    const kw = keyword.toLowerCase()
+    userPosts = userPosts.filter(
+      (p) =>
+        p.title?.toLowerCase().includes(kw) ||
+        p.content?.toLowerCase().includes(kw)
+    )
+  }
+  // 排序
+  if (sort === 'likes') {
+    userPosts.sort((a, b) => (b.likes || 0) - (a.likes || 0))
+  } else if (sort === 'views') {
+    userPosts.sort((a, b) => (b.views || 0) - (a.views || 0))
+  } else if (sort === 'comments') {
+    userPosts.sort((a, b) => (b.commentsCount || 0) - (a.commentsCount || 0))
+  }
+
   const total = userPosts.length
   console.log(`[MOCK] 获取用户帖子总数成功: ${total}`)
   const list = userPosts.slice((pageNum - 1) * pageSize, pageNum * pageSize)
-  //console.log(`[MOCK] 获取用户帖子列表成功: ${JSON.stringify(list)}`)
   return {
     code: '200',
     data: { list, total },

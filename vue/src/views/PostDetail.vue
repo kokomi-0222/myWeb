@@ -29,6 +29,7 @@
         <div class="post-detail-comments">
           <PostComment
             :post-id="post.id"
+            :post-author-id="post.author.id"
             :comments-count="post.commentsCount ?? post.comments ?? 0"
             mode="full"
             @comment="handleComment"
