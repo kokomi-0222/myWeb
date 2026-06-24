@@ -9,6 +9,12 @@
         VALUES (#{commentId}, #{userId}, NOW())
     </insert>
 
+    <!-- 原子插入：INSERT IGNORE 遇唯一约束冲突时静默忽略，返回 0 -->
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO comment_like (comment_id, user_id, created_at)
+        VALUES (#{commentId}, #{userId}, NOW())
+    </insert>
+
     <delete id="delete">
         DELETE FROM comment_like WHERE comment_id = #{commentId} AND user_id = #{userId}
     </delete>

@@ -155,6 +155,7 @@ const triggerMode = computed(() => {
 
 const moreDropdownVisible = ref(false);
 const commentVisible = ref(false);
+const liking = ref(false); // 防抖：防止快速连点引发竞态
 
 const commentCount = computed(() => {
   const p = props.post || {};
@@ -270,7 +271,9 @@ const sanitizeContent = (html) => {
 };
 
 const toggleLike = async () => {
+  if (liking.value) return; // 防止连点引发竞态
   const post = props.post;
+  liking.value = true;
   if (post.likedByMe) {
     try {
       await unlikePost(post.id);
@@ -288,6 +291,7 @@ const toggleLike = async () => {
       // 错误已在拦截器中处理
     }
   }
+  liking.value = false;
 };
 
 const toggleComment = () => {

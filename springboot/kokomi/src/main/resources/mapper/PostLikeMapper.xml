@@ -9,6 +9,13 @@
         VALUES (#{postId}, #{userId}, NOW())
     </insert>
 
+    <!-- 原子插入：INSERT IGNORE 遇唯一约束冲突时静默忽略，返回 0；
+         返回 1 表示真正插入了新行，用于消除 check-then-act 竞态 -->
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO post_like (post_id, user_id, created_at)
+        VALUES (#{postId}, #{userId}, NOW())
+    </insert>
+
     <delete id="deleteByPostIdAndUserId">
         DELETE FROM post_like WHERE post_id = #{postId} AND user_id = #{userId}
     </delete>

@@ -8,6 +8,9 @@ public interface PostLikeMapper {
     // 插入点赞记录
     int insert(PostLike postLike);
 
+    // 原子插入（INSERT IGNORE）：遇重复则忽略，返回 0
+    int insertIgnore(PostLike postLike);
+
     // 删除点赞记录（取消点赞）
     int deleteByPostIdAndUserId(@Param("postId") Long postId, @Param("userId") Long userId);
 

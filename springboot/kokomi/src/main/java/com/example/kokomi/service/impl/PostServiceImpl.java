@@ -198,16 +198,14 @@ public class PostServiceImpl implements PostService {
             throw new CustomerException(ResultCode.PARAM_ERROR, "帖子不存在");
         }
 
-        // 检查是否已点赞
-        if (postLikeMapper.existsByPostIdAndUserId(postId, userId) > 0) {
-            return; // 已点赞，幂等处理
-        }
-
+        // 原子 INSERT IGNORE：遇唯一约束冲突时返回 0，消除 check-then-act 竞态
         PostLike like = new PostLike();
         like.setPostId(postId);
         like.setUserId(userId);
-        postLikeMapper.insert(like);
-        postMapper.incrementLikes(postId);
+        int inserted = postLikeMapper.insertIgnore(like);
+        if (inserted > 0) {
+            postMapper.incrementLikes(postId);
+        }
     }
 
     @Override
@@ -220,13 +218,11 @@ public class PostServiceImpl implements PostService {
             throw new CustomerException(ResultCode.PARAM_ERROR, "帖子不存在");
         }
 
-        // 检查是否已点赞
-        if (postLikeMapper.existsByPostIdAndUserId(postId, userId) == 0) {
-            return; // 未点赞，幂等处理
+        // 直接用 DELETE 返回值判断是否真正删除了记录，避免 check-then-act 竞态
+        int deleted = postLikeMapper.deleteByPostIdAndUserId(postId, userId);
+        if (deleted > 0) {
+            postMapper.decrementLikes(postId);
         }
-
-        postLikeMapper.deleteByPostIdAndUserId(postId, userId);
-        postMapper.decrementLikes(postId);
     }
 
     private PageVO<PostDetailVO> getPostList(PostPageQueryDTO dto) {

@@ -536,13 +536,17 @@ onMounted(() => {
   loadComments();
 });
 
-// 点赞/取消点赞评论
+// 点赞/取消点赞评论（带防抖，防止连点引发竞态）
+const commentLiking = ref(new Set());
 const handleCommentLike = async (comment) => {
   if (!userStore.isLogin) {
     ui.openLoginModal();
     return;
   }
   const commentId = comment.id;
+  if (commentLiking.value.has(commentId)) return; // 该评论正在处理中
+  commentLiking.value.add(commentId);
+
   const isLiked = likedComments.value.has(commentId);
   // 乐观更新
   if (isLiked) {
@@ -567,6 +571,8 @@ const handleCommentLike = async (comment) => {
       likedComments.value.delete(commentId);
       comment.likes = Math.max(0, (comment.likes || 0) - 1);
     }
+  } finally {
+    commentLiking.value.delete(commentId);
   }
 };
 

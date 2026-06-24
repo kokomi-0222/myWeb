@@ -129,13 +129,11 @@ public class CommentServiceImpl implements CommentService {
             throw new CustomerException(ResultCode.PARAM_ERROR, "评论不存在");
         }
 
-        // 检查是否已点赞
-        if (commentLikeMapper.existsByCommentIdAndUserId(commentId, userId) > 0) {
-            return; // 已点赞，幂等处理
+        // 原子 INSERT IGNORE：遇唯一约束冲突时返回 0，消除 check-then-act 竞态
+        int inserted = commentLikeMapper.insertIgnore(commentId, userId);
+        if (inserted > 0) {
+            commentMapper.incrementLikes(commentId);
         }
-
-        commentLikeMapper.insert(commentId, userId);
-        commentMapper.incrementLikes(commentId);
     }
 
     @Override
@@ -148,13 +146,11 @@ public class CommentServiceImpl implements CommentService {
             throw new CustomerException(ResultCode.PARAM_ERROR, "评论不存在");
         }
 
-        // 检查是否已点赞
-        if (commentLikeMapper.existsByCommentIdAndUserId(commentId, userId) == 0) {
-            return; // 未点赞，幂等处理
+        // 直接用 DELETE 返回值判断是否真正删除了记录，避免 check-then-act 竞态
+        int deleted = commentLikeMapper.delete(commentId, userId);
+        if (deleted > 0) {
+            commentMapper.decrementLikes(commentId);
         }
-
-        commentLikeMapper.delete(commentId, userId);
-        commentMapper.decrementLikes(commentId);
     }
 
     @Override

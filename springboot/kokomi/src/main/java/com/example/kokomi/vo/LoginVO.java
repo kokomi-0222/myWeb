@@ -1,10 +1,11 @@
 package com.example.kokomi.vo;
 
+import java.util.List;
+
 import com.example.kokomi.bo.UserBO;
 import com.example.kokomi.util.JwtUtil;
-import lombok.Data;
 
-import java.util.List;
+import lombok.Data;
 
 @Data
 public class LoginVO {
@@ -43,7 +44,7 @@ public class LoginVO {
         vo.setUser(userVO);
         vo.setRoles(bo.getRoles());
         vo.setPermissions(bo.getPermissions());
-        System.out.println(vo);
+        //System.out.println(vo);
         return vo;
     }
 }
