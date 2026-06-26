@@ -6,6 +6,9 @@ import { getAccessToken} from '@/utils/accessToken'
 
 // 🗺️ 路由映射表：URL + Method → 对应的 mock 函数
 const MOCK_ROUTES = [
+    // 验证码
+    { url: '/captcha', method: 'get', handler: user.mockGetCaptcha },
+
     // 用户
     { url: '/user/login', method: 'post', handler: user.mockLogin },
     { url: '/user/register', method: 'post', handler: user.mockRegister },

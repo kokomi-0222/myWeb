@@ -1,6 +1,6 @@
 import request from '@/utils/request'
 
-export function getPosts(pageNum, pageSize, sort, keyword, type) {
+export function getPosts(pageNum, pageSize, sort, keyword, searchType, type) {
   return request({
     url: '/post/getPosts',
     method: 'get',
@@ -9,6 +9,7 @@ export function getPosts(pageNum, pageSize, sort, keyword, type) {
       pageSize,
       sort,
       keyword,
+      searchType,
       type
     }
   })

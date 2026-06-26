@@ -23,10 +23,10 @@ export const useUserStore = defineStore('user', () => {
   })
 
   // 登录
-  const login = async (loginData) => {
+  const login = async (loginData, captchaKey, captchaCode) => {
     isLoading.value = true
     try {
-      const res = await apiLogin(loginData)
+      const res = await apiLogin(loginData, captchaKey, captchaCode)
       if (!res.data) {
         return { success: false, message: res.msg || '登录失败，返回数据异常' }
       }
@@ -105,8 +105,8 @@ export const useUserStore = defineStore('user', () => {
   }
 
   // 注册
-  const register = async (registerData) => {
-    const res = await apiRegister(registerData)
+  const register = async (registerData, captchaKey, captchaCode) => {
+    const res = await apiRegister(registerData, captchaKey, captchaCode)
     try {
       if (setting.successCode.includes(res.code)) {
         return { success: true, data: res.data }

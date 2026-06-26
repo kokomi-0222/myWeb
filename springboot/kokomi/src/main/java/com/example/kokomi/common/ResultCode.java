@@ -17,6 +17,9 @@ public class ResultCode {
     public static final int UPDATE_USER_ERROR = 503;  // 更新用户信息失败
     public static final int UPDATE_PASSWORD_ERROR = 504; //修改密码失败
 
+    // 验证码
+    public static final int CAPTCHA_ERROR = 505;
+
     // RSA 加密解密
     public static final int RSA_ENCRYPT_ERROR = 1001;
     public static final int RSA_DECRYPT_ERROR = 1002;

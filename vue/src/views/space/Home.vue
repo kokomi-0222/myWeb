@@ -41,7 +41,7 @@
       </div>
 
       <!-- 分类选择 -->
-      <div class="publishing-category">
+      <!-- <div class="publishing-category">
         <span
           v-for="cat in postCategories"
           :key="cat.value"
@@ -51,7 +51,7 @@
         >
           {{ cat.label }}
         </span>
-      </div>
+      </div> -->
 
       <div class="publishing-content">
         <textarea

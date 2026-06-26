@@ -163,7 +163,7 @@ const handleAvatarChange = async (e) => {
   if (!file) return;
 
   if (file.size > setting.imageSize) {
-    message.warning("头像不能超过 2MB！");
+    message.warning("头像不能超过 10MB！");
     e.target.value = "";
     return;
   }

@@ -284,3 +284,21 @@ export function mockGetUserPermissions({ headers }) {
     message: 'success'
   };
 }
+
+// Mock 验证码：返回一个简单的 SVG 占位图，mock 模式下后端不校验
+export function mockGetCaptcha() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="60" viewBox="0 0 160 60">
+  <rect width="160" height="60" fill="#f0f4ff" rx="6"/>
+  <text x="30" y="40" font-size="28" font-family="Arial" fill="#00aeec" font-weight="bold">A3Bx</text>
+  <line x1="10" y1="15" x2="80" y2="20" stroke="#d0d0d0" stroke-width="1.5"/>
+  <line x1="90" y1="45" x2="150" y2="10" stroke="#d0d0d0" stroke-width="1.5"/>
+</svg>`;
+  const base64 = 'data:image/svg+xml;base64,' + btoa(svg);
+  return {
+    code: 200,
+    data: {
+      captchaKey: 'mock-captcha-key',
+      captchaImage: base64,
+    },
+  };
+}

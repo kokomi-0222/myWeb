@@ -3,7 +3,7 @@ import request from '@/utils/request'
 import setting from '@/config/setting'
 import { encryptedData } from '@/utils/encrypt'
 
-export async function login(data) {
+export async function login(data, captchaKey, captchaCode) {
   // 登录RSA加密
   if (setting.loginRSA) {
     data = await encryptedData(data)
@@ -12,12 +12,14 @@ export async function login(data) {
       method: 'post',
       data: {
         encryptedData: data,
+        captchaKey: captchaKey || '',
+        captchaCode: captchaCode || '',
       },
     })
   }
 }
 
-export async function register(data) {
+export async function register(data, captchaKey, captchaCode) {
   if (setting.loginRSA) {
     data = await encryptedData(data)
     return request({
@@ -25,6 +27,8 @@ export async function register(data) {
       method: 'post',
       data: {
         encryptedData: data,
+        captchaKey: captchaKey || '',
+        captchaCode: captchaCode || '',
       },
     })
   }

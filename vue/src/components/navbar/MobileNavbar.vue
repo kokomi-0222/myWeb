@@ -88,6 +88,7 @@ const searchVisible = ref(false);
 const searchText = ref("");
 const searchInputRef = ref(null);
 const searchOptions = reactive([
+  { label: "内容", value: "content" },
   { label: "标题", value: "title" },
   { label: "用户", value: "user" },
   { label: "分类", value: "category" },

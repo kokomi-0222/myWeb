@@ -15,6 +15,9 @@ public class PostPageQueryDTO {
     // 搜索关键词
     private String keyword;
 
+    // 搜索范围：content / title / user / category（为空则同时搜索标题和内容）
+    private String searchType;
+
     // 类型筛选（不传默认全部）
     private String type;
 

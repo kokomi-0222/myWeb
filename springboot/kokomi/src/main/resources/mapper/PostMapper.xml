@@ -14,8 +14,21 @@
                 AND type = #{query.type}
             </if>
             <if test="query.keyword != null and query.keyword != ''">
-                AND (title LIKE CONCAT('%', #{query.keyword}, '%')
-                OR content LIKE CONCAT('%', #{query.keyword}, '%'))
+                <choose>
+                    <when test="query.searchType == 'title'">
+                        AND title LIKE CONCAT('%', #{query.keyword}, '%')
+                    </when>
+                    <when test="query.searchType == 'user'">
+                        AND user_id IN (SELECT id FROM `user` WHERE name LIKE CONCAT('%', #{query.keyword}, '%'))
+                    </when>
+                    <when test="query.searchType == 'category'">
+                        AND type = #{query.keyword}
+                    </when>
+                    <otherwise>
+                        AND (title LIKE CONCAT('%', #{query.keyword}, '%')
+                        OR content LIKE CONCAT('%', #{query.keyword}, '%'))
+                    </otherwise>
+                </choose>
             </if>
         </where>
         ORDER BY
@@ -39,8 +52,21 @@
                 AND type = #{query.type}
             </if>
             <if test="query.keyword != null and query.keyword != ''">
-                AND (title LIKE CONCAT('%', #{query.keyword}, '%')
-                OR content LIKE CONCAT('%', #{query.keyword}, '%'))
+                <choose>
+                    <when test="query.searchType == 'title'">
+                        AND title LIKE CONCAT('%', #{query.keyword}, '%')
+                    </when>
+                    <when test="query.searchType == 'user'">
+                        AND user_id IN (SELECT id FROM `user` WHERE name LIKE CONCAT('%', #{query.keyword}, '%'))
+                    </when>
+                    <when test="query.searchType == 'category'">
+                        AND type = #{query.keyword}
+                    </when>
+                    <otherwise>
+                        AND (title LIKE CONCAT('%', #{query.keyword}, '%')
+                        OR content LIKE CONCAT('%', #{query.keyword}, '%'))
+                    </otherwise>
+                </choose>
             </if>
         </where>
     </select>

@@ -116,6 +116,7 @@ const hasMore = computed(() => {
 // ========== 处理全局搜索 ==========
 const searchParams = reactive({
   keyword: "",
+  searchType: "",
   type: "",
 });
 
@@ -123,7 +124,8 @@ const searchParams = reactive({
 const handleGlobalSearch = ({ keyword, type }) => {
   // 更新搜索参数
   searchParams.keyword = keyword?.trim() || "";
-  searchParams.type = type || "";
+  searchParams.searchType = type || "";
+  searchParams.type = "";
 
   // 重置分页状态
   posts.currentPage = 1;
@@ -150,6 +152,7 @@ const loadPosts = async (isLoadMore = false) => {
       posts.pageSize,
       currentSort.value,
       searchParams.keyword,
+      searchParams.searchType,
       searchParams.type
     );
 

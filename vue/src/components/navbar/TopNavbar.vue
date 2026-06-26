@@ -8,7 +8,7 @@
     </div>
     <!-- 中间：搜索框 -->
     <div v-if="showTools" class="header-bar-center">
-      <InputSearch v-model="searchText" placeholder="搜索..." @search="onSearch" />
+      <InputSearch v-model="searchText" placeholder="搜索..." :search-types="searchOptions" @search="onSearch" />
     </div>
     <!-- 右侧：大中屏功能区 -->
     <div
@@ -116,6 +116,12 @@ defineProps({
 });
 
 const searchText = ref("");
+const searchOptions = reactive([
+  { label: "内容", value: "content" },
+  { label: "标题", value: "title" },
+  { label: "用户", value: "user" },
+  { label: "分类", value: "category" },
+]);
 const emit = defineEmits(["search"]); // 声明 emit 事件
 
 function onSearch({ keyword, type }) {

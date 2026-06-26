@@ -26,6 +26,26 @@
           <div v-if="loginErr.password" class="err-tip">{{ loginErr.password }}</div>
         </div>
 
+        <!-- 验证码 -->
+        <div class="form-item">
+          <div class="captcha-row">
+            <InputLine
+              v-model="captchaCode"
+              label="请输入验证码"
+              type="text"
+              @focus="captchaErr = ''"
+            />
+            <img
+              :src="captchaImage"
+              class="captcha-img"
+              alt="验证码"
+              title="点击刷新验证码"
+              @click="fetchCaptcha"
+            />
+          </div>
+          <div v-if="captchaErr" class="err-tip">{{ captchaErr }}</div>
+        </div>
+
         <div class="button-group">
           <Button class="login-button" @click="goToRegister">
             <span>注册</span>
@@ -88,6 +108,26 @@
           </div>
         </div>
 
+        <!-- 验证码 -->
+        <div class="form-item">
+          <div class="captcha-row">
+            <InputLine
+              v-model="captchaCode"
+              label="请输入验证码"
+              type="text"
+              @focus="captchaErr = ''"
+            />
+            <img
+              :src="captchaImage"
+              class="captcha-img"
+              alt="验证码"
+              title="点击刷新验证码"
+              @click="fetchCaptcha"
+            />
+          </div>
+          <div v-if="captchaErr" class="err-tip">{{ captchaErr }}</div>
+        </div>
+
         <div class="button-group">
           <Button class="login-button" @click="goToLogin">返回登录</Button>
           <Button class="login-button" type="bilibili" @click="handleRegister">
@@ -105,10 +145,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, nextTick } from "vue";
+import { ref, reactive, nextTick, watch } from "vue";
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
 import { message } from "@/utils/message";
+import { getCaptcha } from "@/api/captcha";
 import router from "@/router";
 
 const uiStore = useUIStore();
@@ -141,6 +182,36 @@ const regErr = ref({
   confirmPassword: "",
 });
 
+// ================ 验证码（登录和注册共用） ================
+const captchaImage = ref("");
+const captchaKey = ref("");
+const captchaCode = ref("");
+const captchaErr = ref("");
+
+const fetchCaptcha = async () => {
+  try {
+    captchaCode.value = "";
+    captchaErr.value = "";
+    const res = await getCaptcha();
+    if (res.data) {
+      captchaImage.value = res.data.captchaImage || "";
+      captchaKey.value = res.data.captchaKey || "";
+    }
+  } catch (e) {
+    // 获取验证码失败，静默处理
+  }
+};
+
+// 弹窗打开时自动获取验证码
+watch(
+  () => uiStore.loginModalOpen,
+  (open) => {
+    if (open) {
+      fetchCaptcha();
+    }
+  }
+);
+
 // 工具函数（加了类型，无红线）
 const isPhone = (val: string) => /^1[3-9]\d{9}$/.test(val);
 const isEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
@@ -150,6 +221,7 @@ const validateLogin = (): boolean => {
   let ok = true;
   loginErr.value.account = "";
   loginErr.value.password = "";
+  captchaErr.value = "";
 
   if (!loginForm.account.trim()) {
     loginErr.value.account = "请输入用户名/手机号/邮箱";
@@ -157,6 +229,10 @@ const validateLogin = (): boolean => {
   }
   if (!loginForm.password) {
     loginErr.value.password = "请输入密码";
+    ok = false;
+  }
+  if (!captchaCode.value.trim()) {
+    captchaErr.value = "请输入验证码";
     ok = false;
   }
   return ok;
@@ -197,6 +273,12 @@ const validateRegister = (): boolean => {
     ok = false;
   }
 
+  captchaErr.value = "";
+  if (!captchaCode.value.trim()) {
+    captchaErr.value = "请输入验证码";
+    ok = false;
+  }
+
   return ok;
 };
 
@@ -207,7 +289,7 @@ const handleLogin = async () => {
 
   try {
     logging.value = true;
-    const res = await userStore.login(loginForm);
+    const res = await userStore.login(loginForm, captchaKey.value, captchaCode.value);
     if (res.success) {
       message.success("登录成功");
       uiStore.closeLoginModal();
@@ -215,10 +297,14 @@ const handleLogin = async () => {
       router.push("/").then(() => {
         router.go(0);
       });
+    } else {
+      // 登录失败刷新验证码
+      fetchCaptcha();
     }
     // 失败消息已在请求拦截器中提示，不再重复弹窗
   } catch (err) {
     message.error("登录异常");
+    fetchCaptcha();
   } finally {
     logging.value = false;
   }
@@ -239,12 +325,13 @@ const handleRegister = async () => {
     registering.value = false;
   }
 
-  const res = await userStore.register(registerForm);
+  const res = await userStore.register(registerForm, captchaKey.value, captchaCode.value);
   if (res.success) {
     message.success("注册成功");
     uiStore.closeLoginModal();
   } else {
     message.error(res.message || "注册失败");
+    fetchCaptcha();
   }
 };
 
@@ -259,6 +346,8 @@ const closeModal = () => {
   registerForm.confirmPassword = "";
   loginErr.value = { account: "", password: "" };
   regErr.value = { account: "", password: "", confirmPassword: "" };
+  captchaCode.value = "";
+  captchaErr.value = "";
 };
 
 const goToRegister = () => {
@@ -266,6 +355,8 @@ const goToRegister = () => {
   registerForm.account = "";
   registerForm.password = "";
   registerForm.confirmPassword = "";
+  captchaErr.value = "";
+  fetchCaptcha();
   nextTick(() => {
     if (regAccRef?.value?.input) regAccRef.value.input.value = "";
     if (regPwdRef?.value?.input) regPwdRef.value.input.value = "";
@@ -275,6 +366,8 @@ const goToRegister = () => {
 
 const goToLogin = () => {
   formType.value = "login";
+  captchaErr.value = "";
+  fetchCaptcha();
 };
 
 const dialogStyle = {
@@ -366,5 +459,19 @@ const dialogStyle = {
   color: #4173df;
   cursor: pointer;
   text-decoration: underline;
+}
+
+.captcha-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.captcha-img {
+  height: 40px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--border-color, #e5e7eb);
+  flex-shrink: 0;
 }
 </style>

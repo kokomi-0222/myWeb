@@ -438,13 +438,13 @@ const handleCommentDeleted = () => {
 }
 
 .post-card__type-tag {
-  display: inline-block;
   padding: 1px 8px;
+  margin-left: 6px;
   font-size: 0.7rem;
   color: var(--primary-color);
   background: transparent;
   border: 1px solid var(--primary-color);
-  border-radius: 10px;
+  border-radius: 5px;
   white-space: nowrap;
   opacity: 0.8;
 }

@@ -24,6 +24,7 @@ import com.example.kokomi.mapper.RolePermissionMapper;
 import com.example.kokomi.mapper.UserMapper;
 import com.example.kokomi.mapper.UserRoleMapper;
 import com.example.kokomi.service.UserService;
+import com.example.kokomi.util.CaptchaCache;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.util.RsaUtil;
 import com.example.kokomi.util.UserTokenVersionCache;
@@ -54,6 +55,15 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserBO login(EncryptDataDTO encryptedDto) {
+        // 验证码校验
+        if (StrUtil.isBlank(encryptedDto.getCaptchaKey())
+                || StrUtil.isBlank(encryptedDto.getCaptchaCode())) {
+            throw new CustomerException(ResultCode.CAPTCHA_ERROR, "请输入验证码");
+        }
+        if (!CaptchaCache.verifyAndRemove(
+                encryptedDto.getCaptchaKey(), encryptedDto.getCaptchaCode())) {
+            throw new CustomerException(ResultCode.CAPTCHA_ERROR, "验证码错误或已过期");
+        }
         //解密
         String json = rsaUtil.decrypt(encryptedDto.getEncryptedData());
         if (json == null) {
@@ -87,6 +97,15 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Result<Void> register(EncryptDataDTO encryptedDto){
+        // 验证码校验
+        if (StrUtil.isBlank(encryptedDto.getCaptchaKey())
+                || StrUtil.isBlank(encryptedDto.getCaptchaCode())) {
+            throw new CustomerException(ResultCode.CAPTCHA_ERROR, "请输入验证码");
+        }
+        if (!CaptchaCache.verifyAndRemove(
+                encryptedDto.getCaptchaKey(), encryptedDto.getCaptchaCode())) {
+            throw new CustomerException(ResultCode.CAPTCHA_ERROR, "验证码错误或已过期");
+        }
         //解密
         String json = rsaUtil.decrypt(encryptedDto.getEncryptedData());
         if (json == null) {
