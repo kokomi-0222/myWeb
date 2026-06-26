@@ -106,7 +106,7 @@ export function getCommentsPaginated(postId, pageNum, pageSize) {
 // 发表评论
 export function createComment(postId, data) {
   return request({
-    url: '/comments',
+    url: '/comments/create',
     method: 'post',
     params: { postId },
     data

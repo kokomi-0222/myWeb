@@ -17,6 +17,7 @@ import com.example.kokomi.common.ResultCode;
 import com.example.kokomi.dto.CreatePostDTO;
 import com.example.kokomi.dto.PostMediaDTO;
 import com.example.kokomi.dto.PostPageQueryDTO;
+import com.example.kokomi.entity.Comment;
 import com.example.kokomi.entity.Post;
 import com.example.kokomi.entity.PostLike;
 import com.example.kokomi.entity.PostMedia;
@@ -104,22 +105,10 @@ public class PostServiceImpl implements PostService {
                 PostMedia m = new PostMedia();
                 m.setPostId(post.getId());
 
-                // 将 temp 目录中的图片移动到 images 目录
-                String originalUrl = md.getUrl();
-                String finalUrl = originalUrl;
-                if (originalUrl != null && originalUrl.contains("/upload/temp/")) {
-                    String filename = originalUrl.substring(originalUrl.lastIndexOf("/") + 1);
-                    File tempFile = new File(uploadPath + "temp/" + filename);
-                    File imageFile = new File(uploadPath + "images/" + filename);
-                    if (tempFile.exists()) {
-                        try {
-                            Files.move(tempFile.toPath(), imageFile.toPath(),
-                                StandardCopyOption.REPLACE_EXISTING);
-                            finalUrl = baseUrl + "/upload/images/" + filename;
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
+                // 将 temp 目录中的图片移动到 images 目录（仅接受合法的 temp URL）
+                String finalUrl = moveTempFileToImages(md.getUrl());
+                if (finalUrl == null) {
+                    continue; // 非法的媒体 URL，跳过不入库
                 }
 
                 m.setThumbnailUrl(finalUrl);
@@ -171,14 +160,13 @@ public class PostServiceImpl implements PostService {
         // 删除帖子关联的图片文件
         List<PostMedia> mediaList = postMediaMapper.selectByPostId(postId);
         for (PostMedia media : mediaList) {
-            String url = media.getThumbnailUrl();
-            if (url != null && url.contains("/upload/images/")) {
-                String filename = url.substring(url.lastIndexOf("/") + 1);
-                File imageFile = new File(uploadPath + "images/" + filename);
-                if (imageFile.exists()) {
-                    imageFile.delete();
-                }
-            }
+            deleteImageFile(media.getThumbnailUrl());
+        }
+
+        // 删除评论中关联的图片文件（需在删DB记录前完成）
+        List<Comment> comments = commentMapper.selectByPostId(postId);
+        for (Comment comment : comments) {
+            deleteImageFile(comment.getImage());
         }
 
         // 删除关联数据：媒体、标签、评论、帖子
@@ -222,6 +210,58 @@ public class PostServiceImpl implements PostService {
         int deleted = postLikeMapper.deleteByPostIdAndUserId(postId, userId);
         if (deleted > 0) {
             postMapper.decrementLikes(postId);
+        }
+    }
+
+    /**
+     * 将临时文件从 temp 目录迁移到 images 目录，返回永久访问 URL。
+     * 仅接受以 {@code /upload/temp/} 为路径的合法临时文件 URL，
+     * 拒绝外部 URL、javascript: 协议等任意字符串。
+     *
+     * @param url 客户端传入的临时文件 URL
+     * @return 迁移成功返回永久 URL，否则返回 null（调用方应跳过该媒体项）
+     */
+    private String moveTempFileToImages(String url) {
+        // 必须是本地上传的临时文件 URL
+        if (url == null || !url.contains("/upload/temp/")) {
+            return null;
+        }
+        String filename = url.substring(url.lastIndexOf("/") + 1);
+        // 防止路径穿越：文件名不能包含路径分隔符或上级目录标记
+        if (filename.isEmpty() || filename.contains("/") || filename.contains("\\")
+                || filename.contains("..")) {
+            return null;
+        }
+        File tempFile = new File(uploadPath + "temp/" + filename);
+        File imageFile = new File(uploadPath + "images/" + filename);
+        if (!tempFile.exists()) {
+            return null;
+        }
+        try {
+            Files.move(tempFile.toPath(), imageFile.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING);
+            return baseUrl + "/upload/images/" + filename;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * 安全删除 images 目录下的图片文件。
+     * 仅处理合法路径，防止路径穿越。
+     */
+    private void deleteImageFile(String url) {
+        if (url == null || !url.contains("/upload/images/")) {
+            return;
+        }
+        String filename = url.substring(url.lastIndexOf("/") + 1);
+        if (filename.contains("/") || filename.contains("\\") || filename.contains("..")) {
+            return;
+        }
+        File file = new File(uploadPath + "images/" + filename);
+        if (file.exists()) {
+            file.delete();
         }
     }
 

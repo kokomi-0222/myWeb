@@ -95,6 +95,14 @@ public class CommentServiceImpl implements CommentService {
             throw new CustomerException(ResultCode.PARAM_ERROR, "评论内容不能为空");
         }
 
+        // 校验 parentId：父评论必须属于同一帖子，防止跨帖挂载
+        if (parentId != null) {
+            Comment parentComment = commentMapper.selectById(parentId);
+            if (parentComment == null || !parentComment.getPostId().equals(postId)) {
+                throw new CustomerException(ResultCode.PARAM_ERROR, "父评论不属于该帖子");
+            }
+        }
+
         Comment comment = new Comment();
         comment.setPostId(postId);
         comment.setUserId(userId);
@@ -175,12 +183,15 @@ public class CommentServiceImpl implements CommentService {
             throw new CustomerException(ResultCode.NO_PERMISSION, "无权删除该评论");
         }
 
-        // 删除子回复
+        // 删除子回复（先删图片文件，再删DB记录）
         List<Comment> replies = commentMapper.selectRepliesByParentId(commentId);
         for (Comment reply : replies) {
+            deleteImageFile(reply.getImage());
             commentLikeMapper.deleteByCommentId(reply.getId());
             commentMapper.deleteById(reply.getId());
         }
+        // 删除当前评论的图片文件
+        deleteImageFile(comment.getImage());
         commentLikeMapper.deleteByCommentId(commentId);
         commentMapper.deleteById(commentId);
 
@@ -222,28 +233,57 @@ public class CommentServiceImpl implements CommentService {
     }
 
     /**
-     * 将图片从 temp 目录移动到 images 永久目录
+     * 将图片从 temp 目录移动到 images 永久目录，返回永久访问 URL。
+     * 仅接受以 {@code /upload/temp/} 为路径的合法临时文件 URL，
+     * 拒绝外部 URL、javascript: 协议等任意字符串。
+     *
+     * @param imageUrl 客户端传入的临时文件 URL
+     * @return 迁移成功返回永久 URL，否则返回 null（评论将不携带图片）
      */
     private String moveImageToPermanent(String imageUrl) {
+        // 必须是本地上传的临时文件 URL
         if (imageUrl == null || !imageUrl.contains("/upload/temp/")) {
-            return imageUrl;
+            return null;
         }
         String filename = imageUrl.substring(imageUrl.lastIndexOf("/") + 1);
+        // 防止路径穿越：文件名不能包含路径分隔符或上级目录标记
+        if (filename.isEmpty() || filename.contains("/") || filename.contains("\\")
+                || filename.contains("..")) {
+            return null;
+        }
         File tempFile = new File(uploadPath + "temp/" + filename);
         File imagesDir = new File(uploadPath + "images/");
         if (!imagesDir.exists()) {
             imagesDir.mkdirs();
         }
         File imageFile = new File(imagesDir, filename);
-        if (tempFile.exists()) {
-            try {
-                Files.move(tempFile.toPath(), imageFile.toPath(),
-                        StandardCopyOption.REPLACE_EXISTING);
-                return baseUrl + "/upload/images/" + filename;
-            } catch (IOException e) {
-                // ignore move failure and keep original image URL
-            }
+        if (!tempFile.exists()) {
+            return null;
         }
-        return imageUrl;
+        try {
+            Files.move(tempFile.toPath(), imageFile.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING);
+            return baseUrl + "/upload/images/" + filename;
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 安全删除 images 目录下的图片文件。
+     * 仅处理合法路径，防止路径穿越。
+     */
+    private void deleteImageFile(String url) {
+        if (url == null || !url.contains("/upload/images/")) {
+            return;
+        }
+        String filename = url.substring(url.lastIndexOf("/") + 1);
+        if (filename.contains("/") || filename.contains("\\") || filename.contains("..")) {
+            return;
+        }
+        File file = new File(uploadPath + "images/" + filename);
+        if (file.exists()) {
+            file.delete();
+        }
     }
 }

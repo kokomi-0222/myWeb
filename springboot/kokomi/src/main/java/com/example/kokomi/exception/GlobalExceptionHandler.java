@@ -46,7 +46,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IOException.class)
     public Result<?> handleIOException(IOException e) {
         e.printStackTrace();
-        return Result.error(ResultCode.SERVER_ERROR, "文件操作失败: " + e.getMessage());
+        return Result.error(ResultCode.SERVER_ERROR, "文件操作失败");
     }
 
     /**

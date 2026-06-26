@@ -24,6 +24,9 @@ public interface CommentMapper {
     // 删除帖子的所有评论
     int deleteByPostId(@Param("postId") Long postId);
 
+    // 查询帖子的所有评论（含子回复），用于删除前清理图片文件
+    List<Comment> selectByPostId(@Param("postId") Long postId);
+
     // 分页查询顶级评论
     List<Comment> selectTopLevelByPostIdPaginated(@Param("postId") Long postId,
                                                    @Param("offset") int offset,

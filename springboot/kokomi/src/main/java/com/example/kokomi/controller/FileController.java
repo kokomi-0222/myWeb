@@ -122,7 +122,7 @@ public class FileController {
      */
     private boolean isValidImageType(MultipartFile file) {
         try {
-            byte[] header = new byte[8];
+            byte[] header = new byte[12];
             java.io.InputStream is = file.getInputStream();
             int read = is.read(header);
             is.close();

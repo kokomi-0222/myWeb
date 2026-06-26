@@ -44,7 +44,7 @@ public class CommentController {
     }
 
     // 发表评论（需登录）
-    @PostMapping
+    @PostMapping("/create")
     public Result<CommentVO> createComment(@RequestParam Long postId,
                                            @RequestBody CreateCommentDTO dto) {
         requireLogin();

@@ -25,6 +25,7 @@ import "highlight.js/styles/default.css";
 //import 'highlight.js/styles/github.css'
 
 import copy from "copy-to-clipboard";
+import DOMPurify from "dompurify";
 
 // 注册语言
 hljs.registerLanguage("javascript", javascript);
@@ -52,14 +53,10 @@ const props = defineProps({
 const containerRef = ref(null);
 const sanitizedContent = ref("");
 
-// 简单 XSS 过滤（生产环境建议用 DOMPurify）
+// XSS 过滤：与 PostCard.vue 保持一致，使用 DOMPurify
 const sanitizeHtml = (html) => {
   if (!html) return "";
-  // 移除危险标签和属性（基础防护）
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, "")
-    .replace(/javascript:/gi, "");
+  return DOMPurify.sanitize(html);
 };
 
 // 高亮 + 添加复制按钮

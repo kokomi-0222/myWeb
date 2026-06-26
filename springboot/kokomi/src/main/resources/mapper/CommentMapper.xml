@@ -29,6 +29,10 @@
         DELETE FROM comment WHERE id = #{id}
     </delete>
 
+    <select id="selectByPostId" resultType="com.example.kokomi.entity.Comment">
+        SELECT * FROM comment WHERE post_id = #{postId}
+    </select>
+
     <delete id="deleteByPostId">
         DELETE FROM comment WHERE post_id = #{postId}
     </delete>
