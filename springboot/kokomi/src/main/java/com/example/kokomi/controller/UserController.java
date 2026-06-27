@@ -5,6 +5,7 @@ import com.example.kokomi.bo.UserBO;
 
 import com.example.kokomi.dto.EncryptDataDTO;
 import com.example.kokomi.dto.UserUpdateDTO;
+import jakarta.validation.Valid;
 import com.example.kokomi.service.UserService;
 import com.example.kokomi.util.LoginUserHolder;
 
@@ -45,7 +46,7 @@ public class UserController {
     }
 
     @PostMapping("/update")
-    public Result<String> updateUserInfo(@RequestBody UserUpdateDTO userUpdateDto) {
+    public Result<String> updateUserInfo(@Valid @RequestBody UserUpdateDTO userUpdateDto) {
         userService.updateUserInfo(userUpdateDto);
         return Result.success("保存成功");
     }

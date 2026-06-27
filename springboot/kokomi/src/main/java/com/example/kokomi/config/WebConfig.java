@@ -1,6 +1,7 @@
 package com.example.kokomi.config;
 
 import com.example.kokomi.interceptor.LoginInterceptor;
+import com.example.kokomi.interceptor.PermissionInterceptor;
 import jakarta.annotation.Resource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -15,6 +16,8 @@ public class WebConfig implements WebMvcConfigurer {
     private AuthProperties authProperties;
     @Resource
     private LoginInterceptor loginInterceptor;
+    @Resource
+    private PermissionInterceptor permissionInterceptor;
 
     @Value("${app.upload-path}")
     private String uploadPath;
@@ -33,6 +36,12 @@ public class WebConfig implements WebMvcConfigurer {
                 .addPathPatterns("/**")
                 .excludePathPatterns(authProperties.getExcludePaths())
                 // 必须放行静态图片
+                .excludePathPatterns("/upload/**");
+
+        // 权限拦截器（在登录拦截器之后执行，LoginUserHolder 已设置）
+        registry.addInterceptor(permissionInterceptor)
+                .addPathPatterns("/**")
+                .excludePathPatterns(authProperties.getExcludePaths())
                 .excludePathPatterns("/upload/**");
     }
 }

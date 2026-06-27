@@ -610,7 +610,7 @@ const handleCommentDelete = async (comment) => {
 };
 
 const previewImage = (url) => {
-  window.open(url, "_blank");
+  window.open(url, "_blank", "noopener,noreferrer");
 };
 </script>
 

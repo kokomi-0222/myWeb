@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.kokomi.common.Result;
 import com.example.kokomi.common.ResultCode;
 import com.example.kokomi.dto.CreateCommentDTO;
+import jakarta.validation.Valid;
 import com.example.kokomi.exception.CustomerException;
 import com.example.kokomi.service.CommentService;
 import com.example.kokomi.util.LoginUserHolder;
@@ -46,13 +47,13 @@ public class CommentController {
     // 发表评论（需登录）
     @PostMapping("/create")
     public Result<CommentVO> createComment(@RequestParam Long postId,
-                                           @RequestBody CreateCommentDTO dto) {
+                                           @Valid @RequestBody CreateCommentDTO dto) {
         requireLogin();
         return Result.success(commentService.createComment(postId, dto.getContent(),
                 dto.getParentId(), dto.getReplyTo(), dto.getImage()));
     }
 
-    // 删除评论（需登录）
+    // 删除评论（Service 层校验：作者本人 / 帖子作者 / 拥有 post:delete 权限）
     @DeleteMapping("/{id}")
     public Result<Void> deleteComment(@PathVariable Long id) {
         requireLogin();

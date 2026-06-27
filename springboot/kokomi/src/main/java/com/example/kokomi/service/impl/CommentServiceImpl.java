@@ -18,8 +18,10 @@ import com.example.kokomi.exception.CustomerException;
 import com.example.kokomi.mapper.CommentLikeMapper;
 import com.example.kokomi.mapper.CommentMapper;
 import com.example.kokomi.mapper.PostMapper;
+import com.example.kokomi.mapper.RolePermissionMapper;
 import com.example.kokomi.mapper.UserMapper;
 import com.example.kokomi.mapper.UserRoleMapper;
+import com.example.kokomi.util.PermissionCache;
 import com.example.kokomi.service.CommentService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.vo.CommentAuthorVO;
@@ -37,6 +39,7 @@ public class CommentServiceImpl implements CommentService {
     private final PostMapper postMapper;
     private final UserMapper userMapper;
     private final UserRoleMapper userRoleMapper;
+    private final RolePermissionMapper rolePermissionMapper;
 
     @Value("${app.upload-path}")
     private String uploadPath;
@@ -171,15 +174,15 @@ public class CommentServiceImpl implements CommentService {
             throw new CustomerException(ResultCode.PARAM_ERROR, "评论不存在");
         }
 
-        // 只有评论作者、帖子作者（仅顶级评论）或管理员可以删除
+        // 只有评论作者、帖子作者（仅顶级评论）或拥有 post:delete 权限的用户可以删除
         boolean isOwner = comment.getUserId().equals(currentUserId);
         boolean isPostAuthor = false;
         if (comment.getParentId() == null) {
             var post = postMapper.selectById(comment.getPostId());
             isPostAuthor = post != null && post.getUserId().equals(currentUserId);
         }
-        boolean isAdmin = userRoleMapper.selectRolesByUserId(currentUserId).contains("admin");
-        if (!isOwner && !isPostAuthor && !isAdmin) {
+        boolean hasDeletePerm = hasPermission(currentUserId, "post:delete");
+        if (!isOwner && !isPostAuthor && !hasDeletePerm) {
             throw new CustomerException(ResultCode.NO_PERMISSION, "无权删除该评论");
         }
 
@@ -257,16 +260,29 @@ public class CommentServiceImpl implements CommentService {
             imagesDir.mkdirs();
         }
         File imageFile = new File(imagesDir, filename);
-        if (!tempFile.exists()) {
-            return null;
-        }
         try {
+            // 直接 move，消除 exists() → move() 之间的 TOCTOU 竞态窗口
             Files.move(tempFile.toPath(), imageFile.toPath(),
                     StandardCopyOption.REPLACE_EXISTING);
             return baseUrl + "/upload/images/" + filename;
         } catch (IOException e) {
             return null;
         }
+    }
+
+    /**
+     * 检查用户是否拥有指定权限（优先查缓存，缓存缺失时查 DB 并回填）。
+     */
+    private boolean hasPermission(Long userId, String permCode) {
+        if (PermissionCache.hasPermission(userId, permCode)) {
+            return true;
+        }
+        java.util.Set<String> roles = new java.util.HashSet<>(
+                userRoleMapper.selectRolesByUserId(userId));
+        java.util.Set<String> perms = new java.util.HashSet<>(
+                rolePermissionMapper.selectPermissionsByUserId(userId));
+        PermissionCache.put(userId, roles, perms);
+        return perms.contains(permCode);
     }
 
     /**

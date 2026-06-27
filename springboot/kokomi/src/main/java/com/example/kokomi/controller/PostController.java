@@ -20,7 +20,7 @@ public class PostController {
 
     // 首页
     @GetMapping("/getPosts")
-    public Result<PageVO<PostDetailVO>> getPosts(PostPageQueryDTO query) {
+    public Result<PageVO<PostDetailVO>> getPosts(@Valid PostPageQueryDTO query) {
         return Result.success(postService.getPostPage(query));
     }
 
@@ -48,7 +48,7 @@ public class PostController {
         return Result.success(postService.createPost(dto));
     }
 
-    // 删除帖子
+    // 删除帖子（Service 层校验：作者本人 或 拥有 post:delete 权限）
     @DeleteMapping("/{postId}")
     public Result<Void> deletePost(@PathVariable Long postId) {
         postService.deletePost(postId);

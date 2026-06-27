@@ -26,6 +26,7 @@ import com.example.kokomi.mapper.UserRoleMapper;
 import com.example.kokomi.service.UserService;
 import com.example.kokomi.util.CaptchaCache;
 import com.example.kokomi.util.LoginUserHolder;
+import com.example.kokomi.util.PermissionCache;
 import com.example.kokomi.util.RsaUtil;
 import com.example.kokomi.util.UserTokenVersionCache;
 
@@ -91,6 +92,11 @@ public class UserServiceImpl implements UserService {
         UserBO userBO = convertToUserBO(user);
         userBO.setRoles(userRoleMapper.selectRolesByUserId(user.getId()));
         userBO.setPermissions(rolePermissionMapper.selectPermissionsByUserId(user.getId()));
+
+        // 预热权限缓存，后续请求无需再查 DB
+        PermissionCache.put(user.getId(),
+                new java.util.HashSet<>(userBO.getRoles()),
+                new java.util.HashSet<>(userBO.getPermissions()));
         //System.out.println(userBO);
         return userBO;
     }

@@ -1,12 +1,17 @@
 package com.example.kokomi.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.Data;
 
 @Data
 public class PostPageQueryDTO {
 
     // 分页（不传默认 第1页，10条）
+    @Min(1)
     private Integer pageNum = 1;
+    @Min(1)
+    @Max(50)
     private Integer pageSize = 10;
 
     // 排序字段（不传默认 按最新时间）

@@ -27,7 +27,7 @@ export function setAccessToken(accessToken) {
   if (setting.storage) {
     if ('localStorage' === setting.storage) {
       return localStorage.setItem(setting.tokenTableName, accessToken)
-    } else if ('sessionStorage' === storage) {
+    } else if ('sessionStorage' === setting.storage) {
       return sessionStorage.setItem(setting.tokenTableName, accessToken)
     } else {
       return localStorage.setItem(setting.tokenTableName, accessToken)

@@ -51,6 +51,11 @@ public class FileController {
             throw new CustomerException(400, "只支持 jpg、png、gif、webp 格式图片");
         }
 
+        // 校验文件真实类型（magic bytes），防止伪造扩展名上传恶意文件
+        if (!isValidImageType(file)) {
+            throw new CustomerException(400, "文件类型校验失败，请上传真实图片");
+        }
+
         String fileName = UUID.randomUUID() + suffix;
         File directory  = new File(tempDir);
 

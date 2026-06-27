@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.example.kokomi.mapper.*;
+import com.example.kokomi.util.PermissionCache;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +42,7 @@ public class PostServiceImpl implements PostService {
     private final PostTagMapper postTagMapper;
     private final UserMapper userMapper;
     private final UserRoleMapper userRoleMapper;
+    private final RolePermissionMapper rolePermissionMapper;
     private final CommentMapper commentMapper;
 
     @Value("${app.upload-path}")
@@ -149,11 +151,11 @@ public class PostServiceImpl implements PostService {
             throw new CustomerException(ResultCode.PARAM_ERROR, "帖子不存在");
         }
 
-        // 检查权限：帖子作者 或 管理员
+        // 检查权限：帖子作者 或 拥有 post:delete 权限的用户
         boolean isOwner = post.getUserId().equals(currentUserId);
-        boolean isAdmin = userRoleMapper.selectRolesByUserId(currentUserId).contains("admin");
+        boolean hasDeletePerm = hasPermission(currentUserId, "post:delete");
 
-        if (!isOwner && !isAdmin) {
+        if (!isOwner && !hasDeletePerm) {
             throw new CustomerException(ResultCode.NO_PERMISSION, "无权删除该帖子");
         }
 
@@ -234,17 +236,30 @@ public class PostServiceImpl implements PostService {
         }
         File tempFile = new File(uploadPath + "temp/" + filename);
         File imageFile = new File(uploadPath + "images/" + filename);
-        if (!tempFile.exists()) {
-            return null;
-        }
         try {
+            // 直接 move，消除 exists() → move() 之间的 TOCTOU 竞态窗口
             Files.move(tempFile.toPath(), imageFile.toPath(),
                     StandardCopyOption.REPLACE_EXISTING);
             return baseUrl + "/upload/images/" + filename;
         } catch (IOException e) {
-            e.printStackTrace();
             return null;
         }
+    }
+
+    /**
+     * 检查用户是否拥有指定权限（优先查缓存，缓存缺失时查 DB 并回填）。
+     */
+    private boolean hasPermission(Long userId, String permCode) {
+        if (PermissionCache.hasPermission(userId, permCode)) {
+            return true;
+        }
+        // 缓存缺失：从 DB 加载 roles + permissions 并回填缓存
+        java.util.Set<String> roles = new java.util.HashSet<>(
+                userRoleMapper.selectRolesByUserId(userId));
+        java.util.Set<String> perms = new java.util.HashSet<>(
+                rolePermissionMapper.selectPermissionsByUserId(userId));
+        PermissionCache.put(userId, roles, perms);
+        return perms.contains(permCode);
     }
 
     /**

@@ -1,7 +1,7 @@
 <template>
   <div class="search-input-wrapper">
     <form class="search-form" @submit.prevent="handleSearch">
-      <div v-if="searchTypes.length > 0" class="search-type-select">
+      <!-- <div v-if="searchTypes.length > 0" class="search-type-select">
         <Dropdown
           v-model:visible="dropdownVisible"
           trigger="click"
@@ -36,7 +36,7 @@
             </div>
           </template>
         </Dropdown>
-      </div>
+      </div> -->
 
       <div class="search-content" :class="{ 'is-focused': isFocused }">
         <input
