@@ -1036,4 +1036,26 @@ const previewImage = (url) => {
 }
 
 
+@media (max-width: 768px) {
+  .reply-input {
+    margin-left: -44px;
+  }
+
+  .reply-input-area {
+    margin-right: 0;
+  }
+
+  .comment-content {
+    padding: 8px 8px;
+  }
+
+  .comment-item {
+    padding: 10px 0;
+  }
+
+  .reply-list {
+    padding: 8px 4px;
+  }
+}
+
 </style>

@@ -5,7 +5,7 @@ const setting = {
     //app名称
     appName: 'my-web-app',
     //接口地址
-    baseURL: 'http://localhost:8080',
+    baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
     //配后端数据的接收方式application/json;charset=UTF-8或者application/x-www-form-urlencoded;charset=UTF-8
     contentType: 'application/json;charset=UTF-8',
     //消息框消失时间

@@ -31,6 +31,20 @@
   </div>
 </template>
 
+<script>
+// 用 import.meta.glob 预加载所有 banner 图片，确保 Vite 打包时包含它们
+// 注意：必须放在 <script> (非 setup) 中，否则 defineProps 的默认值无法访问
+const bannerLayerModules = import.meta.glob(
+  "../../assets/images/banner/layer*.png",
+  { eager: true, import: "default" }
+);
+
+const bannerBgModules = import.meta.glob(
+  "../../assets/images/bgbili.png",
+  { eager: true, import: "default" }
+);
+</script>
+
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 
@@ -42,11 +56,13 @@ const props = defineProps({
     default: () => {
       const defaultLayers = [];
       for (let i = 1; i <= 32; i++) {
-        const layerName = `../../assets/images/banner/layer${String(i).padStart(
+        const layerKey = `../../assets/images/banner/layer${String(i).padStart(
           2,
           "0"
         )}.png`;
-        const layerUrl = new URL(layerName, import.meta.url).href;
+        const layerUrl = bannerLayerModules[layerKey];
+        // 跳过不存在的图片
+        if (!layerUrl) continue;
         let x = 0,
           y = 0,
           s = 0,
@@ -181,7 +197,10 @@ const props = defineProps({
   // 背景图列表（默认1张本地路径，支持远程URL）
   bgImageList: {
     type: Array,
-    default: () => [new URL("../../assets/images/bgbili.png", import.meta.url).href],
+    default: () => {
+      const bgUrl = bannerBgModules["../../assets/images/bgbili.png"];
+      return bgUrl ? [bgUrl] : [];
+    },
   },
   // layerList 中 x 字段约定：
   //   负值(-) = 左侧元素 → 鼠标右移（由远及近）时向左散开

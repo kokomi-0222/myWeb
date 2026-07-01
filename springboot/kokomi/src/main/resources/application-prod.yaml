@@ -1,0 +1,13 @@
+# 生产环境配置 —— 会覆盖 application.yaml 中的同名配置
+app:
+  base-url: https://kokomi.net.cn
+  upload-path: /kokomi/upload/
+
+spring:
+  datasource:
+    password: 'QQ1063627264.'
+
+# 生产环境关闭 SQL 日志，提升性能
+mybatis:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl

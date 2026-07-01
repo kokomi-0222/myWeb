@@ -67,7 +67,7 @@
       <aside class="sidebar-right"></aside>
     </div>
     <div class="kokomi-footer"></div>
-    <BottomNavbar />
+    <!-- <BottomNavbar /> -->
     <LoginModal />
   </div>
 </template>

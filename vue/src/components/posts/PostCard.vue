@@ -519,8 +519,40 @@ const handleCommentDeleted = () => {
 }
 
 @media (max-width: 768px) {
+  .post-card {
+    --post-card-align-indent: calc(40px + 8px);
+    padding: 12px 12px;
+  }
+
+  .post-card__avatar {
+    margin-right: 10px;
+  }
+
+  .post-card__ornament {
+    margin-right: 12px;
+  }
+
+  .post-card__more {
+    margin-right: 4px;
+  }
+
+  .post-card__footer {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
   .post-card__actions {
     flex-direction: column;
+  }
+
+  .post-card__stats {
+    justify-content: space-evenly;
+    gap: 0;
+  }
+
+  .post-card__stat {
+    gap: 6px;
+    padding: 6px 12px;
   }
 }
 </style>
