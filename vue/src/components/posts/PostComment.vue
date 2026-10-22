@@ -18,7 +18,7 @@
       <div class="comment-input">
         <Avatar :src="userStore.user?.avatar" alt="" :size="40" />
         <div class="comment-input-area">
-          <div v-if="!userStore.isLogin" class="comment-login-tip">登录后可发表评论~</div>
+          <div v-if="!userStore.isLogin" class="comment-login-tip" @click="ui.openLoginModal()">登录后可发表评论~</div>
           <InputTextarea v-else v-model="commentContent" placeholder="天青色等烟雨，而我在等你..." @submit="handleCommentSubmit" :max-image-count="1" />
         </div>
       </div>
@@ -37,7 +37,7 @@
             </div>
 
             <div class="comment-main">
-              <p class="comment-text">
+              <p v-if="comment.content" class="comment-text">
                 {{ comment.content }}
               </p>
               <img
@@ -635,11 +635,12 @@ const previewImage = (url) => {
 .comment-title-text {
   font-size: 1.275rem;
   font-weight: 500;
-  margin-left: 8px;
+  /* 与 .comment-content 的左内边距一致，让「评论」和评论头像对齐 */
+  margin-left: 20px;
 }
 
 .comment-title-count {
-  margin: 0px 30px 0px 6px;
+  margin: 0px 16px 0px 6px;
   font-size: 0.9rem;
   color: var(--text-secondary);
 }
@@ -658,17 +659,18 @@ const previewImage = (url) => {
 .comment-sort-label {
   margin: 0px 8px;
   font-size: 0.875rem;
-  opacity: 0.5;
+  color: var(--text-secondary);
   cursor: pointer;
+  transition: color 0.15s ease;
 }
 
 .comment-sort-label:hover {
   color: var(--primary-color);
-  opacity: 1;
 }
 
 .comment-sort-label.active {
-  opacity: 1;
+  color: var(--text-primary);
+  font-weight: 500;
 }
 
 .comment-sort-divider {
@@ -679,8 +681,9 @@ const previewImage = (url) => {
   vertical-align: -2px;
 }
 
+/* 右侧不留 padding，让评论列表右边缘和帖子正文右边缘对齐 */
 .comment-content {
-  padding: 12px 20px;
+  padding: 12px 0 12px 20px;
   margin-top: 4px;
 }
 
@@ -689,19 +692,35 @@ const previewImage = (url) => {
   user-select: none;
 }
 
+/* 未登录时的占位输入框：给个明确的容器边界，点击直接唤起登录 */
 .comment-login-tip {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  height: 44px;
   font-size: 0.875rem;
   color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 
+.comment-login-tip:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+/* 左 12px = 评论头像的 margin-right，让输入框和评论首行文字左对齐 */
 .comment-input-area {
   display: flex;
   flex: 1;
   font-size: 0.9rem;
-  margin: 2px 20px;
+  margin: 2px 0 2px 12px;
   align-items: center;
   justify-content: center;
 }
@@ -716,6 +735,11 @@ const previewImage = (url) => {
   display: flex;
   padding: 16px 0;
   border-bottom: 1px solid var(--border-color);
+}
+
+.comment-item:last-child {
+  border-bottom: none;
+  padding-bottom: 4px;
 }
 
 .comment-avatar {
@@ -755,19 +779,25 @@ const previewImage = (url) => {
   margin-inline-start: 0;
   margin-inline-end: 0;
 
-  line-height: 1.2;
+  line-height: 1.6;
   color: var(--text-primary, #18191c);
   white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .comment-image {
   max-width: 200px;
   max-height: 200px;
-  border-radius: 6px;
+  border-radius: 8px;
   margin-top: 8px;
   cursor: pointer;
   object-fit: cover;
   border: 1px solid var(--border-color);
+  transition: border-color 0.15s ease;
+}
+
+.comment-image:hover {
+  border-color: var(--border-color-hover);
 }
 
 .comment-footer {
@@ -863,8 +893,8 @@ const previewImage = (url) => {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  margin-top: 8px;
-  font-size: 0.85rem;
+  margin-top: 6px;
+  font-size: 0.8rem;
   color: var(--text-secondary);
 }
 
@@ -872,13 +902,14 @@ const previewImage = (url) => {
   margin-left: 12px;
   border: none;
   background: transparent;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: inherit;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 4px;
+  padding: 0;
 }
 
 .reply-meta-action:hover {
@@ -1046,7 +1077,7 @@ const previewImage = (url) => {
   }
 
   .comment-content {
-    padding: 8px 8px;
+    padding: 8px 0 8px 8px;
   }
 
   .comment-item {

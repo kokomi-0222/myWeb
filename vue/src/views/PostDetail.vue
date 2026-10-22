@@ -5,7 +5,7 @@
     <MobileNavbar @search="handleGlobalSearch" />
 
     <div class="header-banner">
-      <img class="banner-img" src="@/assets/images/bgbili.png" alt="banner" />
+      <Banner />
     </div>
     <div class="post-detail-container">
       <!-- 返回按钮 -->
@@ -25,7 +25,7 @@
 
       <!-- 帖子内容 + 评论区 -->
       <template v-else>
-        <PostCard :post="post" :show-comments="false" />
+        <PostCard :post="post" :show-comments="false" :clickable="false" :collapsible="false" />
         <div class="post-detail-comments">
           <PostComment
             :post-id="post.id"
@@ -45,8 +45,19 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getPostById } from '@/api/posts'
 import TopNavbar from '@/components/navbar/TopNavbar.vue'
+import Banner from '@/components/modules/Banner.vue'
 import PostCard from '@/components/posts/PostCard.vue'
 import PostComment from '@/components/posts/PostComment.vue'
+
+/*
+ * 横幅：与首页完全同源 —— 同一个 Banner.vue、同一套 assets/images/banner/layer01..32.png，
+ * 参数一律用组件默认值（160px 高、maxTranslate 300、32 层视差系数）。
+ * 好处是两页视觉与手感完全一致，改首页横幅时详情页自动跟着变，不用维护第二份。
+ *
+ * 另外两个组件保留着，只是这里不用：
+ *   - DetailBanner.vue      10 层版视差引擎（容器归一化 + rAF lerp），配 banner-detail/ 素材
+ *   - DetailBannerAurora.vue 纯 CSS 极光渐变，零素材
+ */
 
 const route = useRoute()
 const router = useRouter()
@@ -94,25 +105,21 @@ onMounted(async () => {
   justify-content: center;
   margin: 0 auto;
   width: 100%;
-  min-width: var(--header-min-width);
+  min-width: 0;
   height: var(--header-banner-height);
   /*   max-height: var(--header-banner-max-height); */
   background-color: var(--header-banner-bg);
   background-position: center 0;
   background-size: cover;
   background-repeat: no-repeat;
-  display: inline-block;
-  user-select: none;
-  overflow: visible;
-}
-
-.banner-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
   display: block;
+  user-select: none;
+  overflow: hidden;
 }
 
+/* 与首页 Banner 同源，底色与叠层都由组件自己管，这里只负责定高和裁切。
+   display 用 block 而不是首页的 inline-block：inline-block 会留 5px 行盒间隙，
+   内容区顶部会露出一条浅色缝。 */
 
 .post-detail-container {
   max-width: 720px;
@@ -148,10 +155,29 @@ onMounted(async () => {
 }
 
 .post-detail-comments {
-  margin-top: 0;
+  margin-top: 14px;
   background: var(--bg-primary);
-  border-radius: 4px;
+  border-radius: 12px;
   border: 1px solid var(--border-color);
   padding: 0 20px 16px;
+}
+
+/* 移动端：与首页保持一致——隐藏 banner，容器贴边 */
+@media (max-width: 767px) {
+  .header-banner {
+    display: none;
+  }
+
+  .post-detail-container {
+    padding: 12px 0 0;
+    max-width: 100%;
+  }
+
+  .post-detail-comments {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    padding: 0 16px 16px;
+  }
 }
 </style>

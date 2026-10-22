@@ -3,7 +3,10 @@
   <div class="header-bar" :class="{ 'is-scrolled': isScrolled }">
     <!-- 左侧：Logo + 标题 -->
     <div class="header-bar-left">
-      <IconHome class="iconHome" :size="24" />
+      <div class="brand" @click="gotoMainPage">
+        <IconHome class="iconHome" :size="24" />
+        <span class="brand-name">心海的小窝</span>
+      </div>
       <span class="header-bar-title" @click="gotoMainPage">首页</span>
     </div>
     <!-- 中间：搜索框 -->
@@ -16,65 +19,92 @@
       :style="{ visibility: userStore.isLoading ? 'hidden' : 'visible' }"
     >
       <div v-if="showTools" class="header-bar-switch">
-        <el-switch
-          v-model="uiStore.isDarkMode"
-          :active-action-icon="IconDark"
-          :inactive-action-icon="IconLight"
-        />
+        <button
+          class="theme-toggle"
+          :title="uiStore.isDarkMode ? '切换为浅色模式' : '切换为深色模式'"
+          @click="uiStore.toggleTheme()"
+        >
+          <IconDark v-if="uiStore.isDarkMode" :size="18" />
+          <IconLight v-else :size="18" />
+        </button>
       </div>
       <div v-if="showTools" class="header-bar-login">
-        <Dropdown menuClass="dropdown-menu--login" :offset-y="10" :show-arrow="false">
+        <!-- 已登录：头像 + 下拉菜单 -->
+        <Dropdown
+          v-if="userStore.isLogin"
+          menuClass="dropdown-menu--login"
+          placement="bottom-end"
+          :offset-y="10"
+          :show-arrow="false"
+        >
           <template #trigger>
             <div class="dropdown-trigger">
-              <div v-if="userStore.isLogin">
-                <div class="login-avatar">
-                  <Avatar
-                    :src="userStore.user.avatar"
-                    :alt="userStore.user.name"
-                    :size="36"
-                  />
-                </div>
-              </div>
-              <div v-else>
-                <Button type="bilibili" class="login-button" @click="handleLogin">
-                  <span>登录</span>
-                </Button>
+              <div class="login-avatar">
+                <Avatar
+                  :src="userStore.user.avatar"
+                  :alt="userStore.user.name"
+                  :badge="userStore.user.badge"
+                  :size="36"
+                />
               </div>
             </div>
           </template>
           <template #menu="{ close }">
-            <div v-if="userStore.isLogin">
-              <div class="dropdown-user-info">
-                <div class="dropdown-user-name">
-                  <label style="width: 60px">昵称：</label>
-                  <span>{{ userStore.user.name }} </span>
-                </div>
-                <div class="dropdown-username">
-                  <label style="width: 60px">用户名：</label>
-                  <span>
-                    {{ userStore.user.username }}
-                  </span>
+            <div class="user-menu">
+              <!-- 用户信息头部 -->
+              <div class="user-menu__header">
+                <Avatar
+                  class="user-menu__avatar"
+                  :src="userStore.user.avatar"
+                  :alt="userStore.user.name"
+                  :badge="userStore.user.badge"
+                  :size="46"
+                />
+                <div class="user-menu__identity">
+                  <div class="user-menu__name-row">
+                    <span
+                      class="user-menu__name"
+                      :style="{ color: userStore.user.nameColor || undefined }"
+                    >
+                      {{ userStore.user.name }}
+                    </span>
+                    <span v-if="roleLabel" class="user-menu__badge">{{ roleLabel }}</span>
+                  </div>
+                  <div class="user-menu__sub" :title="userStore.user.signature || ''">
+                    {{ userStore.user.signature || "@" + userStore.user.username }}
+                  </div>
                 </div>
               </div>
-              <div class="dropdown-item-divider"></div>
-              <div class="dropdown-item" @click="gotoPersonalSpace">
-                <IconUser class="iconUser" :size="18" />
+
+              <div class="user-menu__divider"></div>
+
+              <button type="button" class="user-menu__item" @click="goWithClose(close, '/space/home')">
+                <IconUser :size="17" />
                 <span>个人中心</span>
-              </div>
-              <div class="dropdown-item">
-                <IconLogout class="iconLogout" :size="18" />
-                <span @click="handleLogout"> 退出登录 </span>
-              </div>
-              <div class="dropdown-item-end">
-              </div>
-            </div>
-            <div v-else>
-              <div class="dropdown-item">
-                <span>登录更多精彩</span>
-              </div>
+              </button>
+
+              <button type="button" class="user-menu__item" @click="goWithClose(close, '/space/account')">
+                <IconLock :size="17" />
+                <span>账号设置</span>
+              </button>
+
+              <div class="user-menu__divider"></div>
+
+              <button
+                type="button"
+                class="user-menu__item user-menu__item--danger"
+                @click="handleLogout"
+              >
+                <IconLogout :size="17" />
+                <span>退出登录</span>
+              </button>
             </div>
           </template>
         </Dropdown>
+        <!-- 未登录：直接开登录弹窗，不再挂一个只有一句话的空下拉 -->
+        <Button v-else type="bilibili" class="login-button" @click="handleLogin">
+          <span>登录</span>
+        </Button>
       </div>
       <!--  <div v-if="showTools" class="header-bar-message" data-tippy-content="消息">
         <IconMessage class="iconMessage" :size="24" />
@@ -124,6 +154,9 @@ const searchOptions = reactive([
 ]);
 const emit = defineEmits(["search"]); // 声明 emit 事件
 
+// 当前角色中文名（用于下拉里的徽章）
+const roleLabel = computed(() => userStore.primaryRole?.name || "");
+
 function onSearch({ keyword, type }) {
   console.log("搜索关键词:", keyword, "类型:", type);
   emit("search", { keyword, type });
@@ -132,11 +165,8 @@ function onSearch({ keyword, type }) {
 
 //导航栏上的登录按键处理
 function handleLogin() {
-  // 判断是否登录
-  if (userStore.isLogin) {
-  } else {
-    uiStore.openLoginModal();
-  }
+  if (userStore.isLogin) return;
+  uiStore.openLoginModal();
 }
 
 function handleLogout() {
@@ -155,12 +185,13 @@ function goPublish() {
   });
 }
 
-//去往个人中心
-const gotoPersonalSpace = () => {
-  router.push("/space/home").then(() => {
+// 下拉里跳转前先收起菜单，避免菜单停留在页面上
+function goWithClose(close, path) {
+  if (typeof close === "function") close();
+  router.push(path).then(() => {
     router.go(0);
   });
-};
+}
 
 //去往首页
 const gotoMainPage = () => {
@@ -190,22 +221,69 @@ const gotoMainPage = () => {
   position: fixed;
   background-color: var(--header-bar-bg-scrolled);
   box-shadow: 0 2px 12px 0 var(--header-bar-bg-scrolled-shadow);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-.header-bar-logo {
-  font-size: 1.2rem;
+/* 品牌块：图标 + 站点名 */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.brand:hover {
+  transform: translateY(-1px);
+  opacity: 0.88;
+}
+
+.brand-name {
+  font-size: 1.05rem;
+  font-weight: 700;
   font-family: "Ma Shan Zheng", sans-serif;
   color: var(--header-bar-logo);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
+.header-bar.is-scrolled .brand-name {
+  color: var(--header-title-scrolled);
+}
+
+.header-bar.is-scrolled .brand:hover .brand-name {
+  color: var(--primary-color);
+}
+
+/* 导航项：胶囊化 */
 .header-bar-title {
+  padding: 6px 14px;
+  border-radius: 16px;
   font-size: 0.9rem;
   color: var(--header-title);
   cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.header-bar-title:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
 }
 
 .header-bar.is-scrolled .header-bar-title {
   color: var(--header-title-scrolled);
+}
+
+.header-bar.is-scrolled .header-bar-title:hover {
+  background: var(--bg-hover);
+  color: var(--primary-color);
 }
 
 .header-bar-left {
@@ -230,8 +308,25 @@ const gotoMainPage = () => {
   min-width: 200px;
 }
 
+/* 大屏：搜索框相对整条导航栏绝对居中 */
+@media (min-width: 1024px) {
+  .header-bar-center {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%);
+    width: 400px;
+    max-width: 40vw;
+    min-width: 0;
+    /* 绝对定位后脱离 flex 排列，左右两个容器各占 50% 宽并绘制在其上层，
+       会把搜索框右半段（含清除/搜索按钮）盖住导致点不到，必须显式提层 */
+    z-index: 2;
+  }
+}
+
 .header-bar-right {
   position: relative;
+  z-index: 1;
   height: 100%;
   width: 100%;
   display: flex;
@@ -253,16 +348,91 @@ const gotoMainPage = () => {
   user-select: none;
 }
 
+/* 登录按钮：蓝色实底，与「发布」同尺寸同圆角 */
 .login-button {
-  height: 36px;
-  width: 36px;
-  border-radius: 50%;
+  height: 34px;
+  padding: 0 18px;
+  border-radius: 10px;
   font-size: 0.9rem;
-  padding: 0px;
+  font-weight: 500;
+  background-color: var(--primary-color);
+  border: 1px solid transparent;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 174, 236, 0.3);
+  transition:
+    background-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.login-button:hover {
+  background-color: var(--primary-color-hover);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(0, 174, 236, 0.42);
+}
+
+.login-button:active {
+  transform: scale(0.97);
+}
+
+/* 滚动后顶栏变白底，蓝色保持实底即可 */
+.header-bar.is-scrolled .login-button {
+  background-color: var(--primary-color);
+  border-color: transparent;
+  color: #fff;
+}
+
+.header-bar.is-scrolled .login-button:hover {
+  background-color: var(--primary-color-hover);
+  color: #fff;
+}
+
+/* 主题切换：与登录按钮同款毛玻璃方块，右侧一排形状统一 */
+.theme-toggle {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--header-bar-icon);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.32);
+  border-color: rgba(255, 255, 255, 0.75);
+}
+
+.theme-toggle:active {
+  transform: scale(0.95);
+}
+
+.header-bar.is-scrolled .theme-toggle {
+  background: var(--bg-nomarl);
+  border-color: transparent;
+  color: var(--header-bar-icon-scrolled);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.header-bar.is-scrolled .theme-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--primary-color);
 }
 
 .dropdown-trigger {
   display: inline-flex;
+  align-items: center;
   cursor: pointer;
 }
 
@@ -270,70 +440,15 @@ const gotoMainPage = () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 50%;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .login-avatar:hover {
-  transform: scale(1.2);
-}
-
-.dropdown-user-info {
-  margin: 10px, 0;
-  padding: 10px;
-  color: var(--text-secondary);
-/*   margin-bottom: 12px; */
-/*   background-color: var(--bg-secondary); */
-  /*   display: none; */
-}
-
-.dropdown-user-name {
-  display: flex;
-  align-items: center;
-  /* justify-content: center; */
-  font-size: 0.9rem;
-  height: 30px;
-}
-
-.dropdown-username {
-  display: flex;
-  align-items: center;
-  /*   justify-content: center; */
-  font-size: 0.9rem;
-  height: 30px;
-}
-
-.dropdown-item-divider {
-  height: 10px;
-  border-top: 1px solid var(--border-color);
-}
-
-.dropdown-item-end {
-  color: var(--text-secondary);
-  background-color: transparent;
-  height: 20px;
-}
-
-.dropdown-item {
-  color: var(--text-secondary);
-  background-color: transparent;
-  height: 40px;
-  margin: 10px, 0;
-  padding: 10px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.dropdown-item span {
-  margin-left: 12px;
-  font-weight: 500;
-}
-
-.dropdown-item:hover,
-.dropdown-item:focus {
-  color: var(--text-primary);
-  background-color: var(--bg-hover);
+  transform: scale(1.06);
+  box-shadow: 0 0 0 3px var(--primary-color-soft);
 }
 
 .iconHome {
@@ -356,15 +471,15 @@ const gotoMainPage = () => {
   color: var(--header-bar-icon-scrolled);
 }
 
-.el-switch {
-  --el-switch-off-color: var(--bg-primary);
-  --el-switch-on-color: var(--bg-secondary);
-  --el-switch-border-color: var(--border-color);
+/* 主题图标颜色跟随当前形态 */
+.theme-toggle .icon {
+  color: inherit;
 }
 
+/* 主题图标颜色跟随按钮 */
 :deep(.icon-dark),
 :deep(.icon-light) {
-  color: var(--header-bar-icon-switch);
+  color: inherit;
 }
 
 .header-bar-publish .publish-button {
@@ -405,12 +520,144 @@ const gotoMainPage = () => {
 }
 </style>
 <style>
+/* ===== 头像下拉菜单（Teleport 到 body，需用全局样式） ===== */
 .dropdown-menu--login {
-  width: 200px;
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 10px;
-  background-color: var(--bg-primary);
+  width: 264px;
+  padding: 8px;
+  box-sizing: border-box;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+:root.dark .dropdown-menu--login {
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.5),
+    0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.user-menu {
+  width: 100%;
+}
+
+/* 头部：头像 + 昵称/角色 + 签名 */
+.user-menu__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 14px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--primary-color-soft) 0%, transparent 85%);
+}
+
+.user-menu__avatar {
+  flex-shrink: 0;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--bg-primary),
+    0 0 0 4px var(--primary-color-soft);
+}
+
+.user-menu__identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-menu__name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.user-menu__name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 角色徽章 */
+.user-menu__badge {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--primary-color);
+  background: var(--primary-color-soft);
+}
+
+/* 签名（没有签名时显示 @username），最多两行 */
+.user-menu__sub {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-all;
+}
+
+.user-menu__divider {
+  height: 1px;
+  margin: 6px 6px;
+  background: var(--border-color);
+}
+
+/* 菜单项 */
+.user-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.user-menu__item + .user-menu__item {
+  margin-top: 2px;
+}
+
+.user-menu__item svg {
+  flex-shrink: 0;
+}
+
+.user-menu__item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* 退出登录：危险色 */
+.user-menu__item--danger:hover {
+  background: rgba(245, 63, 63, 0.1);
+  color: #f53f3f;
+}
+
+:root.dark .user-menu__item--danger:hover {
+  background: rgba(245, 63, 63, 0.16);
+  color: #ff7875;
 }
 </style>

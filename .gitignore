@@ -1,1 +1,15 @@
 CLAUDE.md
+
+# ---- 本地截图 / 调试产物（不入库）----
+shots/
+tools/ext-assets/
+
+# ---- 服务器运维配置（Nginx 等，含线上路径，不入库）----
+domian.conf
+*.nginx.conf
+
+# ---- 前端构建产物、历史备份与部署包 ----
+# dist 由 npm run build 重建；dist_old_* 是每次构建前的备份；dist_*.zip 是部署包
+vue/dist/
+vue/dist_old_*/
+vue/dist_*.zip

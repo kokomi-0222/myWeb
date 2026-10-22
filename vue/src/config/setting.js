@@ -37,13 +37,20 @@ const setting = {
     //一次加载多少个帖子
     postsPageSize: 3,
     //图片大小限制
-    imageSize: 1024 * 1024 * 10, //10MB
+    //⚠️ 这个值必须和服务器 Nginx 的 client_max_body_size 对齐（当前服务器配的是 2m）。
+    //   前端限制得比 Nginx 宽松时，大图会先被 Nginx 拦下来返回 413，页面只会显示「网络异常」。
+    //   multipart 编码本身还有几百字节开销，所以卡在 2MB 减 8KB，避免边界值刚好超限。
+    //   改这里时记得同步 Nginx：client_max_body_size 要比 imageSize 大一点。
+    imageSize: 2 * 1024 * 1024 - 8192,
+    //与 imageSize 对应的提示文案，改上限时一起改
+    imageSizeText: "2MB",
     //评论最大长度
     commentMaxLength: 500,
     //帖子标题最大长度
     postTitleMaxLength: 20,
-    //帖子最大长度
-    postMaxLength: 1000,
+    //帖子最大长度（与后端 CreatePostDTO 的 @Size 保持一致）
+    // 数据库 post.content 是 TEXT（65535 字节，中文约 2.1 万字），这里留了一倍余量
+    postMaxLength: 10000,
     //个性签名最大长度
     signatureMaxLength: 100,
     //昵称最大长度

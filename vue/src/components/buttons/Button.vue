@@ -4,6 +4,7 @@
     class="my-button"
     :class="[`my-button--${computedType}`]"
     :style="customStyle"
+    :disabled="disabled"
   >
     <slot></slot>
   </button>
@@ -24,7 +25,11 @@ const props = defineProps({
   backgroundColor: String,
   hoverBackgroundColor: String,
   color: String,
-  hoverColor: String
+  hoverColor: String,
+  disabled: {
+    type: Boolean,
+    default: false
+  }
 })
 
 // 如果用户传了自定义颜色，就用 CSS 变量注入；否则用 type 默认值
@@ -66,6 +71,17 @@ function lighten(color, percent) {
   border: none;
   cursor: pointer;
   transition: all 0.2s ease;
+  background-color: var(--bg-color, #ffffff);
+  color: var(--text-color, #606266);
+  font-family: inherit;
+}
+
+.my-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.my-button:disabled:hover {
   background-color: var(--bg-color, #ffffff);
   color: var(--text-color, #606266);
 }
@@ -111,6 +127,9 @@ function lighten(color, percent) {
   --hover-text-color: #ffffff;
 }
 
+/* 站内主操作按钮：主题蓝。登录/发送/保存/确认修改等全部走这里。
+   顶栏「发布」按钮的粉色是 TopNavbar 通过 backgroundColor 注入 --header-bar-button-publish-bg 实现的，
+   属于独立覆盖，不要在这里改回粉色。 */
 .my-button--bilibili {
   --bg-color: #00aeee;
   --text-color: #fff;

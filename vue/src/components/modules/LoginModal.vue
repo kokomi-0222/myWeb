@@ -1,147 +1,172 @@
 <template>
   <!-- 蒙层 -->
-  <div v-if="uiStore.loginModalOpen" class="modal-overlay" @click.self="closeModal">
-    <div class="modal-container" :style="dialogStyle" :key="formType">
-      <!-- 登录 -->
-      <div v-if="formType === 'login'" class="form-body">
-        <div class="login-title">用 户 登 录</div>
+  <Transition name="modal">
+    <div v-if="uiStore.loginModalOpen" class="modal-overlay" @click.self="closeModal">
+      <div class="modal-container" :key="formType">
+        <!-- 关闭按钮 -->
+        <button class="modal-close" aria-label="关闭" @click="closeModal">
+          <IconClose />
+        </button>
 
-        <div class="form-item">
-          <InputLine
-            v-model="loginForm.account"
-            type="text"
-            label="请输入用户名/手机号/邮箱"
-            @focus="loginErr.account = ''"
-          />
-          <div v-if="loginErr.account" class="err-tip">{{ loginErr.account }}</div>
-        </div>
+        <!-- 登录 -->
+        <div v-if="formType === 'login'" class="form-body">
+          <div class="form-header">
+            <h2 class="form-title">欢迎回来</h2>
+            <p class="form-subtitle">登录后即可发帖、评论和点赞</p>
+          </div>
 
-        <div class="form-item">
-          <InputLine
-            v-model="loginForm.password"
-            label="请输入密码"
-            type="password"
-            @focus="loginErr.password = ''"
-          />
-          <div v-if="loginErr.password" class="err-tip">{{ loginErr.password }}</div>
-        </div>
-
-        <!-- 验证码 -->
-        <div class="form-item">
-          <div class="captcha-row">
+          <div class="form-item">
             <InputLine
-              v-model="captchaCode"
-              label="请输入验证码"
+              v-model="loginForm.account"
               type="text"
-              @focus="captchaErr = ''"
+              label="用户名 / 手机号 / 邮箱"
+              @focus="loginErr.account = ''"
+              @keyup.enter="handleLogin"
             />
-            <img
-              :src="captchaImage"
-              class="captcha-img"
-              alt="验证码"
-              title="点击刷新验证码"
-              @click="fetchCaptcha"
-            />
+            <div v-if="loginErr.account" class="err-tip">{{ loginErr.account }}</div>
           </div>
-          <div v-if="captchaErr" class="err-tip">{{ captchaErr }}</div>
-        </div>
 
-        <div class="button-group">
-          <Button class="login-button" @click="goToRegister">
-            <span>注册</span>
-          </Button>
-          <Button class="login-button" type="bilibili" @click="handleLogin">
-            <span>登录</span>
-          </Button>
-        </div>
-
-        <div class="footer-link">
-          还没有账号?
-          <span class="link-text" @click="goToRegister">立即注册</span>
-        </div>
-      </div>
-
-      <!-- 注册 -->
-      <div v-else autocomplete="off" class="form-body">
-        <div class="login-title">注 册 账 号</div>
-        <div
-          style="width: 0; height: 0; overflow: hidden; position: absolute; z-index: -1"
-        >
-          <input type="text" autocomplete="username" />
-          <input type="password" autocomplete="current-password" />
-        </div>
-        <div class="form-item">
-          <InputLine
-            ref="regAccRef"
-            v-model="registerForm.account"
-            label="请输入手机号/邮箱"
-            type="text"
-            autocomplete="off"
-            @focus="regErr.account = ''"
-          />
-          <div v-if="regErr.account" class="err-tip">{{ regErr.account }}</div>
-        </div>
-
-        <div class="form-item">
-          <InputLine
-            ref="regPwdRef"
-            v-model="registerForm.password"
-            label="请输入密码"
-            type="password"
-            autocomplete="new-password"
-            @focus="regErr.password = ''"
-          />
-          <div v-if="regErr.password" class="err-tip">{{ regErr.password }}</div>
-        </div>
-
-        <div class="form-item">
-          <InputLine
-            ref="regPwd2Ref"
-            v-model="registerForm.confirmPassword"
-            label="请确认密码"
-            type="password"
-            autocomplete="new-password"
-            @focus="regErr.confirmPassword = ''"
-          />
-          <div v-if="regErr.confirmPassword" class="err-tip">
-            {{ regErr.confirmPassword }}
-          </div>
-        </div>
-
-        <!-- 验证码 -->
-        <div class="form-item">
-          <div class="captcha-row">
+          <div class="form-item">
             <InputLine
-              v-model="captchaCode"
-              label="请输入验证码"
-              type="text"
-              @focus="captchaErr = ''"
+              v-model="loginForm.password"
+              label="密码"
+              type="password"
+              @focus="loginErr.password = ''"
+              @keyup.enter="handleLogin"
             />
-            <img
-              :src="captchaImage"
-              class="captcha-img"
-              alt="验证码"
-              title="点击刷新验证码"
-              @click="fetchCaptcha"
-            />
+            <div v-if="loginErr.password" class="err-tip">{{ loginErr.password }}</div>
           </div>
-          <div v-if="captchaErr" class="err-tip">{{ captchaErr }}</div>
-        </div>
 
-        <div class="button-group">
-          <Button class="login-button" @click="goToLogin">返回登录</Button>
-          <Button class="login-button" type="bilibili" @click="handleRegister">
-            <span style="color: white">注册账号</span>
+          <!-- 验证码 -->
+          <div class="form-item">
+            <div class="captcha-row">
+              <InputLine
+                v-model="captchaCode"
+                label="验证码"
+                type="text"
+                maxlength="4"
+                @focus="captchaErr = ''"
+                @keyup.enter="handleLogin"
+              />
+              <button
+                class="captcha-img"
+                type="button"
+                title="看不清？点击换一张"
+                @click="fetchCaptcha"
+              >
+                <img v-if="captchaImage" :src="captchaImage" alt="验证码" />
+                <span v-else class="captcha-img__ph">点击获取</span>
+              </button>
+            </div>
+            <div v-if="captchaErr" class="err-tip">{{ captchaErr }}</div>
+          </div>
+
+          <Button
+            class="submit-button"
+            type="bilibili"
+            :disabled="logging"
+            @click="handleLogin"
+          >
+            <span>{{ logging ? "登录中…" : "登 录" }}</span>
           </Button>
+
+          <div class="footer-link">
+            还没有账号?
+            <span class="link-text" @click="goToRegister">立即注册</span>
+          </div>
         </div>
 
-        <div class="footer-link">
-          已有账号?
-          <span class="link-text" @click="goToLogin">返回登录</span>
+        <!-- 注册 -->
+        <div v-else autocomplete="off" class="form-body">
+          <div class="form-header">
+            <h2 class="form-title">创建账号</h2>
+            <p class="form-subtitle">加入心海的小窝，记录你的日常</p>
+          </div>
+          <div
+            style="width: 0; height: 0; overflow: hidden; position: absolute; z-index: -1"
+          >
+            <input type="text" autocomplete="username" />
+            <input type="password" autocomplete="current-password" />
+          </div>
+          <div class="form-item">
+            <InputLine
+              ref="regAccRef"
+              v-model="registerForm.account"
+              label="手机号 / 邮箱"
+              type="text"
+              autocomplete="off"
+              @focus="regErr.account = ''"
+            />
+            <div v-if="regErr.account" class="err-tip">{{ regErr.account }}</div>
+          </div>
+
+          <div class="form-item">
+            <InputLine
+              ref="regPwdRef"
+              v-model="registerForm.password"
+              label="密码（至少 6 位）"
+              type="password"
+              autocomplete="new-password"
+              @focus="regErr.password = ''"
+            />
+            <div v-if="regErr.password" class="err-tip">{{ regErr.password }}</div>
+          </div>
+
+          <div class="form-item">
+            <InputLine
+              ref="regPwd2Ref"
+              v-model="registerForm.confirmPassword"
+              label="确认密码"
+              type="password"
+              autocomplete="new-password"
+              @focus="regErr.confirmPassword = ''"
+            />
+            <div v-if="regErr.confirmPassword" class="err-tip">
+              {{ regErr.confirmPassword }}
+            </div>
+          </div>
+
+          <!-- 验证码 -->
+          <div class="form-item">
+            <div class="captcha-row">
+              <InputLine
+                v-model="captchaCode"
+                label="验证码"
+                type="text"
+                maxlength="4"
+                @focus="captchaErr = ''"
+                @keyup.enter="handleRegister"
+              />
+              <button
+                class="captcha-img"
+                type="button"
+                title="看不清？点击换一张"
+                @click="fetchCaptcha"
+              >
+                <img v-if="captchaImage" :src="captchaImage" alt="验证码" />
+                <span v-else class="captcha-img__ph">点击获取</span>
+              </button>
+            </div>
+            <div v-if="captchaErr" class="err-tip">{{ captchaErr }}</div>
+          </div>
+
+          <Button
+            class="submit-button"
+            type="bilibili"
+            :disabled="registering"
+            @click="handleRegister"
+          >
+            <span>{{ registering ? "注册中…" : "注 册" }}</span>
+          </Button>
+
+          <div class="footer-link">
+            已有账号?
+            <span class="link-text" @click="goToLogin">返回登录</span>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
@@ -150,6 +175,7 @@ import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
 import { message } from "@/utils/message";
 import { getCaptcha } from "@/api/captcha";
+import IconClose from "@/components/icons/IconClose.vue";
 import router from "@/router";
 
 const uiStore = useUIStore();
@@ -313,12 +339,10 @@ const handleLogin = async () => {
 // ================ 注册 ================
 const registering = ref(false);
 const handleRegister = async () => {
-  //console.log("注册");
   if (!validateRegister() || registering.value) return;
 
   try {
     registering.value = true;
-    //message.success("注册校验通过");
   } catch (err) {
     message.error("注册异常");
   } finally {
@@ -327,8 +351,8 @@ const handleRegister = async () => {
 
   const res = await userStore.register(registerForm, captchaKey.value, captchaCode.value);
   if (res.success) {
-    message.success("注册成功");
-    uiStore.closeLoginModal();
+    message.success("注册成功，请登录");
+    goToLogin();
   } else {
     message.error(res.message || "注册失败");
     fetchCaptcha();
@@ -369,46 +393,83 @@ const goToLogin = () => {
   captchaErr.value = "";
   fetchCaptcha();
 };
-
-const dialogStyle = {
-  background: "var(--login-modal-bg)",
-  opacity: 0.9,
-  borderRadius: "10px",
-  boxShadow: "0 0 10px rgba(0, 0, 0, 0.24)",
-  padding: "40px 20px",
-};
 </script>
 
 <style scoped>
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2000;
+  padding: 16px;
 }
 
 .modal-container {
-  width: 400px;
   position: relative;
-  border-radius: 10px;
-  animation: modalFade 0.3s ease;
+  width: 400px;
+  max-width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  padding: 36px 36px 28px;
+  animation: modalFade 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes modalFade {
   from {
     opacity: 0;
-    transform: translateY(-20px);
+    transform: translateY(16px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
+}
+
+/* 过渡动画 */
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.25s ease;
+}
+.modal-enter-active .modal-container {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+.modal-enter-from .modal-container {
+  transform: translateY(16px) scale(0.98);
+}
+
+/* 关闭按钮 */
+.modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.modal-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .form-body {
@@ -417,11 +478,24 @@ const dialogStyle = {
   gap: 18px;
 }
 
-.login-title {
+/* 标题区 */
+.form-header {
   text-align: center;
-  font-weight: bold;
-  font-size: 1.5rem;
-  margin-bottom: 12px;
+  margin-bottom: 4px;
+}
+
+.form-title {
+  margin: 0 0 6px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+.form-subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
 }
 
 .form-item {
@@ -436,42 +510,95 @@ const dialogStyle = {
   padding: 0 4px;
 }
 
-.button-group {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-  margin-top: 8px;
-}
-
-.login-button {
-  width: 194px;
-  height: 40px;
-  border-radius: 8px;
-  font-weight: 500;
-}
-
-.footer-link {
-  text-align: right;
-  font-size: 14px;
-}
-
-.link-text {
-  color: #4173df;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
+/* 验证码行：输入框占满剩余宽度，图片固定尺寸贴右侧 */
 .captcha-row {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
+.captcha-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
 .captcha-img {
+  flex: 0 0 auto;
+  width: 108px;
   height: 40px;
-  border-radius: 4px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  overflow: hidden;
   cursor: pointer;
-  border: 1px solid var(--border-color, #e5e7eb);
-  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    border-color 0.2s ease,
+    transform 0.15s ease;
+}
+
+.captcha-img:hover {
+  border-color: var(--primary-color);
+}
+
+.captcha-img:active {
+  transform: scale(0.97);
+}
+
+.captcha-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.captcha-img__ph {
+  font-size: 12px;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+/* 主按钮：通栏大按钮 */
+.submit-button {
+  width: 100%;
+  height: 44px;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  margin-top: 4px;
+}
+
+.submit-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.footer-link {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.link-text {
+  color: var(--primary-color);
+  cursor: pointer;
+  font-weight: 500;
+  transition: opacity 0.2s ease;
+}
+
+.link-text:hover {
+  opacity: 0.75;
+}
+
+/* 小屏 */
+@media (max-width: 480px) {
+  .modal-container {
+    padding: 28px 22px 22px;
+    border-radius: 12px;
+  }
 }
 </style>

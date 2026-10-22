@@ -116,6 +116,7 @@ import { message } from "@/utils/message";
 import setting from "@/config/setting";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import { uploadAvatar } from "@/api/file";
+import { compressImages } from "@/utils/imageCompress";
 // 个人信息数据
 const userInfo = reactive({
   avatar: "",
@@ -159,13 +160,27 @@ const triggerAvatarChange = () => {
 
 // 选择头像
 const handleAvatarChange = async (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
+  const picked = e.target.files?.[0];
+  e.target.value = "";
+  if (!picked) return;
 
-  if (file.size > setting.imageSize) {
-    message.warning("头像不能超过 10MB！");
-    e.target.value = "";
+  // 服务器（Nginx）的请求体上限是 2MB，超了会在网络层被 413 拦掉，
+  // 前端完全拿不到响应。所以选图后先压到上限以内，压不动的再明确提示。
+  const { files, compressedCount, failed, skippedAnimated } = await compressImages(
+    [picked],
+    setting.imageSize
+  );
+  if (failed.length || !files.length) {
+    message.warning(
+      skippedAnimated.length
+        ? `GIF 动图无法自动压缩，请换一张静态图（上限 ${setting.imageSizeText}）`
+        : `图片压缩后仍超过 ${setting.imageSizeText}，请换一张`
+    );
     return;
+  }
+  const file = files[0];
+  if (compressedCount) {
+    message.success(`头像已自动压缩到 ${setting.imageSizeText} 以内`);
   }
 
   // 开启进度条
@@ -188,7 +203,10 @@ const handleAvatarChange = async (e) => {
     progress.value = 100;
   } catch (err) {
     console.error(err);
-    message.error("上传失败");
+    // 413 等已在请求层给出过明确提示，这里不再重复弹「上传失败」
+    if (!err?.handled) {
+      message.error("上传失败");
+    }
   } finally {
     // 延迟消失，更自然
     setTimeout(() => {
@@ -225,106 +243,122 @@ onMounted(() => {
 
 <style scoped>
 .account-page {
-  padding: 10px 20px;
+  padding: 0;
 }
 
 .account-card {
-  padding: 24px;
+  padding: 24px 24px 20px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
 }
 
 .form-item {
   display: flex;
-  margin-bottom: 30px;
-  /*   align-items: center; */
+  align-items: flex-start;
+  margin-bottom: 24px;
 }
 
-.tip{
-  margin-left: 20px;
-  color: #999;
-  font-size: 0.9rem;
+.tip {
+  margin-left: 12px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
   display: inline-block;
-  line-height: 30px;
+  line-height: 36px;
 }
 
 .form-item label {
   display: inline-block;
   text-align: right;
   white-space: nowrap;
-  line-height: 30px;
-  margin-right: 20px;
-  color: #606266;
-  width: 90px;
-}
-.form-item input {
-  width: 225px;
-  height: 30px;
-  box-sizing: border-box;
-  padding: 2px 16px;
-  border: 1px solid #c3c6ca;
-  border-radius: 4px;
-  background: #fff;
-  color: #333;
-  font-size: 14px;
-  outline: none;
+  line-height: 36px;
+  margin-right: 16px;
+  color: var(--text-secondary);
+  width: 80px;
+  flex-shrink: 0;
 }
 
-.form-item textarea {
-  width: 600px;
+.form-item input {
+  width: 260px;
+  height: 36px;
   box-sizing: border-box;
-  padding: 10px 12px;
-  border: 1px solid #c3c6ca;
-  border-radius: 4px;
-  background: #fff;
-  color: #333;
-  font-size: 0.9rem;
+  padding: 2px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 14px;
   outline: none;
-  resize: none;
-  line-height: 24px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .form-item input:focus,
 .form-item textarea:focus {
   border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--primary-color-soft);
+}
+
+.form-item textarea {
+  width: min(600px, 100%);
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  outline: none;
+  resize: none;
+  line-height: 24px;
+  font-family: inherit;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .read-only {
   padding: 10px 12px;
-  background: #f0f0f0;
-  color: #666;
-  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-radius: 8px;
 }
 
 .username {
-  font-size: 16px;
-  color: #999;
-  line-height: 30px;
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 36px;
 }
 
-/* 性别 */
+/* 性别：胶囊选择 */
 .gender-group {
   display: flex;
-  gap: 20px;
+  gap: 10px;
 }
 
 .gender-item {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  height: 30px;
-  width: auto;
-  color: #333;
-  background: #fffefe;
-  border: 1px solid #dbdbdb;
-  gap: 4px;
-  padding: 8px;
+  border-radius: 18px;
+  height: 32px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  padding: 0 18px;
   font-size: 0.9rem;
   user-select: none;
   cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .gender-item:hover {
-  background: #e4e4e4;
+  color: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
 .gender-item.active {
@@ -335,15 +369,17 @@ onMounted(() => {
 
 /* 按钮 */
 .btn-row {
-  justify-content: center;
-  margin-top: 30px;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
 }
 
 .save-btn {
-  padding: 10px 24px;
+  padding: 9px 28px;
   color: #fff;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
 }
@@ -351,27 +387,14 @@ onMounted(() => {
 .avatar-upload {
   display: inline-block;
 }
-.avatar-preview {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 1px solid #eee;
-}
-.avatar-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
 
 .change-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   margin-top: 10px;
-  padding: 4px 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  padding: 5px 12px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 12px;
 }
@@ -379,24 +402,25 @@ onMounted(() => {
 .progress-bar {
   width: 100%;
   height: 6px;
-  background: #eee;
+  background: var(--bg-hover);
   border-radius: 3px;
   margin-top: 10px;
   overflow: hidden;
 }
+
 .progress {
   height: 100%;
-  background: #409eff;
+  background: var(--primary-color);
   transition: width 0.1s;
 }
 
 @media (max-width: 768px) {
   .account-page {
-    padding: 10px 12px;
+    padding: 0;
   }
 
   .account-card {
-    padding: 16px 12px;
+    padding: 16px 14px;
   }
 
   .form-item {
@@ -410,6 +434,10 @@ onMounted(() => {
     margin-right: 0;
   }
 
+  .form-item input {
+    width: 100%;
+  }
+
   .form-item textarea {
     width: 100%;
   }
@@ -417,6 +445,15 @@ onMounted(() => {
   .gender-group {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .btn-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .save-btn {
+    width: 100%;
   }
 }
 </style>

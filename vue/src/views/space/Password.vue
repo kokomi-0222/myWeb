@@ -109,57 +109,61 @@ const handleSubmit = async () => {
 
 <style scoped>
 .account-page {
-  padding: 10px 20px;
+  padding: 0;
   max-width: 700px;
   margin: 0 auto;
 }
+
 .account-card {
-  padding: 24px;
+  padding: 24px 24px 20px;
   width: 100%;
   box-sizing: border-box;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
 }
+
 .form-item {
   display: flex;
-  margin-bottom: 30px;
+  margin-bottom: 24px;
   align-items: center;
 }
+
 .form-item label {
   display: inline-block;
   text-align: right;
   white-space: nowrap;
-  line-height: 30px;
-  margin-right: 20px;
-  color: #606266;
+  line-height: 36px;
+  margin-right: 16px;
+  color: var(--text-secondary);
   width: 90px;
   flex-shrink: 0;
 }
 
 .form-item .input-password {
   width: 100%;
-  max-width: 225px;
+  max-width: 280px;
 }
 
 .btn-row {
-  margin-top: 30px;
-  justify-content: center;
+  margin-top: 8px;
+  padding-top: 20px;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-color);
 }
+
 .save-btn {
-  padding: 10px 24px;
+  padding: 9px 28px;
   color: #fff;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
-  width: 100%;
-  max-width: 150px;
 }
 
 /* 移动端响应式 */
 @media (max-width: 768px) {
-  .account-page {
-    padding: 10px 12px;
-  }
   .account-card {
-    padding: 16px 12px;
+    padding: 16px 14px;
   }
   .form-item {
     flex-direction: column;
@@ -172,6 +176,13 @@ const handleSubmit = async () => {
   }
   .form-item .input-password {
     max-width: 100%;
+  }
+  .btn-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .save-btn {
+    width: 100%;
   }
 }
 </style>

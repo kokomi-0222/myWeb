@@ -142,11 +142,9 @@ const gridItemSize = computed(() => {
   if (props.width && props.height) {
     return { w: props.width, h: props.height };
   }
-  const layout = imageLayout.value;
-  if (layout === "single") return { w: "100%", h: "auto" };
-  if (layout === "grid2") return { w: "120px", h: "120px" };
-  if (layout === "grid3") return { w: "120px", h: "120px" };
-  return { w: "100px", h: "100px" };
+  // 网格布局交给 CSS 控制（1fr + aspect-ratio），
+  // 固定 px 会在窄屏上把第三列挤出屏幕（移动端溢出的根因）
+  return { w: "100%", h: "auto" };
 });
 
 const gridItemStyle = computed(() => ({
@@ -312,14 +310,23 @@ const onAfterLeave = () => {};
 <style scoped>
 /* 布局容器 */
 .image-grid-layout {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  --grid-cols: 3;
+  --grid-max-width: 372px;
+  --grid-gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(var(--grid-cols), minmax(0, 1fr));
+  gap: var(--grid-gap);
   width: 100%;
+  max-width: var(--grid-max-width);
   box-sizing: border-box;
 }
 
 /* 1张：自适应 */
+.layout-single {
+  display: block;
+  max-width: none;
+}
+
 .layout-single .grid-item {
   width: auto;
   height: auto;
@@ -338,33 +345,26 @@ const onAfterLeave = () => {};
   max-height: 280px;
 }
 
-/* 2/4张：120px 四宫格 */
+/* 2/4张：两列 */
 .layout-grid2 {
-  display: grid !important;
-  grid-template-columns: repeat(2,  1fr);
-}
-.layout-grid2 .grid-item {
-  width: 120px;
-  height: 120px;
+  --grid-cols: 2;
+  --grid-max-width: 340px;
 }
 
-/* 3/≥5张：100px 三列 */
+/* 3/≥5张：三列 */
 .layout-grid3 {
-  display: grid !important;
-  grid-template-columns: repeat(3,  1fr);
-}
-.layout-grid3 .grid-item {
-  width: 100px;
-  height: 100px;
+  --grid-cols: 3;
+  --grid-max-width: 372px;
 }
 
 /* 网格项 */
 .grid-item {
   position: relative;
   overflow: hidden;
-  background: #f5f5f5;
+  background: var(--bg-secondary);
   cursor: pointer;
-  flex-shrink: 0;
+  width: 100%;
+  aspect-ratio: 1 / 1;
   transition: transform 0.2s ease;
 }
 .grid-item:hover {
@@ -613,6 +613,12 @@ const onAfterLeave = () => {};
 
 /* 移动端 */
 @media (max-width: 768px) {
+  .layout-grid3 {
+    --grid-max-width: 340px;
+  }
+  .layout-grid2 {
+    --grid-max-width: 300px;
+  }
   .preview-close-btn {
     width: 36px;
     height: 36px;

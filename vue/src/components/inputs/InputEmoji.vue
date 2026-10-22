@@ -17,30 +17,18 @@
     <template #menu="{ close }">
       <div
         v-if="normalizedEmojiPacks.length > 1"
-        class="emoji-panel-header"
-        :style="{
-          '--emoji-cell': `${currentEmojiCellSize}px`,
-          '--emoji-gap': `${currentEmojiGap}px`,
-          '--emoji-rows': currentEmojiMaxRows,
-        }"
+        class="emoji-panel-tabs"
+        @mousedown.prevent
       >
-        <div class="emoji-pack-name">{{ currentEmojiPack.label }}</div>
-        <div class="emoji-pack-nav">
-          <button
-            class="emoji-pack-nav-btn"
-            @click="prevEmojiPack"
-            aria-label="上一类表情"
-          >
-            &lt;
-          </button>
-          <button
-            class="emoji-pack-nav-btn"
-            @click="nextEmojiPack"
-            aria-label="下一类表情"
-          >
-            &gt;
-          </button>
-        </div>
+        <button
+          v-for="(pack, idx) in normalizedEmojiPacks"
+          :key="pack.key"
+          class="emoji-tab"
+          :class="{ active: idx === currentEmojiPackIndex }"
+          @click="currentEmojiPackIndex = idx"
+        >
+          {{ pack.label }}
+        </button>
       </div>
 
       <div
@@ -107,17 +95,17 @@ const props = defineProps({
   // 默认表情网格：单元格大小（px）
   emojiCellSize: {
     type: Number,
-    default: 32,
+    default: 28,
   },
   // 默认表情网格：间距（px）
   emojiGap: {
     type: Number,
-    default: 8,
+    default: 6,
   },
   // 默认表情网格：最多显示行数
   emojiMaxRows: {
     type: Number,
-    default: 5,
+    default: 6,
   },
 });
 
@@ -131,47 +119,77 @@ const innerVisible = computed({
   },
 });
 
-const emojiList = ref([
-  "😀",
-  "😂",
-  "🤣",
-  "😍",
-  "🥰",
-  "😘",
-  "👍",
-  "👏",
-  "💪",
-  "✨",
-  "😜",
-  "😝",
-  "🤪",
-  "😎",
-  "🤩",
-  "🥳",
-  "😋",
-  "😉",
-  "😊",
-  "🙂",
-  "🤔",
-  "🤨",
-  "😐",
-  "😑",
-]);
+// 内置表情包：分 6 类，共 160+ 个。要接自建表情图（type: 'image'）时从这里塞即可
+const DEFAULT_EMOJI_PACKS = [
+  {
+    key: "hot",
+    label: "常用",
+    items: [
+      "😀", "😂", "🥰", "😍", "🤔", "👍", "🎉", "🔥",
+      "✨", "💯", "😭", "😅", "🙏", "😊", "🤣", "😉",
+      "😎", "🥳", "😴", "🤩", "😏", "😌", "😋", "🤗",
+      "😢", "😤", "😡", "🤯", "😱", "😨", "🙃", "😶",
+      "👀", "💦", "☕", "🍺", "🎮", "🎵", "🌝", "🌚",
+    ],
+  },
+  {
+    key: "smile",
+    label: "笑脸",
+    items: [
+      "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂",
+      "🙂", "🙃", "😉", "😊", "😇", "🥰", "😍", "🤩",
+      "😘", "😗", "😚", "😙", "🥲", "😋", "😛", "😜",
+      "🤪", "😝", "🤑", "🤗", "🤭", "🫢", "🤫", "🤔",
+      "🫡", "🤐", "🤨", "😐", "😑", "😶", "😏", "😒",
+      "🙄", "😬", "😮‍💨", "🤥", "😴", "🤤", "😪", "😵",
+    ],
+  },
+  {
+    key: "hand",
+    label: "手势",
+    items: [
+      "👍", "👎", "👌", "✌️", "🤞", "🤟", "🤘", "🤙",
+      "👈", "👉", "👆", "👇", "☝️", "✋", "🤚", "🖐️",
+      "🖖", "👋", "🤝", "🙏", "💪", "🦾", "✍️", "🤳",
+      "💅", "👏", "🙌", "👐", "🤲", "🫶", "👊", "✊",
+    ],
+  },
+  {
+    key: "heart",
+    label: "爱心",
+    items: [
+      "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍",
+      "🤎", "💔", "❣️", "💕", "💞", "💓", "💗", "💖",
+      "💘", "💝", "💟", "♥️", "💌", "💐", "🌹", "🥀",
+    ],
+  },
+  {
+    key: "animal",
+    label: "动物",
+    items: [
+      "🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼",
+      "🐨", "🐯", "🦁", "🐮", "🐷", "🐸", "🐵", "🙈",
+      "🙉", "🙊", "🐔", "🐧", "🐦", "🐤", "🦄", "🐝",
+      "🦋", "🐢", "🐙", "🦀", "🐬", "🐳", "🐟", "🦈",
+    ],
+  },
+  {
+    key: "symbol",
+    label: "符号",
+    items: [
+      "✨", "⭐", "🌟", "💫", "⚡", "🔥", "💥", "💦",
+      "🌈", "☀️", "🌙", "⛄", "🎵", "🎶", "🎉", "🎊",
+      "🎁", "🏆", "🥇", "⚽", "🎮", "📷", "💡", "💯",
+      "✅", "❌", "❓", "❗", "💤", "💬", "👀", "🫠",
+    ],
+  },
+];
 
 const normalizedEmojiPacks = computed(() => {
   const packs =
     Array.isArray(props.emojiPacks) && props.emojiPacks.length
       ? props.emojiPacks
-      : [
-          {
-            key: "default",
-            label: "默认",
-            items: emojiList.value,
-            cellSize: props.emojiCellSize,
-            gap: props.emojiGap,
-            maxRows: props.emojiMaxRows,
-          },
-        ];
+      : DEFAULT_EMOJI_PACKS;
 
   return packs
     .map((p, idx) => ({
@@ -243,18 +261,6 @@ const currentEmojiItems = computed(() => {
   });
 });
 
-const prevEmojiPack = () => {
-  const len = normalizedEmojiPacks.value.length;
-  if (len <= 1) return;
-  currentEmojiPackIndex.value = (currentEmojiPackIndex.value - 1 + len) % len;
-};
-
-const nextEmojiPack = () => {
-  const len = normalizedEmojiPacks.value.length;
-  if (len <= 1) return;
-  currentEmojiPackIndex.value = (currentEmojiPackIndex.value + 1) % len;
-};
-
 // 选中后抛给父组件
 function selectEmoji(emoji) {
   emit("select", emoji);
@@ -264,22 +270,26 @@ function selectEmoji(emoji) {
 
 <style scoped>
 .emoji-btn {
-  width: 24px;
-  height: 24px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: #f9f9f9;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
   cursor: pointer;
   font-size: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: rgba(0, 0, 0, 0.5);
+  color: var(--text-secondary);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .emoji-btn:hover {
-  background: #f0f0f0;
+  background: var(--bg-hover);
+  color: var(--primary-color);
 }
 
 .emoji-btn:disabled {
@@ -292,58 +302,58 @@ function selectEmoji(emoji) {
 .dropdown-menu--emoji-panel {
   padding: 12px !important;
   border: 1px solid var(--border-color) !important;
-  border-radius: 8px !important;
-  background: #ffffff !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
-  width: 320px !important;
-  min-width: 320px !important;
-  max-width: 320px !important;
+  border-radius: 12px !important;
+  background: var(--bg-primary) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
+  width: 300px !important;
+  min-width: 300px !important;
+  max-width: 300px !important;
   overflow: hidden !important;
   box-sizing: border-box !important;
 }
 
-.dropdown-menu--emoji-panel .emoji-panel-header {
+/* 分类切换：一排小标签 */
+.dropdown-menu--emoji-panel .emoji-panel-tabs {
   display: flex !important;
   align-items: center !important;
-  justify-content: space-between !important;
-  gap: 8px !important;
-  margin-bottom: 8px !important;
+  gap: 2px !important;
+  margin-bottom: 10px !important;
+  padding-bottom: 8px !important;
+  border-bottom: 1px solid var(--border-color) !important;
   user-select: none !important;
 }
 
-.dropdown-menu--emoji-panel .emoji-pack-name {
-  font-size: 12px !important;
-  color: var(--text-secondary) !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-}
-
-.dropdown-menu--emoji-panel .emoji-pack-nav {
-  display: inline-flex !important;
-  gap: 6px !important;
-}
-
-.dropdown-menu--emoji-panel .emoji-pack-nav-btn {
-  width: 22px !important;
-  height: 22px !important;
-  border: 1px solid var(--border-color) !important;
+.dropdown-menu--emoji-panel .emoji-tab {
+  flex: 1 !important;
+  padding: 4px 0 !important;
+  border: none !important;
   border-radius: 6px !important;
   background: transparent !important;
-  cursor: pointer !important;
-  line-height: 20px !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
   color: var(--text-secondary) !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  transition: color 0.15s ease, background-color 0.15s ease !important;
 }
 
-.dropdown-menu--emoji-panel .emoji-pack-nav-btn:hover {
+.dropdown-menu--emoji-panel .emoji-tab:hover {
+  color: var(--text-primary) !important;
+  background: var(--bg-hover) !important;
+}
+
+.dropdown-menu--emoji-panel .emoji-tab.active {
   color: var(--primary-color) !important;
-  border-color: var(--primary-color) !important;
+  background: var(--primary-color-soft) !important;
+  font-weight: 500 !important;
 }
 
 .dropdown-menu--emoji-panel .emoji-grid-scroll {
   max-height: calc(
     var(--emoji-cell) * var(--emoji-rows) + var(--emoji-gap) * (var(--emoji-rows) - 1)
   ) !important;
+  /* 至少撑到 5 行，切换分类时面板高度不会跳 */
+  min-height: calc(var(--emoji-cell) * 5 + var(--emoji-gap) * 4) !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
 }
@@ -351,25 +361,26 @@ function selectEmoji(emoji) {
 /* 表情网格：8列排版 */
 .dropdown-menu--emoji-panel .emoji-grid {
   display: grid !important;
-  /* 根据面板可用宽度自动决定一行多少个（避免 8 个溢出） */
-  grid-template-columns: repeat(auto-fill, minmax(var(--emoji-cell), 1fr)) !important;
+  grid-template-columns: repeat(8, var(--emoji-cell)) !important;
   gap: var(--emoji-gap) !important;
+  justify-content: space-between !important;
   width: 100% !important;
   box-sizing: border-box !important;
 }
 
 /* 表情项样式 */
 .dropdown-menu--emoji-panel .emoji-item {
-  font-size: 20px !important;
+  font-size: 19px !important;
   cursor: pointer !important;
   padding: 0 !important;
-  border-radius: 4px !important;
+  border-radius: 6px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   width: var(--emoji-cell) !important;
   height: var(--emoji-cell) !important;
   box-sizing: border-box !important;
+  transition: background-color 0.12s ease !important;
 }
 
 .dropdown-menu--emoji-panel .emoji-img {
@@ -380,7 +391,7 @@ function selectEmoji(emoji) {
 }
 
 .dropdown-menu--emoji-panel .emoji-item:hover {
-  background: #f5f5f5 !important;
+  background: var(--bg-hover) !important;
 }
 
 /* 美化滚动条 */
@@ -388,10 +399,10 @@ function selectEmoji(emoji) {
   width: 6px !important;
 }
 .dropdown-menu--emoji-panel .emoji-grid-scroll::-webkit-scrollbar-thumb {
-  background: #ccc !important;
+  background: var(--border-color-hover) !important;
   border-radius: 3px !important;
 }
 .dropdown-menu--emoji-panel .emoji-grid-scroll::-webkit-scrollbar-track {
-  background: #f1f1f1 !important;
+  background: transparent !important;
 }
 </style>

@@ -137,6 +137,9 @@ const { floatingStyles, middlewareData, update } = useFloating(triggerRef, menuR
         crossAxis: isVertical ? props.offsetX : props.offsetY,
       };
     }),
+    // 贴边时自动翻转/平移，避免菜单被视口裁切（如右上角的头像菜单）
+    flip({ padding: 8 }),
+    shift({ padding: 8 }),
     floatingArrow({
       element: arrowRef,
       padding: 12,
@@ -441,7 +444,8 @@ watch(
 /* 外层容器：确保不裁剪内容 */
 .global-dropdown-wrapper {
   position: absolute !important;
-  z-index: 1000 !important;
+  /* 高于移动端搜索面板(1003)/顶栏(1002)，低于登录弹窗(2000) */
+  z-index: 1010 !important;
   margin: 0 !important;
   padding: 0 !important;
   box-sizing: border-box !important;

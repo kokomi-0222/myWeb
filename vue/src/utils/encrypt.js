@@ -11,29 +11,25 @@ const privateKey =
  * @returns {Promise<{param: string}>} 加密后的数据
  */
 export async function encryptedData(data) {
-  try {
-    // 获取公钥
-    const res = await getPublicKey()
-    let publicKey = res.data?.publicKey || ''
-    // 不需要加密（mock 环境）
-    if (res.data?.mockServer || publicKey === '') {
-      return typeof data === 'object' ? JSON.stringify(data) : data
-    }
-    const encrypt = new JSEncrypt()
-    encrypt.setPublicKey(publicKey)
-    //console.log('RSA 加密公钥：', publicKey)
-    const encryptStr = typeof data === 'object' ? JSON.stringify(data) : String(data)
-    const encrypted = encrypt.encrypt(encryptStr)
-    //console.log('encrypted：', encrypted)
-    if (!encrypted) {
-      console.error('RSA 加密失败！')
-      return data
-    }
-    return encrypted
-  } catch (err) {
-    console.error('encryptedData 异常：', err)
-    return data
+  // 获取公钥。失败必须抛出，不能静默降级成明文——后端只会按密文解，明文必然解不开
+  const res = await getPublicKey()
+  const publicKey = res?.data?.publicKey || ''
+
+  // mock 环境：后端没开加密，原样返回
+  if (res?.data?.mockServer || publicKey === '') {
+    return typeof data === 'object' ? JSON.stringify(data) : data
   }
+
+  const encrypt = new JSEncrypt()
+  encrypt.setPublicKey(publicKey)
+
+  const encryptStr = typeof data === 'object' ? JSON.stringify(data) : String(data)
+  const encrypted = encrypt.encrypt(encryptStr)
+
+  if (!encrypted) {
+    throw new Error('密码加密失败，请刷新页面后重试')
+  }
+  return encrypted
 }
 
 /**

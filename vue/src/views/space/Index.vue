@@ -7,36 +7,30 @@
     </div>
     <div ref="mainView" class="app-main">
       <aside class="sidebar-left">
-        <span class="sidebar-left-title"> 个 人 中 心 </span>
-        <ul class="sidebar-left-list">
-          <li
-            class="list-item"
-            v-for="(menu, index) in menuList"
-            :key="menu.key"
-            :class="{
-              'is-actived': router.currentRoute.value.path === `/space/${menu.path}`,
-            }"
-            @click="handleMenuClick(menu.path)"
-          >
-            <i class="list-item-icon">
-              <component :is="menu.icon" size="20"></component>
-            </i>
-            <span class="list-item-text">{{ menu.text }}</span>
-          </li>
-        </ul>
+        <div class="menu-card">
+          <div class="menu-card__title">个人中心</div>
+          <ul class="menu-list">
+            <li
+              class="menu-item"
+              v-for="menu in menuList"
+              :key="menu.key"
+              :class="{
+                'is-active': router.currentRoute.value.path === `/space/${menu.path}`,
+              }"
+              @click="handleMenuClick(menu.path)"
+            >
+              <i class="menu-item__icon">
+                <component :is="menu.icon" size="20"></component>
+              </i>
+              <span class="menu-item__text">{{ menu.text }}</span>
+            </li>
+          </ul>
+        </div>
       </aside>
 
       <main class="main-content">
-        <!-- 面包屑 -->
-        <!--        <div class="breadcrumb">
-          <span class="breadcrumb-divider">|</span>
-          <span class="breadcrumb-item active">{{ currentMenuText }}</span>
-        </div> -->
-
         <RouterView />
       </main>
-
-      <aside class="sidebar-right"></aside>
     </div>
   </div>
 </template>
@@ -50,25 +44,18 @@ import router from "@/router";
 import IconLock from "@/components/icons/IconLock.vue";
 
 const menuList = [
-  { path: "home", text: "首  页", icon: IconHome },
-  { path: "account", text: "账号管理", icon: IconUser },
-  { path: "message", text: "消息管理", icon: IconMessage },
-  { path: "password", text: "修改密码", icon: IconLock },
+  { path: "home", text: "首页", key: "home", icon: IconHome },
+  { path: "account", text: "账号管理", key: "account", icon: IconUser },
+  { path: "message", text: "消息管理", key: "message", icon: IconMessage },
+  { path: "password", text: "修改密码", key: "password", icon: IconLock },
 ];
-
-const currentMenuText = computed(() => {
-  const fullPath = router.currentRoute.value.path;
-  const menu = menuList.find((m) => `/space/${m.path}` === fullPath);
-  return menu?.text ?? "首页";
-});
 
 const handleMenuClick = (menuPath) => {
   router.push(menuPath);
-  console.log(router.currentRoute.value.path);
 };
 
-const handleGlobalSearch = (value) => {
-  console.log(value);
+const handleGlobalSearch = () => {
+  // 空间页暂不处理搜索
 };
 </script>
 
@@ -104,121 +91,100 @@ const handleGlobalSearch = (value) => {
 
 .app-main {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: 200px minmax(0, 720px);
+  justify-content: center;
+  gap: 24px;
+  /* 底部 48px 是页面收尾留白，替代原来的 min-height: 100vh */
+  padding: 20px 24px 48px;
   height: 100%;
   transition: background-color 0.7s ease, color 0.7s ease;
 }
 
+/* 侧栏菜单卡片 */
 .sidebar-left {
-  /*   flex: 1; */
-  width: 200px;
-  min-width: 180px;
-  height: auto;
-  margin-top: -6px;
-  border-top: none;
+  min-width: 0;
+}
+
+.menu-card {
+  background: var(--bg-primary);
   border: 1px solid var(--border-color);
-  transition: background-color 0.7s ease, color 0.7s ease;
+  border-radius: 12px;
+  padding: 14px;
+  position: sticky;
+  top: calc(var(--header-bar-height, 54px) + 16px);
 }
 
-.sidebar-left-title {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  font-size: 16px;
-  font-weight: 500;
-  padding: 15px 40px;
-  color: var(--text-secondary);
-  background-color: var(--bg-secondary);
+.menu-card__title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  padding: 6px 10px 12px;
 }
 
-.sidebar-left-list {
+.menu-list {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.list-item {
+.menu-item {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
   gap: 10px;
-  padding: 15px 30px;
+  padding: 11px 12px;
+  border-radius: 8px;
   cursor: pointer;
   user-select: none;
-  color: var(--text-primary);
-  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
-.list-item.is-actived {
-  background-color: #00a1d7;
-  color: #ffffff;
-}
-
-.list-item:not(.is-actived):hover {
+.menu-item:not(.is-active):hover {
   background-color: var(--bg-hover);
-  color: #424242;
+  color: var(--text-primary);
 }
 
-.list-item-icon {
+.menu-item.is-active {
+  background-color: var(--primary-color-soft);
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+/* 左侧高亮条 */
+.menu-item.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--primary-color);
+}
+
+.menu-item__icon {
   display: flex;
   align-items: center;
-  color: #bbb;
+  color: inherit;
 }
 
-.list-item.is-actived .list-item-icon {
-  color: #eee;
-}
-/* .list-item-icon:hover {
-  opacity: 1;
-}
- */
-.list-item-text {
-  font-size: 1rem;
-}
-
-.sidebar-right {
-  flex: 1;
-  height: 100%;
+.menu-item__text {
+  white-space: nowrap;
 }
 
 .main-content {
   position: relative;
-  flex: 8;
-  height: 100%;
-  max-width: 800px;
-  min-height: 100vh;
-  /*   border-right: 1px solid var(--border-color); */
-}
-
-/* 面包屑 */
-.breadcrumb {
-  display: flex;
-  align-items: center;
-  font-size: 0.9rem;
-  padding: 0px 20px;
-  margin-bottom: 10px;
-  background: transparent;
-
-  /*   border-bottom: 1px solid var(--border-color); */
-  margin-top: -6px;
-  margin-left: 0px;
-  height: 55px;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.breadcrumb-item {
-  padding: 0 4px;
-}
-
-.breadcrumb-item.active {
-  font-weight: bold;
-  color: #d62bc4;
-}
-
-.breadcrumb-divider {
-  margin: 0 6px;
-  color: #d62bc4;
+  min-width: 0;
+  /* 不要给 min-height: 100vh：主内容区从横幅下方开始，撑满一屏会在内容很少时
+     （比如账号管理页）多出几百像素空白，滚到底还在往下滑。底部留白交给 .app-main 的 padding */
 }
 
 /* 小屏 (<768px) */
@@ -226,17 +192,14 @@ const handleGlobalSearch = (value) => {
   .header-banner {
     display: none !important;
   }
-  .sidebar-left,
-  .sidebar-right {
+  .sidebar-left {
     display: none !important;
   }
   .app-main {
     margin-top: 50px !important;
-    padding: 0;
+    padding: 0 0 24px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
   }
-}
-
-/* 中屏 (768px ~ 1023px) */
-@media (min-width: 768px) and (max-width: 1023px) {
 }
 </style>

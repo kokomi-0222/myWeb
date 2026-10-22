@@ -1,6 +1,13 @@
 <template>
   <div ref="mainView"></div>
-  <div v-if="userStore.isLogin" class="home">
+  <!-- 路由守卫正常时不会走到这里；作为兜底显示 -->
+  <div v-if="!userStore.isLogin" class="login-gate">
+    <div class="login-gate__icon"><IconUser size="40" /></div>
+    <p class="login-gate__title">登录后才能查看个人空间</p>
+    <p class="login-gate__desc">在这里发布帖子、管理账号和查看消息</p>
+    <button class="login-gate__btn" @click="uiStore.openLoginModal()">立即登录</button>
+  </div>
+  <div v-else-if="userStore.user" class="home">
     <div class="user-info">
       <Avatar :src="userStore.user?.avatar" :alt="userStore.user?.name" :size="48" />
       <div class="user-name">
@@ -41,7 +48,7 @@
       </div>
 
       <!-- 分类选择 -->
-      <!-- <div class="publishing-category">
+      <div class="publishing-category">
         <span
           v-for="cat in postCategories"
           :key="cat.value"
@@ -51,7 +58,7 @@
         >
           {{ cat.label }}
         </span>
-      </div> -->
+      </div>
 
       <div class="publishing-content">
         <textarea
@@ -140,6 +147,7 @@
 <script setup>
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
+import IconUser from "@/components/icons/IconUser.vue";
 import {
   computed,
   ref,
@@ -168,6 +176,7 @@ const postCategories = [
   { label: '游戏', value: 'game' },
   { label: '音乐', value: 'music' },
   { label: '影视', value: 'movie' },
+  { label: '文章', value: 'article' },
   { label: '其他', value: 'other' },
 ];
 const selectedCategory = ref('');
@@ -425,6 +434,50 @@ const handleDelete = (postId) => {
 </script>
 
 <style scoped>
+/* 未登录兜底 */
+.login-gate {
+  max-width: 700px;
+  margin: 60px auto;
+  padding: 60px 20px;
+  text-align: center;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+}
+
+.login-gate__icon {
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.login-gate__title {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.login-gate__desc {
+  margin: 0 0 18px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.login-gate__btn {
+  padding: 9px 26px;
+  border: none;
+  border-radius: 19px;
+  background: var(--primary-color);
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.login-gate__btn:hover {
+  background: var(--primary-color-hover);
+}
+
 .home {
   width: 100%;
   height: 100%;
@@ -438,6 +491,10 @@ const handleDelete = (postId) => {
 .user-info {
   display: flex;
   align-items: center;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px 20px;
 }
 
 .user-name {
@@ -463,8 +520,8 @@ const handleDelete = (postId) => {
 }
 
 .user-tips {
-  margin-top: 40px;
-  margin-left: 20px;
+  margin-top: 24px;
+  margin-left: 4px;
 }
 
 .user-tips-text {
@@ -474,19 +531,19 @@ const handleDelete = (postId) => {
 
 .publishing {
   width: var(--content-with);
-  margin-top: 20px;
+  margin-top: 16px;
   padding: 20px;
-  border-radius: 4px;
+  border-radius: 12px;
   border: 1px solid var(--border-color);
+  background: var(--bg-primary);
   user-select: none;
+  box-sizing: border-box;
 }
 
 .publishing-title {
   display: flex;
   width: 100%;
-  height: 24px;
-  margin-left: 20px;
-  margin-right: 50px;
+  min-height: 24px;
   background-color: transparent;
   align-items: center;
   transition: opacity 0.2s ease-in-out;
@@ -545,22 +602,27 @@ const handleDelete = (postId) => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-left: 20px;
+  margin-top: 10px;
   padding-right: 30px;
-  margin-top: 12px;
   user-select: none;
 }
 
 .category-tag {
-  display: inline-block;
-  padding: 2px 12px;
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 12px;
   font-size: 0.8rem;
+  line-height: 1;
   color: var(--text-secondary);
   background: var(--bg-nomarl);
-  border: 1px solid var(--border-color);
-  border-radius: 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .category-tag:hover {
@@ -577,8 +639,6 @@ const handleDelete = (postId) => {
 .publishing-content {
   width: 100%;
   height: 100%;
-  margin-left: 20px;
-  padding-right: 30px;
   margin-top: 10px;
 }
 
@@ -590,8 +650,10 @@ const handleDelete = (postId) => {
   resize: none;
   line-height: 24px;
   font-size: 0.9rem;
-  color: #333;
+  color: var(--text-primary);
+  background: transparent;
   min-height: 24px;
+  font-family: inherit;
 }
 
 .input-content::placeholder {
@@ -606,8 +668,6 @@ const handleDelete = (postId) => {
 
 .publishing-footer {
   width: 100%;
-  margin-left: 20px;
-  padding-right: 30px;
   box-sizing: border-box;
   display: flex;
   justify-content: space-between;
@@ -652,7 +712,7 @@ const handleDelete = (postId) => {
 .comment-submit-button {
   width: 65px;
   height: 32px;
-  border-radius: 4px;
+  border-radius: 8px;
   font-weight: 500;
 }
 
@@ -660,7 +720,8 @@ const handleDelete = (postId) => {
 .user-posts {
   margin-top: 40px;
   width: var(--content-with);
-  height: 100%;
+  /* 不要 height: 100%：一条帖子都没有时会撑成一个几百像素的空块，
+     配合上面 40px 的间距就是一片看不到内容的空白 */
 }
 
 .posts-content {

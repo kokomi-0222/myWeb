@@ -17,6 +17,16 @@ export async function login(data, captchaKey, captchaCode) {
       },
     })
   }
+  // 未开启 RSA 时也要发请求（原来缺少 return，函数返回 undefined，表现为「点击无反应/超时」）
+  return request({
+    url: '/user/login',
+    method: 'post',
+    data: {
+      encryptedData: JSON.stringify(data),
+      captchaKey: captchaKey || '',
+      captchaCode: captchaCode || '',
+    },
+  })
 }
 
 export async function register(data, captchaKey, captchaCode) {
@@ -32,6 +42,15 @@ export async function register(data, captchaKey, captchaCode) {
       },
     })
   }
+  return request({
+    url: '/user/register',
+    method: 'post',
+    data: {
+      encryptedData: JSON.stringify(data),
+      captchaKey: captchaKey || '',
+      captchaCode: captchaCode || '',
+    },
+  })
 }
 
 export function logout() {
@@ -74,4 +93,11 @@ export async function updatePassword(data) {
       },
     })
   }
+  return request({
+    url: '/user/password',
+    method: 'post',
+    data: {
+      encryptedData: JSON.stringify(data),
+    },
+  })
 }

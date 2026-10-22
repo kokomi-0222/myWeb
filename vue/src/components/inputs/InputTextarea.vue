@@ -19,13 +19,12 @@
       <div ref="previewContainerRef" class="image-preview-content">
       </div>
     </div>
-    <!-- 底部工具栏（聚焦或有内容/图片时显示） -->
+    <!-- 底部工具栏：常驻显示，不随聚焦消失（否则会让人以为没有表情/图片功能） -->
     <div
-      v-if="isFocused || showEmojiPanel || inputValue.trim() || imageFiles.length"
       class="comment-input-toolbar"
       @mousedown.prevent="handleToolbarMouseDown"
     >
-      <!-- 左侧留白，保持工具栏右对齐 -->
+      <!-- 左侧：功能按钮 + 字数统计 -->
       <div class="toolbar-left">
         <!--表情按钮 -->
         <InputEmoji v-model:visible="showEmojiPanel" @select="selectEmoji" />
@@ -36,9 +35,16 @@
           @change="handleImageChange"
           :max-count="maxImageCount"
         />
+        <span
+          class="toolbar-count"
+          :class="{ 'is-warning': inputValue.length >= maxLength * 0.9 }"
+        >
+          {{ inputValue.length }}<i>/{{ maxLength }}</i>
+        </span>
       </div>
-      <!-- 右侧功能按钮组 -->
+      <!-- 右侧：快捷键提示 + 发送按钮 -->
       <div class="toolbar-right">
+        <span class="toolbar-hint">Enter 发送 · Ctrl+Enter 换行</span>
         <!-- 发送按钮（用 span 包裹防止点击失焦） -->
         <span @mousedown.prevent>
           <Button
@@ -283,16 +289,21 @@ const handleSubmit = async () => {
 .comment-input-container {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 4px 8px;
-  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
   margin-bottom: 8px; /* 和工具栏拉开间距 */
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .comment-input-container.is-focused {
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 1px rgba(64, 150, 255, 0.2);
+  background: var(--bg-primary);
+  box-shadow: 0 0 0 3px var(--primary-color-soft);
 }
 
 .comment-textarea {
@@ -301,10 +312,17 @@ const handleSubmit = async () => {
   border: none;
   outline: none;
   resize: none;
-  line-height: 24px;
+  background: transparent;
+  font-family: inherit;
+  line-height: 22px;
   font-size: 0.9rem;
-  color: #333;
-  min-height: 24px;
+  color: var(--text-primary);
+  min-height: 22px;
+}
+
+.comment-textarea::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.8;
 }
 
 /* 底部工具栏（独立区域） */
@@ -314,57 +332,73 @@ const handleSubmit = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  padding: 0 2px;
 }
 
-/* 左侧留白，保证按钮右对齐 */
+/* 左侧功能按钮组 */
 .toolbar-left {
   display: flex;
   align-items: center;
   flex: 1;
-  gap: 8px;
+  gap: 4px;
+  min-width: 0;
 }
 
 /* 右侧功能按钮组 */
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* 字数统计 */
+.toolbar-count {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.toolbar-count i {
+  font-style: normal;
+  opacity: 0.6;
+}
+
+.toolbar-count.is-warning {
+  color: #ff7a45;
+}
+
+/* 快捷键提示 */
+.toolbar-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.8;
+  white-space: nowrap;
+  user-select: none;
 }
 
 /* 复用你原来的发送按钮样式 */
 .comment-submit-button {
-  width: 65px;
+  min-width: 68px;
   height: 32px;
-  border-radius: 4px;
+  padding: 0 14px;
+  border-radius: 8px;
   font-weight: 500;
-}
-/* 新增：图片按钮样式（和表情按钮统一） */
-.func-btn.image-btn {
-  width: 24px;
-  height: 24px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: #f9f9f9;
-  cursor: pointer;
-  font-size: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: rgba(0, 0, 0, 0.5);
-}
-
-.func-btn.image-btn:hover {
-  background: #f0f0f0;
-}
-.func-btn.image-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
 }
 
 /* 隐藏文件选择器 */
 .image-input {
   display: none;
+}
+
+/* 移动端：空间紧张，不显示快捷键提示 */
+@media (max-width: 767px) {
+  .toolbar-hint {
+    display: none;
+  }
 }
 
 /* 图片预览样式 */

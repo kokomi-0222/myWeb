@@ -50,6 +50,15 @@ realService.interceptors.response.use(
     return Promise.reject(new Error(res.msg || '请求失败'))
   },
   (error) => {
+    // 413：请求体超过服务器（Nginx）允许的大小，通常是上传了过大的图片。
+    // 这种情况必须给出准确提示，否则用户只会看到含糊的「网络异常」。
+    if (error.response?.status === 413) {
+      message.error(`图片大小不要超过 ${setting.imageSizeText}`)
+      // 打上标记，调用方不要再弹一次「上传失败」
+      const err = new Error('文件过大')
+      err.handled = true
+      return Promise.reject(err)
+    }
     if (error.code === 'ECONNABORTED' || error.message.includes('timeout') || error.message === 'Network Error') {
       message.error('请求超时')
     } else if (!window.navigator.onLine) {

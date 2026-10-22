@@ -7,8 +7,11 @@
     --border-color: #e0e0e0;
     --box-shadow: rgba(0, 0, 0, 0.15);
     --primary-color: #00aeec;
+    --primary-color-hover: #04bcff;
+    --primary-color-soft: rgba(0, 174, 236, 0.1);
     --bg-nomarl: #f0f2f5;
     --bg-hover: #e4e7eb;
+    --border-color-hover: #d0d0d0;
 
 
 
@@ -61,6 +64,7 @@
     --input-search-bg-hover: #ffffff;
     --input-search-border: #ffffff;
     --input-search-content-focus: #dddcdc;
+    --input-search-glass: rgba(255, 255, 255, 0.55);
     --input-search: #61666D;
     --input-search-focus: #18191C;
     --input-search-btn: #18191C;
@@ -85,16 +89,19 @@
     --border-color: #333333;
     --box-shadow: rgba(0, 0, 0, 0.15);
     --primary-color: #66b1ff;
+    --primary-color-hover: #85bbff;
+    --primary-color-soft: rgba(102, 177, 255, 0.14);
     --bg-nomarl: #2d2d2e;
     --bg-hover: #505050;
+    --border-color-hover: #4a4a4a;
 
-    --input-bg: #ffffff;
-    --input-border: #999;
-    --button-border: #ddd;
-    --button-bg0: #ffffff;
-    --button-bg0-hover: #f8f8f8;
-    --button-text0: #333;
-    --button-text0-hover: #333;
+    --input-bg: #2a2a2a;
+    --input-border: #4a4a4a;
+    --button-border: #4a4a4a;
+    --button-bg0: #2a2a2a;
+    --button-bg0-hover: #333333;
+    --button-text0: #e0e0e0;
+    --button-text0-hover: #ffffff;
 
     --button-bg1: #00aeec;
     --button-bg1-hover: #04bcff;
@@ -111,6 +118,7 @@
     --header-bar-button: #fff;
     --header-bar-button-login-bg: #00aeec;
     --header-bar-button-publish-bg: #fb7299;
+    --header-bar-button-publish-bg-hover: #f55a86;
     --header-banner-bg: rgba(255, 255, 255, 0.9);
 
 
@@ -119,28 +127,29 @@
     --header-title-scrolled: #fff;
 
 
-    --input-line-label: #6d6a6a;
-    --input-line-label-focus: #007bff;
-    --input-line-border-bottom: #ccc;
+    --input-line-label: #8a8a8a;
+    --input-line-label-focus: #66b1ff;
+    --input-line-border-bottom: #4a4a4a;
     --input-line-content: var(--text-primary);
     --input-line-wrapper-after: var(--input-line-label-focus);
     --input-line-placeholder: var(--input-line-label);
     --input-line-password-toggle: #888;
-    --input-line-password-toggle-hover: #00aeec;
-    --input-line-wrapper-focus: rgba(31, 146, 199, 0.9);
+    --input-line-password-toggle-hover: #66b1ff;
+    --input-line-wrapper-focus: rgba(102, 177, 255, 0.9);
 
-    --input-search-bg: #ebebeb;
-    --input-search-bg-hover: #ffffff;
-    --input-search-border: #ffffff;
-    --input-search-content-focus: #dddcdc;
-    --input-search: #61666D;
-    --input-search-focus: #18191C;
-    --input-search-btn: #18191C;
-    --input-search-btn-hover: #bdbdbd;
-    --input-search-clear-btn: #c4c5c7;
-    --input-search-clear-btn-hover: #666;
+    --input-search-bg: #2a2a2a;
+    --input-search-bg-hover: #333333;
+    --input-search-border: #4a4a4a;
+    --input-search-content-focus: #4a4a4a;
+    --input-search-glass: rgba(40, 40, 46, 0.55);
+    --input-search: #aaaaaa;
+    --input-search-focus: #f0f0f0;
+    --input-search-btn: #f0f0f0;
+    --input-search-btn-hover: #aaaaaa;
+    --input-search-clear-btn: #666;
+    --input-search-clear-btn-hover: #aaa;
 
-    --login-modal-bg: #e7ecfd;
+    --login-modal-bg: #1e1e1e;
     --login-button-bg: #00aeec;
     --login-button-bg2: #fff;
 }
