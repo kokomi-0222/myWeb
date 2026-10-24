@@ -2,6 +2,13 @@
 1. 后端：`cd springboot && mvn spring-boot:run`
 2. 前端：`cd vue && npm install && npm run dev`
 
+> 📌 **项目现状、关键设计、踩过的坑、部署与测试怎么跑，全在 [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md)。**
+> 换电脑、隔一段时间回来、或者换人接手，先读那一份。本文下面只是开发日记。
+
+---
+
+## 📓 开发日记
+
 ### 2025-12-19
 ### day0
 > 主页导航栏设计
