@@ -20,32 +20,10 @@ public class LoginVO {
      */
     public static LoginVO fromUserBO(UserBO bo) {
         LoginVO vo = new LoginVO();
-        //System.out.println("AAAAAAAAAAAAAAAAAAAAAA");
-        String token = JwtUtil.generateToken(bo.getId(), bo.getTokenVersion());
-        vo.setToken(token);
-        //System.out.println("BBBBBBBBBBBBBBBBBBBBBBBBBBBB");
-        // 用户信息转换
-        UserVO userVO = new UserVO();
-        userVO.setId(bo.getId());
-        userVO.setUsername(bo.getUsername());
-        userVO.setName(bo.getName());
-        userVO.setNameColor(bo.getNameColor());
-        userVO.setRoleColor(bo.getRoleColor());
-        userVO.setPrimaryRole(bo.getPrimaryRole());
-        userVO.setAvatar(bo.getAvatar());
-        userVO.setBadge(bo.getBadge());
-        userVO.setOrnament(bo.getOrnament());
-        userVO.setBirthday(bo.getBirthday());
-        userVO.setEmail(bo.getEmail());
-        userVO.setGender(bo.getGender());
-        userVO.setPhone(bo.getPhone());
-        userVO.setSignature(bo.getSignature());
-
-        // 角色 + 权限
-        vo.setUser(userVO);
+        vo.setToken(JwtUtil.generateToken(bo.getId(), bo.getTokenVersion()));
+        vo.setUser(UserVO.fromBO(bo));
         vo.setRoles(bo.getRoles());
         vo.setPermissions(bo.getPermissions());
-        //System.out.println(vo);
         return vo;
     }
 }

@@ -22,6 +22,9 @@ public interface PostMapper {
     // 根据ID查询帖子
     Post selectById(@Param("id") Long id);
 
+    // 编辑帖子：只覆盖标题/正文/类型，互动数据（浏览、点赞、评论、转发）保持不变
+    int update(Post post);
+
     // 根据ID删除帖子
     int deleteById(@Param("id") Long id);
 

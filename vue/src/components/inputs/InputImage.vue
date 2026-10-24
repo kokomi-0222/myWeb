@@ -44,11 +44,46 @@ const props = defineProps({
   gap: { type: [String, Number], default: "6px" },
 });
 
-const emit = defineEmits(["change"]);
+const emit = defineEmits(["change", "change-total"]);
 const fileInput = ref(null);
 const imageList = ref([]);
 // 压缩期间锁住按钮，避免大图还在编码时又点一次选图
 const compressing = ref(false);
+
+/**
+ * 把「已经存在服务器上的图片」铺进预览区（编辑帖子时回填用）。
+ * 这类项没有 file，只有 url；提交时不会再上传，直接把 url 交给后端。
+ */
+function setRemoteImages(list) {
+  imageList.value.forEach((item) => {
+    if (!item.remote) URL.revokeObjectURL(item.url);
+  });
+  imageList.value = (list || []).map((m) => ({
+    id: "r" + Math.random().toString(36).slice(2),
+    url: m.url,
+    file: null,
+    remote: true,
+  }));
+  emitTotal();
+}
+
+/**
+ * 完整列表（含老图 + 新选的图），顺序就是用户在预览区看到的顺序。
+ * 老的 `change` 只给新选的 File 数组，保持原有调用方不用改。
+ */
+function emitTotal() {
+  emit(
+    "change-total",
+    imageList.value.map((item) => ({
+      id: item.id,
+      url: item.url,
+      file: item.file || null,
+      remote: !!item.remote,
+    }))
+  );
+}
+
+defineExpose({ setRemoteImages });
 
 // 布局类名
 const imageLayoutClass = computed(() => {
@@ -102,7 +137,9 @@ async function handleSelect(e) {
 
   // 单图模式：替换已有图片
   if (props.maxCount === 1) {
-    imageList.value.forEach((item) => URL.revokeObjectURL(item.url));
+    imageList.value.forEach((item) => {
+      if (!item.remote) URL.revokeObjectURL(item.url);
+    });
     const file = files[0];
     imageList.value = [{
       file,
@@ -110,6 +147,7 @@ async function handleSelect(e) {
       id: Math.random().toString(36).slice(2),
     }];
     emit("change", [file]);
+    emitTotal();
     return;
   }
 
@@ -123,20 +161,24 @@ async function handleSelect(e) {
 
   emit(
     "change",
-    imageList.value.map((item) => item.file)
+    imageList.value.filter((item) => item.file).map((item) => item.file)
   );
+  emitTotal();
 }
 
 // 删除
 function deleteImage(id) {
   const index = imageList.value.findIndex((item) => item.id === id);
   if (index > -1) {
-    URL.revokeObjectURL(imageList.value[index].url);
+    if (!imageList.value[index].remote) {
+      URL.revokeObjectURL(imageList.value[index].url);
+    }
     imageList.value.splice(index, 1);
     emit(
       "change",
-      imageList.value.map((item) => item.file)
+      imageList.value.filter((item) => item.file).map((item) => item.file)
     );
+    emitTotal();
   }
 }
 </script>

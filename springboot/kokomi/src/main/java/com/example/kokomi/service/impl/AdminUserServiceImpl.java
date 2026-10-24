@@ -1,6 +1,7 @@
 package com.example.kokomi.service.impl;
 
 import com.example.kokomi.common.ResultCode;
+import com.example.kokomi.dto.AdminPunishDTO;
 import com.example.kokomi.dto.UpdateUserStyleDTO;
 import com.example.kokomi.entity.Role;
 import com.example.kokomi.entity.User;
@@ -10,6 +11,7 @@ import com.example.kokomi.mapper.RoleMapper;
 import com.example.kokomi.mapper.UserMapper;
 import com.example.kokomi.mapper.UserRoleMapper;
 import com.example.kokomi.service.AdminUserService;
+import com.example.kokomi.service.UserBanService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.util.PermissionCache;
 import com.example.kokomi.vo.AdminUserVO;
@@ -36,6 +38,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final UserMapper userMapper;
     private final UserRoleMapper userRoleMapper;
     private final RoleMapper roleMapper;
+    private final UserBanService userBanService;
 
     @Override
     public PageVO<AdminUserVO> page(String keyword, Integer pageNum, Integer pageSize) {
@@ -73,6 +76,9 @@ public class AdminUserServiceImpl implements AdminUserService {
             vo.setRoleColor(u.getRoleColor());
             vo.setPrimaryRole(u.getPrimaryRole());
             vo.setCreateTime(u.getCreateTime());
+            vo.setStatus(u.getStatus() == null ? 0 : u.getStatus());
+            vo.setBanUntil(u.getBanUntil());
+            vo.setBanReason(u.getBanReason());
             vo.setRoles(roleMap.getOrDefault(u.getId(), new ArrayList<>()));
             list.add(vo);
         }
@@ -171,5 +177,21 @@ public class AdminUserServiceImpl implements AdminUserService {
         }
         String t = s.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    @Override
+    public void punish(Long userId, AdminPunishDTO dto) {
+        if (dto == null || dto.getLevel() == null || dto.getDays() == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请选择处罚方式和时长");
+        }
+        if (dto.getDays() == 0 || dto.getDays() < -1) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "处罚时长不正确");
+        }
+        userBanService.punish(userId, dto.getLevel(), dto.getDays(), dto.getReason());
+    }
+
+    @Override
+    public void unban(Long userId) {
+        userBanService.release(userId);
     }
 }

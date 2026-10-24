@@ -77,7 +77,46 @@
         <div class="user-row__side">
           <span v-if="savingId === u.id" class="user-row__state">保存中…</span>
           <span v-else-if="u.roles.length === 0" class="user-row__state is-warn">无角色</span>
+          <span
+            v-if="u.status"
+            class="ban-chip"
+            :class="{ 'ban-chip--mute': u.status === 1 }"
+            :title="u.banReason || '违反社区规范'"
+          >
+            {{ u.status === 1 ? "已禁言" : "已封号" }}{{ banSuffix(u) }}
+          </span>
         </div>
+
+        <!-- 处罚 / 解除：正常时给两种力度，被处罚时只留「解除」 -->
+        <button
+          v-if="!u.status"
+          type="button"
+          class="user-row__style-btn"
+          title="禁言：能登录，但不能发帖和评论"
+          :disabled="!canPunish(u)"
+          @click="openPunish(u, 1)"
+        >
+          禁言
+        </button>
+        <button
+          v-if="!u.status"
+          type="button"
+          class="user-row__style-btn user-row__ban"
+          title="封号：不能登录"
+          :disabled="!canPunish(u)"
+          @click="openPunish(u, 2)"
+        >
+          封号
+        </button>
+        <button
+          v-else
+          type="button"
+          class="user-row__style-btn user-row__unban"
+          title="解除处罚，恢复正常"
+          @click="handleUnban(u)"
+        >
+          解除
+        </button>
 
         <!-- 外观：名字颜色 + 身份标签底色 -->
         <button
@@ -211,6 +250,81 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- 处罚面板：选力度 + 时长 + 理由。走 Teleport 避免被 .user-list 的滚动裁掉 -->
+    <Teleport to="body">
+      <div v-if="punishTarget" class="style-mask" @click.self="closePunish">
+        <div class="style-panel punish-panel" role="dialog" aria-modal="true">
+          <header class="style-panel__head">
+            <span class="style-panel__title">
+              {{ punishForm.level === 1 ? "禁言" : "封号" }}
+              {{ punishTarget.name || punishTarget.username || "该用户" }}
+            </span>
+            <button type="button" class="style-panel__close" aria-label="关闭" @click="closePunish">
+              <IconClose size="16" />
+            </button>
+          </header>
+
+          <div class="punish-level" role="radiogroup" aria-label="处罚方式">
+            <button
+              v-for="opt in PUNISH_LEVELS"
+              :key="opt.level"
+              type="button"
+              class="punish-level__item"
+              :class="{ 'is-on': punishForm.level === opt.level }"
+              role="radio"
+              :aria-checked="punishForm.level === opt.level"
+              @click="punishForm.level = opt.level"
+            >
+              <span class="punish-level__name">{{ opt.name }}</span>
+              <span class="punish-level__desc">{{ opt.desc }}</span>
+            </button>
+          </div>
+
+          <div class="punish-days">
+            <button
+              v-for="d in PUNISH_DAYS"
+              :key="d.value"
+              type="button"
+              class="punish-days__item"
+              :class="{ 'is-on': punishForm.days === d.value }"
+              @click="punishForm.days = d.value"
+            >
+              {{ d.text }}
+            </button>
+          </div>
+
+          <input
+            v-model="punishForm.reason"
+            class="style-row__hex punish-reason"
+            type="text"
+            maxlength="200"
+            placeholder="理由（本人会看到，可留空）"
+          />
+
+          <p class="style-tip">
+            {{ punishForm.level === 1
+              ? "禁言期间对方仍能登录和浏览，但发不出帖子、评论和回复；不会把人踢下线。"
+              : "封号后对方无法登录，已登录的会话也会立刻失效。" }}
+            永久处罚不会自动到期，需要在这里点「解除」。
+          </p>
+
+          <footer class="style-panel__foot">
+            <button type="button" class="style-ghost" :disabled="punishing" @click="closePunish">
+              取消
+            </button>
+            <Button
+              type="bilibili"
+              class="admin-btn"
+              :disabled="punishing"
+              @click="submitPunish"
+            >
+              {{ punishing ? "处理中…" : "确定" }}
+            </Button>
+          </footer>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -219,7 +333,7 @@ import { ref, reactive, computed, onMounted } from "vue";
 import IconSearch from "@/components/icons/IconSearch.vue";
 import IconClose from "@/components/icons/IconClose.vue";
 import IconPerson from "@/components/icons/IconPerson.vue";
-import { getAdminUsers, getAdminRoleList, updateUserRoles, updateUserStyle } from "@/api/admin";
+import { getAdminUsers, getAdminRoleList, updateUserRoles, updateUserStyle, unbanUser, punishUser } from "@/api/admin";
 import { useUserStore } from "@/stores/user";
 import {
   normalizeHex,
@@ -374,8 +488,114 @@ const previewTagStyle = computed(() => {
   };
 });
 
-const openStyle = (user) => {
-  styleTarget.value = user;
+/** 处罚标签的补充说明：没有到期时间就是永久 */
+function banSuffix(u) {
+  if (!u.banUntil) return "（永久）";
+  const d = new Date(u.banUntil);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `（至 ${d.getMonth() + 1}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}）`;
+}
+
+/** 解除：永久处罚没有自动到期，只能从这里撤销 */
+async function handleUnban(u) {
+  const name = u.name || u.username || `#${u.id}`;
+  const what = u.status === 1 ? "禁言" : "封号";
+  if (!window.confirm(`确定解除「${name}」的${what}吗？解除后对方可以立即恢复使用。`)) {
+    return;
+  }
+  try {
+    const res = await unbanUser(u.id);
+    if (res.code === 200) {
+      message(res.msg || "已解除", "success");
+      load();
+    } else {
+      message(res.msg || "操作失败", "error");
+    }
+  } catch (err) {
+    message(err?.msg || "网络异常，请稍后重试", "error");
+  }
+}
+
+/* ---------------- 处罚（禁言 / 封号） ---------------- */
+
+const PUNISH_LEVELS = [
+  { level: 1, name: "禁言", desc: "能登录，不能发帖评论" },
+  { level: 2, name: "封号", desc: "不能登录" },
+];
+
+const PUNISH_DAYS = [
+  { value: 1, text: "1 天" },
+  { value: 3, text: "3 天" },
+  { value: 7, text: "7 天" },
+  { value: 30, text: "30 天" },
+  { value: -1, text: "永久" },
+];
+
+const punishTarget = ref(null);
+const punishing = ref(false);
+const punishForm = reactive({ level: 1, days: 7, reason: "" });
+
+/**
+ * 后端会拦「罚自己」和「罚有 user:manage 的人」，
+ * 这里先把按钮禁掉，省得点进去才看到 403。
+ */
+const MANAGED_ROLES = ["admin"];
+function canPunish(u) {
+  if (u.id === myId.value) return false;
+  // 没有 admin 角色的人也可能被单独授过 user:manage，
+  // 那种情况前端查不到，交给后端兜底
+  return !(u.roles || []).some((r) => MANAGED_ROLES.includes(r));
+}
+
+function openPunish(u, level) {
+  if (!canPunish(u)) {
+    message.warning("不能处罚自己或拥有后台管理权限的用户");
+    return;
+  }
+  punishTarget.value = u;
+  punishForm.level = level;
+  punishForm.days = 7;
+  punishForm.reason = "";
+}
+
+function closePunish() {
+  if (punishing.value) return;
+  punishTarget.value = null;
+}
+
+async function submitPunish() {
+  if (!punishTarget.value || punishing.value) return;
+  const u = punishTarget.value;
+  const name = u.name || u.username || `#${u.id}`;
+  const what = punishForm.level === 1 ? "禁言" : "封号";
+  const howLong = punishForm.days === -1 ? "永久" : `${punishForm.days} 天`;
+
+  if (!window.confirm(`确定对「${name}」执行${what} ${howLong} 吗？`)) return;
+
+  punishing.value = true;
+  try {
+    const res = await punishUser(u.id, {
+      level: punishForm.level,
+      days: punishForm.days,
+      reason: punishForm.reason.trim() || undefined,
+    });
+    if (res.code === 200) {
+      message(`已${what}「${name}」`, "success");
+      punishing.value = false;
+      closePunish();
+      load();
+    } else {
+      message(res.msg || "操作失败", "error");
+    }
+  } catch (err) {
+    message(err?.msg || "网络异常，请稍后重试", "error");
+  } finally {
+    punishing.value = false;
+  }
+}
+
+const openStyle = (user) => {  styleTarget.value = user;
   styleForm.nameColor = normalizeHex(user.nameColor);
   styleForm.roleColor = normalizeHex(user.roleColor);
 };
@@ -727,8 +947,7 @@ const saveStyle = async () => {
 
 .user-row__style-btn:hover {
   border-color: var(--primary-color);
-  background: var(--primary-color-soft);
-  color: var(--primary-color);
+  background: var(--primary-color-soft);  color: var(--primary-color);
 }
 
 .swatch {
@@ -976,5 +1195,158 @@ const saveStyle = async () => {
   .user-row__side {
     display: none;
   }
+}
+
+/* 处罚状态标签：红色是封号、琥珀色是禁言，鼠标悬停能看到理由 */
+.ban-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  margin-top: 4px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  font-size: 0.72rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* 解封：与「外观」同一尺寸，但用红色描边表明是撤销性质的操作 */
+.user-row__unban {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.38);
+}
+
+.user-row__unban:hover {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+/* 封号按钮：比「禁言」重一档，用琥珀色提醒下手别太重 */
+.user-row__ban {
+  color: #d97706;
+  border-color: rgba(217, 119, 6, 0.35);
+}
+
+.user-row__ban:hover:not(:disabled) {
+  border-color: #d97706;
+  background: rgba(217, 119, 6, 0.1);
+  color: #d97706;
+}
+
+.user-row__style-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.user-row__style-btn:disabled:hover {
+  border-color: var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+/* 禁言用琥珀色，封号保留红色：一眼能分出轻重 */
+.ban-chip--mute {
+  background: rgba(217, 119, 6, 0.12);
+  color: #d97706;
+}
+
+/* ---------- 处罚面板 ---------- */
+.punish-panel {
+  max-width: 400px;
+}
+
+.punish-level {
+  display: flex;
+  gap: 3px;
+  margin: 4px 0 10px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--bg-nomarl);
+}
+
+.punish-level__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.punish-level__item:hover {
+  color: var(--text-primary);
+}
+
+.punish-level__item.is-on {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* 暗色下 --bg-primary 比底盘更深，选中项会显得凹陷 → 换一层浅白 */
+:global(:root.dark .punish-level__item.is-on) {
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: none;
+}
+
+.punish-level__name {
+  font-size: 0.83rem;
+  font-weight: 600;
+}
+
+.punish-level__desc {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.punish-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.punish-days__item {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.punish-days__item:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.punish-days__item.is-on {
+  border-color: var(--primary-color);
+  background: var(--primary-color-soft);
+  color: var(--primary-color);
+}
+
+.punish-reason {
+  width: 100%;
+  margin-bottom: 10px;
 }
 </style>

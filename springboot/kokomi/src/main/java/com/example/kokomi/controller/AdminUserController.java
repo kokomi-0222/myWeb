@@ -2,6 +2,7 @@ package com.example.kokomi.controller;
 
 import com.example.kokomi.annotation.RequirePermission;
 import com.example.kokomi.common.Result;
+import com.example.kokomi.dto.AdminPunishDTO;
 import com.example.kokomi.dto.UpdateUserRolesDTO;
 import com.example.kokomi.dto.UpdateUserStyleDTO;
 import com.example.kokomi.service.AdminUserService;
@@ -15,7 +16,7 @@ import java.util.List;
 
 /**
  * 用户管理（管理员专用）。
- * 三个接口都挂了 @RequirePermission("user:manage")，
+ * 所有接口都挂了 @RequirePermission("user:manage")，
  * 普通用户即使猜到路径也调不动。
  */
 @RestController
@@ -58,5 +59,30 @@ public class AdminUserController {
                                     @Valid @RequestBody UpdateUserStyleDTO dto) {
         adminUserService.updateStyle(id, dto);
         return Result.success(null, "外观已更新");
+    }
+
+    /**
+     * 处罚某个用户。
+     * <p>
+     * 两种力度：禁言（能登录、不能发帖评论）/ 封号（不能登录）。
+     * 举报处理页也能顺手做这件事，这个接口是给「不经过举报、管理员主动处理」准备的。
+     */
+    @PostMapping("/user/{id}/punish")
+    @RequirePermission(value = "user:manage", message = "只有管理员可以处罚用户")
+    public Result<Void> punish(@PathVariable Long id, @Valid @RequestBody AdminPunishDTO dto) {
+        adminUserService.punish(id, dto);
+        return Result.success(null, "已处理");
+    }
+
+    /**
+     * 解除处罚（禁言、封号都走这里）。
+     * <p>
+     * 永久处罚没有自动到期，必须留一个手动撤销的入口，否则只能去改数据库。
+     */
+    @PostMapping("/user/{id}/unban")
+    @RequirePermission(value = "user:manage", message = "只有管理员可以解除处罚")
+    public Result<Void> unban(@PathVariable Long id) {
+        adminUserService.unban(id);
+        return Result.success(null, "已解除");
     }
 }

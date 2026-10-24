@@ -47,6 +47,18 @@ realService.interceptors.response.use(
       return Promise.reject(new Error('权限不足'))
     }
 
+    // 被禁言（能登录、不能发内容）：提示已经在上面弹过了，
+    // 这里额外广播一次，让 user store 重新拉用户信息，
+    // 发布框 / 评论框会立刻换成「你已被禁言」的提示条。
+    // 用事件而不是在这里直接 import store —— request ←→ store 是循环依赖，
+    // 而且拦截器不该知道 store 长什么样。
+    if (setting.mutedCode && res.code == setting.mutedCode) {
+      window.dispatchEvent(new CustomEvent('kokomi:muted'))
+      const err = new Error(res.msg || '你已被禁言，暂时无法发布内容')
+      err.muted = true
+      return Promise.reject(err)
+    }
+
     // 走到这里的都是「非预期」的业务失败：登录过期(401)、权限不足(403) 属于正常流程，
     // 上面已经分别返回，不打印以免刷屏；其余打一条 warn，方便线上快速定位是哪个接口。
     logWarn('[请求失败]', {

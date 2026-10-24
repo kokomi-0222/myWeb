@@ -18,6 +18,9 @@ const setting = {
     invalidCode: 401,
     //无权限code
     noPermissionCode: 402,
+    //被禁言 code（能登录、不能发内容）。前端收到它要顺手刷新一次用户状态，
+    // 把发布框换成「你已被禁言」的提示条，而不是让人一直点发布一直失败。
+    mutedCode: 506,
 
 
     //不经过token校验的路由

@@ -86,6 +86,12 @@ const router = createRouter({
           meta: { name: '角色权限' },
           component: () => import('@/views/admin/Roles.vue'),
         },
+        {
+          // 举报处理：帖子 / 评论 / 用户三类举报，受理时可删内容、处罚作者（禁言 / 封号）
+          path: 'reports',
+          meta: { name: '举报处理' },
+          component: () => import('@/views/admin/Reports.vue'),
+        },
       ],
     },
     {

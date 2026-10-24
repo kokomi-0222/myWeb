@@ -107,7 +107,8 @@
           ref="contentRef"
           class="post-card__content"
           :class="{ 'is-clamped': isClamped }"
-          v-html="sanitizeContent(post.content)"
+          v-html="renderedContent"
+          @click="handleContentClick"
         ></div>
       </div>
       <button
@@ -196,7 +197,8 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from "vue"
 import { useUserStore } from "@/stores/user";
 import { useUIStore } from "@/stores/ui";
 import { useTopicStore } from "@/stores/topic";
-import DOMPurify from "dompurify"; // 防 XSS
+import { useReportStore } from "@/stores/report";
+import { renderPostContent } from "@/utils/postContent";
 import { usePermission } from "@/utils/usePermission";
 import { ALL_ACTIONS } from "@/utils/postActions";
 import { formatRelativeTime, formatAbsoluteTime } from "@/utils/time";
@@ -273,7 +275,10 @@ const goDetail = () => {
 // Store
 const userStore = useUserStore();
 const topicStore = useTopicStore();
+const reportStore = useReportStore();
 topicStore.loadTopics();
+// 已经举报过的帖子把菜单显示成「已举报」；store 内部保证整个列表只请求一次
+reportStore.loadMine("post");
 
 // 点击头像 / 昵称进入作者主页；自己的名字直接回个人空间
 const goUser = () => {
@@ -347,7 +352,7 @@ const isOwnPost = computed(() => {
 const moreActions = computed(() => {
   const { hasPermission } = usePermission();
 
-  return ALL_ACTIONS.filter((action) => {
+  const list = ALL_ACTIONS.filter((action) => {
     const req = action.requiredPermission;
     if (typeof req === "function") {
       return req({ isOwnPost: isOwnPost.value, post: props.post });
@@ -359,6 +364,13 @@ const moreActions = computed(() => {
       return true; // 无限制
     }
   });
+
+  // 已经举报过、还没处理完：把文案换成「已举报」，点它只弹提示
+  return list.map((action) =>
+    action.key === "report" && reportStore.hasReported("post", props.post.id)
+      ? { ...action, label: "已举报" }
+      : action
+  );
 });
 
 // 处理点击
@@ -366,6 +378,26 @@ const moreActionsHandle = (action) => {
   if (action.key === "share") {
     // 分享 = 直接复制帖子链接，不弹面板
     copyPostLink(props.post);
+    return;
+  }
+  if (action.key === "edit") {
+    // 编辑复用个人空间顶部的发布框：带上 id 过去，那边会回填内容并切换成「保存修改」。
+    // 放在卡片内部处理而不是 emit 给父组件，首页 / 详情页 / 他人主页 / 空间页
+    // 四个入口就都自动生效，不用每个页面各写一遍。
+    router.push({ path: "/space/home", query: { edit: props.post.id } });
+    return;
+  }
+  if (action.key === "report") {
+    if (reportStore.hasReported("post", props.post.id)) {
+      message("你已经举报过了，我们正在处理", "info");
+      return;
+    }
+    if (!userStore.isLogin) {
+      ui.openLoginModal();
+      return;
+    }
+    const summary = props.post.title || String(props.post.content || "").slice(0, 40);
+    reportStore.open({ type: "post", id: props.post.id, label: summary });
     return;
   }
   if (action.key === "delete") {
@@ -416,43 +448,32 @@ const formatNumber = (num) => {
   return num;
 };
 
-const escapeHtml = (text) =>
-  String(text)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
-// 正文本质是 textarea 提交的纯文本。这里只留一条极窄的富文本通道，
-// 用于兼容可能存在的 <p> 老数据：
-//   · 只放行最基础的排版标签，标题类 h1~h6 一律不放（会被用来撑大页面）
-//   · ALLOWED_ATTR 为空 → style / class / on* / href / src 全部丢弃
-// 实测这样可以挡掉：
-//   <div style="position:fixed;inset:0;z-index:99999"> 伪造全屏登录框
-//   <img src="https://外部地址">                         外链打点、违规图片
-//   <h1 style="font-size:100px">                         破坏布局
-const PURIFY_CONFIG = {
-  ALLOWED_TAGS: [
-    "p", "br",
-    "strong", "b", "em", "i", "u", "s", "del",
-    "blockquote", "pre", "code",
-    "ul", "ol", "li", "hr",
-  ],
-  ALLOWED_ATTR: [],
-};
+// 正文渲染：纯文本 + ``` 代码块 + `行内代码`（解析、转义、高亮都在 utils/postContent.js）。
+// 用户写的标签一律被转义成文本，只有我们自己生成的代码块结构会交给浏览器解释。
+const renderedContent = computed(() => renderPostContent(props.post.content));
 
 /**
- * 把正文转成可交给 v-html 的字符串。
- *
- * 正文是纯文本，换行靠 CSS 的 white-space: pre-wrap 还原；但不能把纯文本
- * 直接塞进 v-html，否则 <b && c> 这类片段会被当成标签解析、连内容一起吞掉。
- * 所以先用受限白名单过一遍：清洗结果与原文不一致，说明这不是「干净的基础排版」，
- * 一律整体转义按纯文本显示，确保「用户敲了什么就显示什么」，且任何标签都不会被解释。
+ * 代码块右上角的「复制」。
+ * 按钮是 v-html 生成的，挂不了 Vue 事件，所以在正文容器上做事件委托；
+ * 复制内容直接从 DOM 的 textContent 取，避免再存一份原文。
  */
-const sanitizeContent = (raw) => {
-  const text = String(raw ?? "");
-  const cleaned = DOMPurify.sanitize(text, PURIFY_CONFIG);
-  if (cleaned !== text) return escapeHtml(text);
-  return cleaned;
+const handleContentClick = async (event) => {
+  const btn = event.target?.closest?.(".content-code__copy");
+  if (!btn) return;
+  const code = btn.closest(".content-code")?.querySelector(".content-code__pre code");
+  const text = code?.textContent ?? "";
+  try {
+    await navigator.clipboard.writeText(text);
+    const raw = btn.textContent;
+    btn.textContent = "已复制";
+    btn.classList.add("is-done");
+    setTimeout(() => {
+      btn.textContent = raw || "复制";
+      btn.classList.remove("is-done");
+    }, 1600);
+  } catch {
+    message.error("复制失败，请手动选中复制");
+  }
 };
 
 // ---------- 长文折叠 ----------
@@ -1048,5 +1069,228 @@ const handleCommentDeleted = () => {
   box-shadow:
     0 12px 32px rgba(0, 0, 0, 0.55),
     0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* ===== 正文里的代码块 / 行内代码 =====
+   这两块是 v-html 生成的，拿不到 scoped 的 data-v 属性，只能写成全局样式。
+   配色刻意用中性灰 + 克制的语法色，避免和站点的粉色主题打架。 */
+.content-text {
+  margin: 0;
+}
+
+.content-code {
+  margin: 12px 0;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: #f6f8fa;
+  overflow: hidden;
+}
+
+.content-code__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px 4px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.content-code__lang {
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.content-code__copy {
+  border: none;
+  background: transparent;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.content-code__copy:hover {
+  color: var(--primary-color);
+  background: var(--bg-hover);
+}
+
+.content-code__copy.is-done {
+  color: var(--primary-color);
+}
+
+.content-code__pre {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  background: transparent;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  tab-size: 4;
+  -webkit-overflow-scrolling: touch;
+}
+
+.content-code__pre code {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  /* 代码不折行：宁可横向滚动，也别把缩进结构揉烂 */
+  white-space: pre;
+  color: #24292f;
+  background: none;
+  padding: 0;
+  border: none;
+  font-size: inherit;
+}
+
+.content-inline-code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 0.86em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #f1f2f4;
+  color: #c7254e;
+  word-break: break-word;
+}
+
+/* 暗色 */
+:root.dark .content-code {
+  background: #0d1117;
+}
+
+:root.dark .content-code__head {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+:root.dark .content-code__pre code {
+  color: #c9d1d9;
+}
+
+:root.dark .content-inline-code {
+  background: rgba(255, 255, 255, 0.09);
+  color: #ffb3c8;
+}
+
+/* 语法高亮配色（GitHub 风味，亮/暗各一套） */
+.content-code .hljs-comment,
+.content-code .hljs-quote {
+  color: #6e7781;
+  font-style: italic;
+}
+
+.content-code .hljs-keyword,
+.content-code .hljs-selector-tag,
+.content-code .hljs-doctag,
+.content-code .hljs-formula {
+  color: #cf222e;
+}
+
+.content-code .hljs-string,
+.content-code .hljs-regexp,
+.content-code .hljs-addition,
+.content-code .hljs-meta .hljs-string {
+  color: #0a3069;
+}
+
+.content-code .hljs-number,
+.content-code .hljs-attr,
+.content-code .hljs-attribute,
+.content-code .hljs-variable,
+.content-code .hljs-template-variable,
+.content-code .hljs-type,
+.content-code .hljs-literal,
+.content-code .hljs-built_in,
+.content-code .hljs-symbol,
+.content-code .hljs-bullet,
+.content-code .hljs-link {
+  color: #0550ae;
+}
+
+.content-code .hljs-title,
+.content-code .hljs-title.class_,
+.content-code .hljs-title.function_,
+.content-code .hljs-section {
+  color: #8250df;
+}
+
+.content-code .hljs-tag,
+.content-code .hljs-name,
+.content-code .hljs-selector-id,
+.content-code .hljs-selector-class {
+  color: #116329;
+}
+
+.content-code .hljs-meta {
+  color: #6e7781;
+}
+
+.content-code .hljs-emphasis {
+  font-style: italic;
+}
+
+.content-code .hljs-strong {
+  font-weight: 600;
+}
+
+:root.dark .content-code .hljs-comment,
+:root.dark .content-code .hljs-quote {
+  color: #8b949e;
+}
+
+:root.dark .content-code .hljs-keyword,
+:root.dark .content-code .hljs-selector-tag,
+:root.dark .content-code .hljs-doctag,
+:root.dark .content-code .hljs-formula {
+  color: #ff7b72;
+}
+
+:root.dark .content-code .hljs-string,
+:root.dark .content-code .hljs-regexp,
+:root.dark .content-code .hljs-addition,
+:root.dark .content-code .hljs-meta .hljs-string {
+  color: #a5d6ff;
+}
+
+:root.dark .content-code .hljs-number,
+:root.dark .content-code .hljs-attr,
+:root.dark .content-code .hljs-attribute,
+:root.dark .content-code .hljs-variable,
+:root.dark .content-code .hljs-template-variable,
+:root.dark .content-code .hljs-type,
+:root.dark .content-code .hljs-literal,
+:root.dark .content-code .hljs-built_in,
+:root.dark .content-code .hljs-symbol,
+:root.dark .content-code .hljs-bullet,
+:root.dark .content-code .hljs-link {
+  color: #79c0ff;
+}
+
+:root.dark .content-code .hljs-title,
+:root.dark .content-code .hljs-title.class_,
+:root.dark .content-code .hljs-title.function_,
+:root.dark .content-code .hljs-section {
+  color: #d2a8ff;
+}
+
+:root.dark .content-code .hljs-tag,
+:root.dark .content-code .hljs-name,
+:root.dark .content-code .hljs-selector-id,
+:root.dark .content-code .hljs-selector-class {
+  color: #7ee787;
+}
+
+:root.dark .content-code .hljs-meta {
+  color: #8b949e;
 }
 </style>

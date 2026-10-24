@@ -1,11 +1,14 @@
 <template>
   <div id="kokomi">
     <router-view />
+    <!-- 举报弹窗挂在全局：帖子菜单 / 评论 / 用户主页三个入口共用一份 -->
+    <ReportModal />
   </div>
 </template>
 
 <script setup>
 import { onMounted, watch } from "vue";
+import ReportModal from "@/components/report/ReportModal.vue";
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
 import { useRoleStore } from "@/stores/role";

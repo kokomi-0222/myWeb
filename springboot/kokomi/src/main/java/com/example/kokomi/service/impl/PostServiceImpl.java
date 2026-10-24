@@ -18,6 +18,7 @@ import jakarta.servlet.http.HttpServletRequest;
 
 import com.example.kokomi.mapper.*;
 import com.example.kokomi.util.PermissionCache;
+import com.example.kokomi.util.TextUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +38,7 @@ import com.example.kokomi.entity.User;
 import com.example.kokomi.exception.CustomerException;
 import com.example.kokomi.service.PostService;
 import com.example.kokomi.service.NotificationService;
+import com.example.kokomi.service.UserBanService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.vo.PageVO;
 import com.example.kokomi.vo.PostAuthorVO;
@@ -57,6 +59,7 @@ public class PostServiceImpl implements PostService {
     private final RolePermissionMapper rolePermissionMapper;
     private final CommentMapper commentMapper;
     private final NotificationService notificationService;
+    private final UserBanService userBanService;
 
     @Value("${app.upload-path}")
     private String uploadPath;
@@ -102,10 +105,13 @@ public class PostServiceImpl implements PostService {
     @Transactional(rollbackFor = Exception.class)
     public PostDetailVO createPost(CreatePostDTO dto) {
         Long userId = LoginUserHolder.getUserId();
+        // 被禁言 / 封号的人不能发新帖（前端已经把发布框禁掉了，这里兜底）
+        userBanService.checkCanSpeak(userId);
 
         Post post = new Post();
         post.setTitle(dto.getTitle() != null ? dto.getTitle().trim() : "");
-        post.setContent(dto.getContent() != null ? dto.getContent().trim() : "");
+        // 正文保留首行缩进（显示端是 pre-wrap），只清尾部空白与开头空行
+        post.setContent(TextUtils.normalizeContent(dto.getContent()));
         post.setUserId(userId);
         post.setType(dto.getType() != null ? dto.getType().trim() : "");
 
@@ -160,6 +166,129 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public PostDetailVO updatePost(Long postId, CreatePostDTO dto) {
+        Long userId = LoginUserHolder.getUserId();
+
+        Post post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "帖子不存在");
+        }
+
+        // 权限：作者本人随便改自己的帖；别人改需要 post:edit（版主 / 编辑 / 管理员）
+        boolean isOwner = post.getUserId().equals(userId);
+        boolean hasEditPerm = hasPermission(userId, "post:edit");
+        if (!isOwner && !hasEditPerm) {
+            throw new CustomerException(ResultCode.NO_PERMISSION, "无权编辑该帖子");
+        }
+        if (isOwner) {
+            // 禁言的人连自己的旧帖也不能改——不然等于换个地方继续发内容。
+            // 版主 / 编辑改别人的帖不受影响。
+            userBanService.checkCanSpeak(userId);
+        }
+
+        // 只覆盖文案与类型，互动计数一律不动
+        post.setTitle(dto.getTitle() != null ? dto.getTitle().trim() : "");
+        post.setContent(TextUtils.normalizeContent(dto.getContent()));
+        post.setType(dto.getType() != null ? dto.getType().trim() : "");
+        postMapper.update(post);
+
+        // ---- 图片：按「文件名」做差异对比 ----
+        // 前端提交的每一项有两种来源：老图（已在 images 目录）和新图（还在 temp 目录）。
+        // 老图原样留下，新图搬进 images。为了顺序可控，DB 行统一删掉重插，
+        // 但只有「这次没再出现」的老图才真删文件，避免误删还在用的图。
+        List<PostMedia> oldMedia = postMediaMapper.selectByPostId(postId);
+
+        Set<String> keptFiles = new HashSet<>();
+        List<PostMedia> newMediaList = new ArrayList<>();
+        if (dto.getMedia() != null) {
+            File imagesDirFile = new File(uploadPath + "images/");
+            if (!imagesDirFile.exists()) {
+                imagesDirFile.mkdirs();
+            }
+
+            int sort = 0;
+            for (PostMediaDTO md : dto.getMedia()) {
+                String finalUrl = resolveMediaUrl(md.getUrl());
+                if (finalUrl == null) {
+                    continue; // 既不是本站老图也不是合法临时图，跳过
+                }
+                keptFiles.add(fileNameOf(finalUrl));
+
+                PostMedia m = new PostMedia();
+                m.setPostId(postId);
+                m.setThumbnailUrl(finalUrl);
+                m.setPreviewUrl(finalUrl);
+                m.setRawUrl(finalUrl);
+                m.setType(md.getType() != null ? md.getType() : "image");
+                m.setWidth(md.getWidth());
+                m.setHeight(md.getHeight());
+                m.setSize(md.getSize());
+                m.setAlt(md.getAlt() != null ? md.getAlt() : "");
+                m.setFormat(md.getFormat() != null ? md.getFormat() : "");
+                m.setIsAnimated(md.getIsAnimated() != null ? md.getIsAnimated() : 0);
+                m.setSort(sort);
+                sort++;
+                newMediaList.add(m);
+            }
+        }
+
+        // 被移除的老图：连文件一起清掉（deleteImageFile 内部会校验路径与存在性）
+        for (PostMedia old : oldMedia) {
+            if (!keptFiles.contains(fileNameOf(old.getThumbnailUrl()))) {
+                deleteImageFile(old.getThumbnailUrl());
+            }
+        }
+
+        postMediaMapper.deleteByPostId(postId);
+        if (!newMediaList.isEmpty()) {
+            postMediaMapper.insertBatch(newMediaList);
+        }
+
+        // 标签：null 表示这次没提交标签（保持原样），非 null 才整体替换
+        if (dto.getTags() != null) {
+            postTagMapper.deleteByPostId(postId);
+            if (!dto.getTags().isEmpty()) {
+                postTagMapper.insertBatch(postId, dto.getTags());
+            }
+        }
+
+        return convertToVO(post);
+    }
+
+    /**
+     * 解析编辑时提交的图片地址。
+     * <ul>
+     *   <li>已经在 /upload/images/ 下的老图：校验文件名后原样保留（不限定域名，
+     *       换过 base-url 也能对上）</li>
+     *   <li>还在 /upload/temp/ 下的新图：搬进 images 目录并返回永久地址</li>
+     *   <li>其它任意地址：返回 null，调用方跳过</li>
+     * </ul>
+     */
+    private String resolveMediaUrl(String url) {
+        if (url == null) {
+            return null;
+        }
+        if (url.contains("/upload/images/")) {
+            String filename = url.substring(url.lastIndexOf("/") + 1);
+            if (filename.isEmpty() || filename.contains("/") || filename.contains("\\")
+                    || filename.contains("..")) {
+                return null;
+            }
+            return baseUrl + "/upload/images/" + filename;
+        }
+        return moveTempFileToImages(url);
+    }
+
+    /** 取 URL 里的文件名，用于媒体差异对比（跨域名、跨协议都只比文件名） */
+    private String fileNameOf(String url) {
+        if (url == null) {
+            return "";
+        }
+        return url.substring(url.lastIndexOf("/") + 1);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deletePost(Long postId) {
         Long currentUserId = LoginUserHolder.getUserId();
 
@@ -177,6 +306,23 @@ public class PostServiceImpl implements PostService {
             throw new CustomerException(ResultCode.NO_PERMISSION, "无权删除该帖子");
         }
 
+        deletePostInternal(postId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deletePostByAdmin(Long postId) {
+        if (postMapper.selectById(postId) == null) {
+            return; // 已经被作者自己删掉了，幂等返回
+        }
+        deletePostInternal(postId);
+    }
+
+    /**
+     * 真正的删除动作：清图片文件 + 清关联表 + 删帖子。
+     * 权限判断留在两个入口方法里，这里只管删。
+     */
+    private void deletePostInternal(Long postId) {
         // 删除帖子关联的图片文件
         List<PostMedia> mediaList = postMediaMapper.selectByPostId(postId);
         for (PostMedia media : mediaList) {

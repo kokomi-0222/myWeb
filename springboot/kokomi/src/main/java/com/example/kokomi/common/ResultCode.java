@@ -20,6 +20,11 @@ public class ResultCode {
     // 验证码
     public static final int CAPTCHA_ERROR = 505;
 
+    // 账号被禁言（还能登录，但不能发内容）
+    // 单独一个码是为了让前端能分辨「没权限」和「被禁言」：
+    // 前者可能只是角色不够，后者要立刻把发布框换成提示条。
+    public static final int MUTED = 506;
+
     // RSA 加密解密
     public static final int RSA_ENCRYPT_ERROR = 1001;
     public static final int RSA_DECRYPT_ERROR = 1002;

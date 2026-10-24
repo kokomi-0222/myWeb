@@ -63,6 +63,15 @@ export function createPosts(data) {
   })
 }
 
+// 编辑帖子（作者本人，或拥有 post:edit 权限的人）
+export function updatePosts(id, data) {
+  return request({
+    url: `/post/${id}`,
+    method: 'put',
+    data
+  })
+}
+
 export function deletePosts(id) {
   return request({
     url: `/post/${id}`,

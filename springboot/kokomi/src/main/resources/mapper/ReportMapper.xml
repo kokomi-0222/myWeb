@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.kokomi.mapper.ReportMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into report (target_type, target_id, target_author_id, reporter_id, reason_code, detail, status, created_at)
+        values (#{targetType}, #{targetId}, #{targetAuthorId}, #{reporterId}, #{reasonCode}, #{detail}, 0, now())
+    </insert>
+
+    <select id="selectById" resultType="com.example.kokomi.entity.Report">
+        select id, target_type, target_id, target_author_id, reporter_id, reason_code, detail,
+               status, handler_id, handle_action, handle_note, handle_time, created_at
+        from report
+        where id = #{id}
+    </select>
+
+    <select id="countPending" resultType="int">
+        select count(*)
+        from report
+        where reporter_id = #{reporterId}
+          and target_type = #{targetType}
+          and target_id = #{targetId}
+          and status = 0
+    </select>
+
+    <select id="selectPendingTargetIds" resultType="long">
+        select distinct target_id
+        from report
+        where reporter_id = #{reporterId}
+          and target_type = #{targetType}
+          and status = 0
+        order by target_id desc
+    </select>
+
+    <update id="updateHandle">
+        update report
+        set status = #{status},
+            handler_id = #{handlerId},
+            handle_action = #{handleAction},
+            handle_note = #{handleNote},
+            handle_time = now()
+        where id = #{id}
+          and status = 0
+    </update>
+
+    <sql id="pageWhere">
+        <where>
+            <if test="query.status != null">r.status = #{query.status}</if>
+            <if test="query.targetType != null and query.targetType != ''">
+                and r.target_type = #{query.targetType}
+            </if>
+        </where>
+    </sql>
+
+    <!-- 待处理排最前，其次按时间倒序（新的在上） -->
+    <select id="selectPage" resultType="com.example.kokomi.vo.ReportVO">
+        select r.id,
+               r.target_type       as targetType,
+               r.target_id         as targetId,
+               r.target_author_id  as targetAuthorId,
+               r.reporter_id       as reporterId,
+               ru.name             as reporterName,
+               ru.avatar           as reporterAvatar,
+               r.reason_code       as reasonCode,
+               r.detail,
+               r.status,
+               r.handler_id        as handlerId,
+               hu.name             as handlerName,
+               r.handle_action     as handleAction,
+               r.handle_note       as handleNote,
+               r.handle_time       as handleTime,
+               r.created_at        as createdAt
+        from report r
+        left join user ru on ru.id = r.reporter_id
+        left join user hu on hu.id = r.handler_id
+        <include refid="pageWhere"/>
+        order by r.status asc, r.created_at desc, r.id desc
+        limit #{offset}, #{query.pageSize}
+    </select>
+
+    <select id="countPage" resultType="long">
+        select count(*)
+        from report r
+        <include refid="pageWhere"/>
+    </select>
+
+    <select id="countPendingAll" resultType="long">
+        select count(*) from report where status = 0
+    </select>
+
+    <select id="countByTarget" resultType="int">
+        select count(*)
+        from report
+        where target_type = #{targetType} and target_id = #{targetId}
+    </select>
+
+    <select id="countPendingByTarget" resultType="int">
+        select count(*)
+        from report
+        where target_type = #{targetType} and target_id = #{targetId} and status = 0
+    </select>
+
+    <select id="selectPendingByTarget" resultType="com.example.kokomi.entity.Report">
+        select id, target_type, target_id, target_author_id, reporter_id, reason_code, detail, status, created_at
+        from report
+        where target_type = #{targetType}
+          and target_id = #{targetId}
+          and status = 0
+          and id != #{exceptId}
+        order by id asc
+    </select>
+
+</mapper>

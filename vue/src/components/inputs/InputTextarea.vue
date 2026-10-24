@@ -10,6 +10,7 @@
         :maxlength="maxLength"
         :disabled="disabled"
         @input="handleInput"
+        @keydown="handleTabIndent"
         @keydown.enter="handleEnterSubmit"
         @blur="handleBlur"
         @focus="handleFocus"
@@ -64,6 +65,7 @@
 <script setup>
 import { ref, watch, computed } from "vue";
 import { useUIStore } from "@/stores/ui";
+import { handleTabIndent } from "@/utils/textareaTab";
 import setting from '@/config/setting'
 const uiStore = useUIStore();
 

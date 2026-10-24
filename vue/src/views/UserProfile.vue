@@ -39,6 +39,16 @@
                 class="profile-card__role"
                 :style="rolePillStyle(profile.roleColor)"
               >{{ roleLabelOf(profile.primaryRole) }}</span>
+              <button
+                v-if="canReportUser"
+                type="button"
+                class="profile-card__report"
+                title="举报这个用户"
+                @click="handleReportUser"
+              >
+                <IconFlag :size="13" />
+                <span>举报</span>
+              </button>
             </div>
             <p class="profile-card__signature">
               {{ profile.signature || "这个人很神秘，什么都没写~" }}
@@ -104,20 +114,42 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted } from "vue";
+import { ref, reactive, watch, onMounted, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Banner from "@/components/modules/Banner.vue";
+import IconFlag from "@/components/icons/IconFlag.vue";
 import { getUserProfile } from "@/api/user";
 import { getUserPosts } from "@/api/posts";
+import { useUserStore } from "@/stores/user";
+import { useReportStore } from "@/stores/report";
 import setting from "@/config/setting";
 import message from "@/utils/message";
 import { roleLabelOf, shouldShowRoleTag, rolePillStyle } from "@/utils/roleTag";
 
 const route = useRoute();
 const router = useRouter();
+const userStore = useUserStore();
+const reportStore = useReportStore();
 
 const profile = ref(null);
 const loadingProfile = ref(false);
+
+// 自己的主页不显示举报；未登录也不显示（后端要求登录才能举报）
+const canReportUser = computed(
+  () =>
+    userStore.isLogin &&
+    !!profile.value &&
+    String(userStore.user?.id) !== String(profile.value.id)
+);
+
+const handleReportUser = () => {
+  if (!profile.value) return;
+  reportStore.open({
+    type: "user",
+    id: profile.value.id,
+    label: `${profile.value.name || "该用户"} 的主页`,
+  });
+};
 
 const posts = reactive({
   list: [],
@@ -283,6 +315,30 @@ watch(
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* 举报用户：低调的描边小胶囊，hover 才变粉色（避免像主操作按钮） */
+.profile-card__report {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    color 0.2s;
+}
+
+.profile-card__report:hover {
+  border-color: #fb7299;
+  color: #fb7299;
 }
 
 .profile-card__name {

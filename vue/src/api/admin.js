@@ -48,6 +48,33 @@ export function updateUserStyle(userId, data) {
   })
 }
 
+/**
+ * 处罚用户。
+ *
+ * @param {number} userId
+ * @param {{ level: 1 | 2, days: number, reason?: string }} payload
+ *        level 1 = 禁言（能登录，不能发帖评论），2 = 封号（不能登录）；
+ *        days 正数按天，-1 表示永久
+ */
+export function punishUser(userId, payload) {
+  return request({
+    url: `/admin/user/${userId}/punish`,
+    method: 'post',
+    data: payload,
+  })
+}
+
+/**
+ * 解除处罚（禁言和封号都走这里）。
+ * 永久处罚没有到期时间，只能靠这个接口撤销。
+ */
+export function unbanUser(userId) {
+  return request({
+    url: `/admin/user/${userId}/unban`,
+    method: 'post',
+  })
+}
+
 /* ---------------- 角色权限 ---------------- */
 
 /** 角色列表：每个角色带已勾选的权限码 + 名下用户数 */

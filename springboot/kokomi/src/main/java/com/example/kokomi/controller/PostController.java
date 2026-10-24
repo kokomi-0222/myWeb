@@ -54,6 +54,14 @@ public class PostController {
         return Result.success(postService.createPost(dto));
     }
 
+    // 编辑帖子（Service 层校验：作者本人 或 拥有 post:edit 权限）
+    @PutMapping("/{postId}")
+    public Result<PostDetailVO> updatePost(
+            @PathVariable Long postId,
+            @Valid @RequestBody CreatePostDTO dto) {
+        return Result.success(postService.updatePost(postId, dto));
+    }
+
     // 删除帖子（Service 层校验：作者本人 或 拥有 post:delete 权限）
     @DeleteMapping("/{postId}")
     public Result<Void> deletePost(@PathVariable Long postId) {

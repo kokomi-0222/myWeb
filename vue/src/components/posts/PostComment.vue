@@ -19,6 +19,10 @@
         <Avatar :src="userStore.user?.avatar" alt="" :size="40" />
         <div class="comment-input-area">
           <div v-if="!userStore.isLogin" class="comment-login-tip" @click="ui.openLoginModal()">登录后可发表评论~</div>
+          <!-- 禁言：换成只读提示，别让人写完一大段才被后端拒 -->
+          <div v-else-if="userStore.isMuted" class="comment-muted-tip">
+            {{ userStore.muteText }}
+          </div>
           <InputTextarea v-else v-model="commentContent" placeholder="天青色等烟雨，而我在等你..." @submit="handleCommentSubmit" :max-image-count="1" />
         </div>
       </div>
@@ -68,6 +72,13 @@
                   回复
                 </button>
                 <button
+                  v-if="canReportComment(comment)"
+                  class="comment-action"
+                  @click="handleReportComment(comment)"
+                >
+                  举报
+                </button>
+                <button
                   v-if="canDeleteComment(comment)"
                   class="comment-action comment-action--danger"
                   @click="handleCommentDelete(comment)"
@@ -107,6 +118,13 @@
                     </button>
                     <button class="reply-meta-action" @click="toggleReplyInput(comment.id, reply.author.name)">
                       回复
+                    </button>
+                    <button
+                      v-if="canReportComment(reply)"
+                      class="reply-meta-action"
+                      @click="handleReportComment(reply)"
+                    >
+                      举报
                     </button>
                     <button
                       v-if="userStore.user?.id === reply.author.id"
@@ -161,7 +179,8 @@
             <div v-if="showReplyInputId === comment.id" class="reply-input">
               <Avatar :src="userStore.user?.avatar" alt="" :size="40" />
               <div class="reply-input-area">
-                <InputTextarea  v-model="replyInputs[comment.id]" :placeholder="replyTargets[comment.id]
+                <div v-if="userStore.isMuted" class="comment-muted-tip">{{ userStore.muteText }}</div>
+                <InputTextarea  v-else v-model="replyInputs[comment.id]" :placeholder="replyTargets[comment.id]
                 ? `回复 @${replyTargets[comment.id]}`
                 : `回复 @${comment.author.name}`
                 " @submit="submitReply(comment.id)" 
@@ -195,12 +214,28 @@ import { ref, onMounted, onUnmounted, computed, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
+import { useReportStore } from "@/stores/report";
 import { formatRelativeTime, formatAbsoluteTime } from "@/utils/time";
+import { normalizeContent } from "@/utils/contentText";
 import { getComments, getCommentsPaginated, createComment, deleteComment, likeComment, unlikeComment } from "@/api/posts";
 import { uploadPostImage } from "@/api/file";
 import IconLike from "@/components/icons/IconLike.vue";
 const ui = useUIStore();
 const userStore = useUserStore();
+const reportStore = useReportStore();
+
+// 自己的评论不显示举报入口；未登录也不显示（登录用户才能举报）
+const canReportComment = (item) =>
+  userStore.isLogin && String(userStore.user?.id) !== String(item?.author?.id);
+
+const handleReportComment = (item) => {
+  const text = String(item.content || "").replace(/\s+/g, " ").trim();
+  reportStore.open({
+    type: "comment",
+    id: item.id,
+    label: text ? text.slice(0, 40) : "这条评论",
+  });
+};
 const router = useRouter();
 
 const sortOptions = [
@@ -279,7 +314,11 @@ const handleCommentSubmit = async (payload) => {
       imageUrl = uploadRes.data?.url || uploadRes.data;
     }
 
-    const res = await createComment(props.postId, { content: content.trim(), image: imageUrl });
+    // 保留行首缩进，只清尾部空白（后端也会做一次同样的规范化）
+    const res = await createComment(props.postId, {
+      content: normalizeContent(content),
+      image: imageUrl,
+    });
     // 新评论添加到列表顶部（全量模式仅添加顶级评论，回复不影响列表）
     const newComment = res.data;
     if (!newComment.parentId || props.mode === "full") {
@@ -313,8 +352,9 @@ const toggleReplyInput = (commentId, targetName) => {
 };
 
 const submitReply = async (commentId) => {
-  let content = replyInputs.value[commentId]?.trim();
-  if (!content) return;
+  // 同评论正文：保留行首缩进，纯空白视为空
+  let content = normalizeContent(replyInputs.value[commentId]);
+  if (!content.trim()) return;
   const target = replyTargets.value[commentId];
   if (target && !content.startsWith(`@${target}`)) {
     content = `@${target} ${content}`;
@@ -734,6 +774,23 @@ const previewImage = (url) => {
 .comment-login-tip:hover {
   border-color: var(--primary-color);
   color: var(--primary-color);
+}
+
+/* 被禁言：和登录提示同样大小，但不可点——这是「不能做」而不是「缺一步」 */
+.comment-muted-tip {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: #fb7299;
+  background: rgba(251, 114, 153, 0.08);
+  border: 1px solid rgba(251, 114, 153, 0.35);
+  border-radius: 8px;
+  word-break: break-word;
 }
 
 /* 左 12px = 评论头像的 margin-right，让输入框和评论首行文字左对齐 */

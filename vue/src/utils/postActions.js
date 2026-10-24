@@ -10,10 +10,13 @@ export const ALL_ACTIONS = [
   {
     key: 'edit',
     label: '编辑',
-    requiredPermission: ({ isOwnPost }) => isOwnPost,
-    handler: () => {
-      // 待实现：跳转编辑页（复用发布框，回填原内容）
-    }
+    // 自己的帖子都能改；改别人的需要 post:edit（版主 / 编辑 / 管理员）。
+    // 这只是「菜单显不显示」，真正的权限判断在后端 updatePost 里。
+    requiredPermission: ({ isOwnPost }) =>
+      isOwnPost || usePermission().hasPermission('post:edit'),
+    // 跳转逻辑在 PostCard.moreActionsHandle 里拦截（需要 router 实例，
+    // 放这里会形成 utils ⇄ router 的循环依赖）。
+    handler: () => {}
   },
   {
     key: 'delete',
@@ -27,10 +30,12 @@ export const ALL_ACTIONS = [
   {
     key: 'report',
     label: '举报',
-    requiredPermission: 'post:report', // 需要该权限
-    handler: () => {
-      // 待实现：举报弹窗 / 提交流程
-    }
+    // 举报是每个登录用户的权利，不是特权，所以不挂权限码。
+    // 旧版写的是 requiredPermission: 'post:report'，但权限表里根本没有这个码，
+    // 结果就是这一项永远不会出现在菜单里。这里只判断「不是自己的帖子」，
+    // 未登录时点击会弹登录框（见 PostCard.moreActionsHandle）。
+    requiredPermission: ({ isOwnPost }) => !isOwnPost,
+    handler: () => {}
   },
   {
     key: 'block',

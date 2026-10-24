@@ -20,6 +20,7 @@
         >
           <component :is="item.icon" :size="18" />
           <span>{{ item.text }}</span>
+          <em v-if="item.badge" class="admin-nav__badge">{{ item.badge }}</em>
         </RouterLink>
       </nav>
 
@@ -63,16 +64,18 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, watch, ref } from "vue";
 import { useRoute } from "vue-router";
 import router from "@/router";
 import IconDashboard from "@/components/icons/IconDashboard.vue";
 import IconUser from "@/components/icons/IconUser.vue";
 import IconFlag from "@/components/icons/IconFlag.vue";
+import IconAlert from "@/components/icons/IconAlert.vue";
 import IconShield from "@/components/icons/IconShield.vue";
 import IconHome from "@/components/icons/IconHome.vue";
 import IconDark from "@/components/icons/IconDark.vue";
 import IconLight from "@/components/icons/IconLight.vue";
+import { getReportList } from "@/api/reports";
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
 
@@ -80,12 +83,36 @@ const route = useRoute();
 const uiStore = useUIStore();
 const userStore = useUserStore();
 
-const menuList = [
+// 待处理举报数量：只用来给菜单加个红点，失败就算了，不影响进后台
+const pendingReport = ref(0);
+
+async function loadPendingReport() {
+  try {
+    const res = await getReportList({ pageNum: 1, pageSize: 1, status: 0 });
+    if (res.code === 200) {
+      pendingReport.value = res.data?.total || 0;
+    }
+  } catch {
+    // 忽略
+  }
+}
+
+// 每次切回「举报处理」重新拉一次：在那边处理完举报，回到菜单徽标要跟着减
+watch(
+  () => route.path,
+  (path) => {
+    if (path.startsWith("/admin")) loadPendingReport();
+  },
+  { immediate: true }
+);
+
+const menuList = computed(() => [
   { path: "/admin/dashboard", text: "概览", icon: IconDashboard },
   { path: "/admin/users", text: "用户管理", icon: IconUser },
   { path: "/admin/roles", text: "角色权限", icon: IconShield },
+  { path: "/admin/reports", text: "举报处理", icon: IconAlert, badge: pendingReport.value || 0 },
   { path: "/admin/topics", text: "话题管理", icon: IconFlag },
-];
+]);
 
 // 顶栏标题跟着路由的 meta.name 走，加新页面时只改路由表
 const pageTitle = computed(() => route.meta?.name || "管理后台");
@@ -175,6 +202,22 @@ const goFront = () => router.push("/");
   transition:
     background-color 0.15s ease,
     color 0.15s ease;
+}
+
+/* 待处理数量徽标：靠右贴边，数字超过 99 显示 99+ */
+.admin-nav__badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #fb7299;
+  color: #fff;
+  font-size: 0.68rem;
+  font-style: normal;
+  line-height: 18px;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .admin-nav__item:hover {

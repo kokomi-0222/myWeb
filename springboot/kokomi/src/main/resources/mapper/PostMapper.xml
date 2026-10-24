@@ -98,6 +98,17 @@
         SELECT * FROM post WHERE id = #{id}
     </select>
 
+    <!-- 编辑帖子：views / likes / comments / forwards 一律不动，
+         这些是别人留下的互动数据，作者改文案不该把它们清零 -->
+    <update id="update">
+        UPDATE post
+        SET title = #{title},
+            content = #{content},
+            type = #{type},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
     <delete id="deleteById">
         DELETE FROM post WHERE id = #{id}
     </delete>

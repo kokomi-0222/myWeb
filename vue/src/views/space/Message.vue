@@ -102,6 +102,7 @@ const TYPE_LABEL = {
   comment: "评论",
   reply: "回复",
   forward: "转发",
+  report_result: "举报结果",
 };
 
 function typeLabel(type) {
@@ -325,6 +326,11 @@ onMounted(() => {
 .msg-item__type--forward {
   color: #8b5cf6;
   background: rgba(139, 92, 246, 0.12);
+}
+
+.msg-item__type--report_result {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.14);
 }
 
 .msg-item__time {

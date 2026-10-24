@@ -21,4 +21,15 @@ public interface AdminUserService {
 
     /** 设置某个用户的外观光效：名字颜色 + 身份标签底色（空表示恢复默认） */
     void updateStyle(Long userId, com.example.kokomi.dto.UpdateUserStyleDTO dto);
+
+    /**
+     * 直接处罚某个用户。
+     * <p>
+     * 和举报处理里的「处罚作者」是同一套逻辑（{@link com.example.kokomi.service.UserBanService}），
+     * 区别只是入口不同：这里不需要先有一条举报。
+     */
+    void punish(Long userId, com.example.kokomi.dto.AdminPunishDTO dto);
+
+    /** 解除处罚（禁言和封号都从这里撤销；永久处罚也只能在这里撤销） */
+    void unban(Long userId);
 }

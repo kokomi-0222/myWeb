@@ -18,6 +18,9 @@ public interface CommentService {
     // 删除评论
     void deleteComment(Long commentId);
 
+    /** 后台举报处理专用：不做权限校验，幂等。调用方必须已校验 user:manage */
+    void deleteCommentByAdmin(Long commentId);
+
     // 点赞评论
     void likeComment(Long commentId);
 

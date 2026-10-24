@@ -4,6 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
 
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.kokomi.bo.UserBO;
+import com.example.kokomi.common.BanLevel;
+import com.example.kokomi.common.BanText;
 import com.example.kokomi.common.Result;
 import com.example.kokomi.common.ResultCode;
 import com.example.kokomi.dto.EncryptDataDTO;
@@ -104,6 +107,18 @@ public class UserServiceImpl implements UserService {
         if (!BCrypt.checkpw(dto.getPassword(), user.getPassword())) {
             throw new CustomerException(ResultCode.LOGIN_ERROR, "账号或密码不正确");
         }
+
+        // 处罚校验放在密码之后：不让不知道密码的人探出「这个账号被处理过」
+        autoReleaseIfExpired(user);
+        if (BanLevel.isBanned(user.getStatus())) {
+            // 封号：连登录都不给
+            throw new CustomerException(ResultCode.LOGIN_ERROR,
+                    BanText.loginDenied(user.getBanUntil(), user.getBanReason()));
+        }
+        // 禁言：允许登录，只是发不出内容。
+        // 放行的同时把 status 带给前端，让它把发布框禁掉，
+        // 而不是等人写完一大段才被后端拦下来。
+
         //转换 + 赋值角色权限
         UserBO userBO = convertToUserBO(user);
         userBO.setRoles(userRoleMapper.selectRolesByUserId(user.getId()));
@@ -224,10 +239,36 @@ public class UserServiceImpl implements UserService {
             throw new CustomerException(ResultCode.REGISTER_ERROR, "用户不存在");
         }
 
+        // 临时处罚到期就顺手解除。
+        // 只在「登录」和「发内容」时解除是不够的：一个禁言的人整天挂着页面、
+        // 又没打算发帖，到点了前端还显示「你已被禁言」。
+        // 读用户信息是最常走的入口，补在这里，他刷新一下页面就能恢复。
+        autoReleaseIfExpired(user);
+
         UserBO userBO = convertToUserBO(user);
         userBO.setRoles(userRoleMapper.selectRolesByUserId(user.getId()));
         userBO.setPermissions(rolePermissionMapper.selectPermissionsByUserId(user.getId()));
         return userBO;
+    }
+
+    /**
+     * 临时处罚到期就顺手解除（就地改传入的 user，不重新查库）。
+     * <p>
+     * 登录、读用户信息、发内容这三个入口都会调一次。没有定时任务，
+     * 也不用担心「到点了但没人碰这个账号」：只要他还在用，总会走到其中一个入口。
+     * 永久处罚（ban_until 为 null）不会被动到。
+     */
+    private void autoReleaseIfExpired(User user) {
+        if (!BanLevel.isPunished(user.getStatus())) {
+            return;
+        }
+        if (user.getBanUntil() == null || !user.getBanUntil().isBefore(LocalDateTime.now())) {
+            return;
+        }
+        userMapper.unbanUser(user.getId());
+        user.setStatus(BanLevel.NORMAL);
+        user.setBanUntil(null);
+        user.setBanReason(null);
     }
 
 
@@ -439,6 +480,9 @@ public class UserServiceImpl implements UserService {
         userBO.setPhone(user.getPhone());
         userBO.setSignature(user.getSignature());
         userBO.setTokenVersion(user.getTokenVersion());
+        userBO.setStatus(user.getStatus() == null ? BanLevel.NORMAL : user.getStatus());
+        userBO.setBanUntil(user.getBanUntil());
+        userBO.setBanReason(user.getBanReason());
         return userBO;
     }
 }

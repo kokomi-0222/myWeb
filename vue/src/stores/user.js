@@ -75,6 +75,27 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  /**
+   * 悄悄刷新一次用户信息（不碰 isLoading）。
+   * <p>
+   * isLoading 会参与 isLogin 计算，一置 true 页面上的发布框就会瞬间
+   * 掉成「登录后可评论」再变回来，闪得很明显。这里只更新 user/roles/权限。
+   */
+  const refreshUser = async () => {
+    if (!token.value) return
+    try {
+      const res = await apiGetUserInfo()
+      if (res?.data && setting.successCode.includes(res.code)) {
+        user.value = res.data.user
+        roles.value = res.data.roles || []
+        initPermissions(res.data.permissions || [])
+      }
+    } catch (err) {
+      // 刷新失败不处理：后端下次还会拦，界面保持原样就行
+      console.error(err)
+    }
+  }
+
   const updateProfile = async (formData) => {
     isLoading.value = true
     try {
@@ -156,6 +177,48 @@ export const useUserStore = defineStore('user', () => {
     return { role: code, name: roleLabelOf(code), color: '#fb7299' }
   })
 
+  // ---- 处罚状态（0 正常 / 1 禁言 / 2 封号）----
+  // 封号根本登不进来，所以前端真正要处理的是 1：能浏览，但不能发内容。
+  // 这只是体验层：真正的拦截在后端发帖/评论接口里，改前端绕不过去。
+  const banStatus = computed(() => user.value?.status || 0)
+  const isMuted = computed(() => banStatus.value === 1)
+
+  /** 解除时间文案：永久 / 11-01 12:00 */
+  const banUntilText = computed(() => {
+    const raw = user.value?.banUntil
+    if (!raw) return '永久'
+    const d = new Date(raw)
+    if (Number.isNaN(d.getTime())) return '稍后'
+    const pad = (n) => String(n).padStart(2, '0')
+    return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  })
+
+  /** 给提示条用的一句话（评论框那种没有独立标题的地方用） */
+  const muteText = computed(() => {
+    if (!isMuted.value) return ''
+    const reason = user.value?.banReason ? `，原因：${user.value.banReason}` : ''
+    return `你已被禁言（${banUntilText.value} 解除），暂时无法发布内容和评论${reason}`
+  })
+
+  /**
+   * 提示卡的副标题：标题已经写了「你已被禁言」，这里只补期限和原因，
+   * 不然卡片上会出现两遍「你已被禁言」。
+   */
+  const muteDetail = computed(() => {
+    if (!isMuted.value) return ''
+    const reason = user.value?.banReason ? `，原因：${user.value.banReason}` : ''
+    const when = user.value?.banUntil ? `${banUntilText.value} 解除` : '永久禁言，不会自动解除'
+    return `${when}，期间无法发布内容、评论和回复${reason}`
+  })
+
+  // 后端回了「你已被禁言」（说明发帖 / 评论被拦了）时，立刻把用户信息拉新一次。
+  // 发布框和评论框会马上换成提示条，不用重新登录、也不用等用户自己刷新。
+  // 禁言不再作废 token，所以这是前端感知处罚的唯一时机。
+  // setup store 只在第一次 useUserStore() 时执行，监听不会重复挂。
+  if (typeof window !== 'undefined') {
+    window.addEventListener('kokomi:muted', refreshUser)
+  }
+
   return {
     user,
     roles,
@@ -163,8 +226,14 @@ export const useUserStore = defineStore('user', () => {
     isLoading,
     isLogin,
     primaryRole,
+    banStatus,
+    isMuted,
+    banUntilText,
+    muteText,
+    muteDetail,
     login,
     getUserInfo,
+    refreshUser,
     logout,
     register,
     updateProfile,

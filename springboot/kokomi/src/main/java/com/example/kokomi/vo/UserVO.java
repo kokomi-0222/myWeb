@@ -1,7 +1,10 @@
 package com.example.kokomi.vo;
 
+import com.example.kokomi.bo.UserBO;
+
 import lombok.Data;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 public class UserVO {
@@ -19,4 +22,38 @@ public class UserVO {
     private String gender;
     private String phone;
     private String signature;
+
+    /** 0 正常 / 1 禁言（能登录不能发帖评论）/ 2 封号（不能登录） */
+    private Integer status;
+    /** 解除时间，null 且 status != 0 表示永久 */
+    private LocalDateTime banUntil;
+    private String banReason;
+
+    /**
+     * 标准转换：BO → VO。
+     * <p>
+     * 登录和 /user/info 两个返回体都用它，避免字段各加各的——
+     * 之前两份手写映射，加一个字段漏一处，前端就会出现「刷新后有、刚登录没有」。
+     */
+    public static UserVO fromBO(UserBO bo) {
+        UserVO vo = new UserVO();
+        vo.setId(bo.getId());
+        vo.setUsername(bo.getUsername());
+        vo.setName(bo.getName());
+        vo.setNameColor(bo.getNameColor());
+        vo.setRoleColor(bo.getRoleColor());
+        vo.setPrimaryRole(bo.getPrimaryRole());
+        vo.setAvatar(bo.getAvatar());
+        vo.setBadge(bo.getBadge());
+        vo.setOrnament(bo.getOrnament());
+        vo.setBirthday(bo.getBirthday());
+        vo.setEmail(bo.getEmail());
+        vo.setGender(bo.getGender());
+        vo.setPhone(bo.getPhone());
+        vo.setSignature(bo.getSignature());
+        vo.setStatus(bo.getStatus() == null ? 0 : bo.getStatus());
+        vo.setBanUntil(bo.getBanUntil());
+        vo.setBanReason(bo.getBanReason());
+        return vo;
+    }
 }

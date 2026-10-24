@@ -105,8 +105,9 @@
           </div>
           <p v-if="groups.length === 0" class="perm-empty">权限字典是空的，先执行 sql_role_manage.sql</p>
           <p class="perm-note">
-            标「未启用」的权限，后端对应功能还没做（例如「封禁用户」这类操作还没有入口），
-            勾上暂时不会有反应。目前真正在生效的是「删除他人帖子」「新建话题」「管理后台」。
+            标「未启用」的权限，后端对应功能还没做，勾上暂时不会有反应。
+            目前真正生效的是「编辑他人帖子」「删除他人帖子」「新建话题」「管理后台」。
+            举报功能不占权限码：任何登录用户都能举报，处理举报归在「管理后台」里。
           </p>
         </div>
 
@@ -164,7 +165,8 @@ const roleStore = useRoleStore();
  * 免得站长以为给了权限却「怎么还是不行」。
  * 后端新增校验时，这里同步加一个码。
  */
-const ENFORCED_PERMS = new Set(["post:delete", "topic:create", "user:manage"]);
+// 后端真正会校验的权限码。新增校验时记得同步这里，否则页面上还标着「未启用」
+const ENFORCED_PERMS = new Set(["post:edit", "post:delete", "topic:create", "user:manage"]);
 
 const roles = ref([]);
 const permissionDict = ref([]);

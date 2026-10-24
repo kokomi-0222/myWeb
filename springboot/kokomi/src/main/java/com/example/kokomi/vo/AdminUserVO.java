@@ -24,4 +24,10 @@ public class AdminUserVO {
     /** user_role 里挂着的角色编码 */
     private List<String> roles;
     private LocalDateTime createTime;
+
+    /** 0 正常 / 1 禁言（能登录不能发帖评论）/ 2 封号（不能登录） */
+    private Integer status;
+    /** 解除时间，null 且 status != 0 表示永久 */
+    private LocalDateTime banUntil;
+    private String banReason;
 }

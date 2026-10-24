@@ -72,7 +72,8 @@ public interface UserMapper {
      */
     @Select("""
             <script>
-            select id, username, name, name_color, role_color, avatar, primary_role, create_time
+            select id, username, name, name_color, role_color, avatar, primary_role,
+                   status, ban_until, ban_reason, create_time
             from user
             <where>
                 <if test="keyword != null and keyword != ''">
@@ -126,5 +127,46 @@ public interface UserMapper {
      */
     @Update("update user set primary_role = #{roleCode} where id = #{userId}")
     int updatePrimaryRole(@Param("userId") Long userId, @Param("roleCode") String roleCode);
+
+    /**
+     * 处罚用户（禁言 / 封号，见 {@link com.example.kokomi.common.BanLevel}）。
+     * <p>
+     * <b>封号</b>（status=2）必须把 token_version + 1：这样对方已登录的旧 token
+     * 会在下一次请求时被 LoginInterceptor 判定为版本不一致，立刻失效，
+     * 不需要任何额外的拦截逻辑。
+     * <p>
+     * <b>禁言</b>（status=1）不碰 token_version —— 禁言的本意就是「还能看帖、还能登录」，
+     * 把人踢下线是多余的伤害。禁言的拦截点在 Service 层（发帖 / 评论 / 编辑前查库），
+     * 不依赖 token 版本，所以不加也能拦住。
+     * <p>
+     * 所以这里用 {@code + #{bumpToken}}（传 0 或 1）而不是写死 +1：
+     * MySQL 里 {@code token_version + 0} 等于原值，一条 SQL 就能覆盖两种情况，
+     * 不用为「要不要踢下线」再写第二个 update。
+     *
+     * @param status    1 禁言 / 2 封号
+     * @param banUntil  解除时间，null 表示永久
+     * @param bumpToken 1 = 作废现有登录态；0 = 保持登录
+     */
+    @Update("""
+            update user
+            set status = #{status},
+                ban_until = #{banUntil},
+                ban_reason = #{reason},
+                token_version = token_version + #{bumpToken}
+            where id = #{userId}
+            """)
+    int banUser(@Param("userId") Long userId,
+                @Param("status") int status,
+                @Param("banUntil") java.time.LocalDateTime banUntil,
+                @Param("reason") String reason,
+                @Param("bumpToken") int bumpToken);
+
+    /** 解除处罚（禁言 / 封号共用，也用于临时处罚到期后的自动解除） */
+    @Update("update user set status = 0, ban_until = null, ban_reason = null where id = #{userId}")
+    int unbanUser(@Param("userId") Long userId);
+
+    /** 只查封禁相关字段，避免为了一个 status 把密码哈希也读出来 */
+    @Select("select id, status, ban_until, ban_reason from user where id = #{userId}")
+    User selectBanState(@Param("userId") Long userId);
 
 }

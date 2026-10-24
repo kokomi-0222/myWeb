@@ -28,9 +28,11 @@ import com.example.kokomi.mapper.PostMapper;
 import com.example.kokomi.mapper.RolePermissionMapper;
 import com.example.kokomi.mapper.UserMapper;
 import com.example.kokomi.mapper.UserRoleMapper;
+import com.example.kokomi.util.TextUtils;
 import com.example.kokomi.util.PermissionCache;
 import com.example.kokomi.service.CommentService;
 import com.example.kokomi.service.NotificationService;
+import com.example.kokomi.service.UserBanService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.vo.CommentAuthorVO;
 import com.example.kokomi.vo.CommentVO;
@@ -49,6 +51,7 @@ public class CommentServiceImpl implements CommentService {
     private final UserRoleMapper userRoleMapper;
     private final RolePermissionMapper rolePermissionMapper;
     private final NotificationService notificationService;
+    private final UserBanService userBanService;
 
     @Value("${app.upload-path}")
     private String uploadPath;
@@ -135,6 +138,8 @@ public class CommentServiceImpl implements CommentService {
     @Transactional(rollbackFor = Exception.class)
     public CommentVO createComment(Long postId, String content, Long parentId, String replyTo, String image) {
         Long userId = LoginUserHolder.getUserId();
+        // 评论和回复都走这里，禁言 / 封号的人一律拦住
+        userBanService.checkCanSpeak(userId);
 
         Post post = postMapper.selectById(postId);
         if (post == null) {
@@ -156,7 +161,7 @@ public class CommentServiceImpl implements CommentService {
         Comment comment = new Comment();
         comment.setPostId(postId);
         comment.setUserId(userId);
-        comment.setContent(content != null ? content.trim() : "");
+        comment.setContent(TextUtils.normalizeContent(content));
         comment.setParentId(parentId);
         comment.setReplyTo(replyTo);
         // 仅顶级评论可带图片，将图片从 temp 移到 images
@@ -254,6 +259,25 @@ public class CommentServiceImpl implements CommentService {
         boolean hasDeletePerm = hasPermission(currentUserId, "post:delete");
         if (!isOwner && !isPostAuthor && !hasDeletePerm) {
             throw new CustomerException(ResultCode.NO_PERMISSION, "无权删除该评论");
+        }
+
+        deleteCommentInternal(commentId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteCommentByAdmin(Long commentId) {
+        if (commentMapper.selectById(commentId) == null) {
+            return; // 已经被作者自己删掉了，幂等返回
+        }
+        deleteCommentInternal(commentId);
+    }
+
+    /** 真正的删除动作：子回复 + 图片 + 点赞 + 评论计数，权限判断在入口方法里 */
+    private void deleteCommentInternal(Long commentId) {
+        Comment comment = commentMapper.selectById(commentId);
+        if (comment == null) {
+            return;
         }
 
         // 删除子回复（先删图片文件，再删DB记录）

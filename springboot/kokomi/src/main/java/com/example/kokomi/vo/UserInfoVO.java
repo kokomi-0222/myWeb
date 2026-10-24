@@ -1,7 +1,6 @@
 package com.example.kokomi.vo;
 
 import com.example.kokomi.bo.UserBO;
-import com.example.kokomi.util.JwtUtil;
 import lombok.Data;
 
 import java.util.List;
@@ -19,29 +18,9 @@ public class UserInfoVO {
      */
     public static UserInfoVO fromUserBO(UserBO bo) {
         UserInfoVO vo = new UserInfoVO();
-
-        // 用户信息转换
-        UserVO userVO = new UserVO();
-        userVO.setId(bo.getId());
-        userVO.setUsername(bo.getUsername());
-        userVO.setName(bo.getName());
-        userVO.setNameColor(bo.getNameColor());
-        userVO.setRoleColor(bo.getRoleColor());
-        userVO.setPrimaryRole(bo.getPrimaryRole());
-        userVO.setAvatar(bo.getAvatar());
-        userVO.setBadge(bo.getBadge());
-        userVO.setOrnament(bo.getOrnament());
-        userVO.setBirthday(bo.getBirthday());
-        userVO.setEmail(bo.getEmail());
-        userVO.setGender(bo.getGender());
-        userVO.setPhone(bo.getPhone());
-        userVO.setSignature(bo.getSignature());
-
-        // 角色 + 权限
-        vo.setUser(userVO);
+        vo.setUser(UserVO.fromBO(bo));
         vo.setRoles(bo.getRoles());
         vo.setPermissions(bo.getPermissions());
-
         return vo;
     }
 }

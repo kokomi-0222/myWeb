@@ -66,7 +66,9 @@ public class LoginInterceptor implements HandlerInterceptor {
 
         //System.out.println("dbVersion:" + dbVersion);
         if (!dbVersion.equals(tokenVersion)) {
-            throw new CustomerException(ResultCode.AUTHOR_ERROR, "密码已修改，请重新登录");
+            // 改密码、被举报封禁（token_version+1）都会走到这里，
+            // 所以文案保持中性，不写「密码已修改」以免误导被封禁的用户
+            throw new CustomerException(ResultCode.AUTHOR_ERROR, "登录状态已失效，请重新登录");
         }
         //System.out.println("setUserId:" + userId);
         LoginUserHolder.setUserId(userId);

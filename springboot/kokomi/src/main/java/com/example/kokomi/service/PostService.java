@@ -26,8 +26,20 @@ public interface PostService {
     // 发布帖子
     PostDetailVO createPost(CreatePostDTO dto);
 
+    // 编辑帖子（作者本人，或拥有 post:edit 权限的人）
+    PostDetailVO updatePost(Long postId, CreatePostDTO dto);
+
     // 删除帖子
     void deletePost(Long postId);
+
+    /**
+     * 后台举报处理专用：不做作者 / 权限校验，直接删除（幂等，帖子已不在则静默返回）。
+     * <p>
+     * 调用方必须已经用 {@code user:manage} 校验过身份。单独开这个方法而不是复用
+     * {@link #deletePost}，是因为处理举报的管理员角色不一定带 {@code post:delete}
+     * （比如自建了一个只勾了「后台管理」的角色），复用会莫名 403。
+     */
+    void deletePostByAdmin(Long postId);
 
     // 点赞
     void like(Long postId);

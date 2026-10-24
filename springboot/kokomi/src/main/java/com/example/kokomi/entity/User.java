@@ -31,4 +31,11 @@ public class User {
     private LocalDateTime createTime;
     private Integer tokenVersion;
 
+    /** 账号状态：0 正常 / 1 禁言（能登录不能发言）/ 2 封号（不能登录），见 BanLevel */
+    private Integer status;
+    /** 解除时间；为空且 status != 0 表示永久 */
+    private LocalDateTime banUntil;
+    /** 处罚理由，本人登录 / 发言被拦时展示 */
+    private String banReason;
+
 }

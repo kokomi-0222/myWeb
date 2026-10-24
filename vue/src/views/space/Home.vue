@@ -23,9 +23,46 @@
       </div>
     </div>
     <div class="user-tips">
-      <span class="user-tips-text"> 今天想说些什么呢？ </span>
+      <span class="user-tips-text">
+        <template v-if="userStore.isMuted">你暂时不能发布新内容</template>
+        <template v-else>{{ editingPost ? "正在编辑已发布的帖子" : "今天想说些什么呢？" }}</template>
+      </span>
     </div>
-    <div class="publishing">
+    <!--
+      被禁言：不给一个点了会报错的编辑框，直接把原因和期限摆出来。
+      后端接口同样会拦（绕过前端也没用），这里只是别让人白写一大段。
+    -->
+    <div v-if="userStore.isMuted" class="muted-notice">
+      <IconAlert size="18" />
+      <div class="muted-notice__body">
+        <p class="muted-notice__title">你已被禁言</p>
+        <p class="muted-notice__desc">{{ userStore.muteDetail }}</p>
+      </div>
+      <!--
+        禁言到期后后端不会再主动推，页面也不会自己变回发布框。
+        给一个手动检查的入口，省得用户为了恢复发布非要整页刷新一遍。
+      -->
+      <button
+        type="button"
+        class="muted-notice__refresh"
+        :disabled="muteRefreshing"
+        @click="handleRefreshMute"
+      >
+        {{ muteRefreshing ? "检查中…" : "刷新状态" }}
+      </button>
+    </div>
+    <div v-else ref="publishingRef" class="publishing" :class="{ 'is-editing': editingPost }">
+      <!-- 编辑模式提示条：明确当前不是新发布，避免误以为会再发一条 -->
+      <div v-if="editingPost" class="edit-banner">
+        <IconEdit size="16" />
+        <span class="edit-banner__text">
+          正在编辑{{ editingPost.title ? `《${editingPost.title}》` : "这条帖子" }}<span class="edit-banner__hint">，保存后原帖会更新</span>
+        </span>
+        <button type="button" class="edit-banner__cancel" @click="exitEdit">
+          取消编辑
+        </button>
+      </div>
+
       <div class="publishing-title">
         <label :for="id"> 标题：</label>
         <input
@@ -80,6 +117,7 @@
           placeholder="写下你的想法吧"
           :maxlength="setting.postMaxLength"
           @input="handleContentInput"
+          @keydown="handleContentKeydown"
         />
         <div ref="previewContainerRef" class="image-preview-content"></div>
       </div>
@@ -90,8 +128,10 @@
           <InputEmoji @select="selectEmoji" />
           <!--图片按钮 -->
           <InputImage
+            ref="imageInputRef"
             :preview-container="previewContainerRef"
             @change="handleImageChange"
+            @change-total="handleMediaTotalChange"
             :max-count="20"
           />
         </div>
@@ -112,7 +152,10 @@
               submitting
             "
           >
-                        {{ submitting ? '发布中...' : '发布' }}
+            <template v-if="submitting">
+              {{ editingPost ? "保存中..." : "发布中..." }}
+            </template>
+            <template v-else>{{ editingPost ? "保存修改" : "发布" }}</template>
           </Button>
         </div>
       </div>
@@ -171,13 +214,18 @@ import {
   nextTick,
 } from "vue";
 import setting from "@/config/setting";
-import { getMyPosts } from "@/api/posts";
-import { createPosts } from "@/api/posts";
+import { getMyPosts, getPostById } from "@/api/posts";
+import { createPosts, updatePosts } from "@/api/posts";
 import { uploadPostImage } from "@/api/file";
 import message from "@/utils/message";
+import { normalizeContent, isBlankContent } from "@/utils/contentText";
+import { handleTabIndent } from "@/utils/textareaTab";
 import { usePermission } from "@/utils/usePermission";
 import { roleBlockColor, contrastText } from "@/utils/roleTag";
 import { ElMessageBox } from "element-plus";
+import { useRoute, useRouter } from "vue-router";
+import IconEdit from "@/components/icons/IconEdit.vue";
+import IconAlert from "@/components/icons/IconAlert.vue";
 
 const uiStore = useUIStore();
 const userStore = useUserStore();
@@ -286,6 +334,21 @@ const handleContentInput = () => {
   }
 };
 
+/**
+ * 正文输入框的按键：
+ * - Tab → 插入 4 个空格（见 utils/textareaTab.js），不再把焦点跳到「发布」
+ * - Ctrl / Cmd + Enter → 提交，和评论框的快捷键习惯一致。
+ *   Tab 被缩进占用后，键盘用户没法按 Tab 走到发布按钮，这里补一个出口。
+ */
+const handleContentKeydown = (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+    e.preventDefault();
+    handleSubmit();
+    return;
+  }
+  handleTabIndent(e);
+};
+
 function selectEmoji(emoji) {
   publishingContentInnerValue.value += emoji;
 }
@@ -301,48 +364,72 @@ function handleImageChange(files) {
 
 const handleSubmit = async () => {
   const title = publishingTitleInnerValue.value.trim();
-  const content = publishingContentInnerValue.value.trim();
+  // 只清尾部空白与开头空行，保留首行缩进（显示端 white-space: pre-wrap 会如实还原）
+  const content = normalizeContent(publishingContentInnerValue.value);
 
-  if (!title && !content) return;
+  if (!title && isBlankContent(content)) return;
 
   submitting.value = true;
   try {
-    // 上传图片
+    // 按预览区顺序组装媒体：老图直接沿用 url（后端认出 /upload/images/ 就原样保留），
+    // 新选的图先上传换成临时 url，再由后端搬进 images 目录
     const mediaList = [];
-    if (imageFiles.value.length > 0) {
-      for (const file of imageFiles.value) {
-        try {
-          const res = await uploadPostImage(file);
-          if (setting.successCode.includes(res.code)) {
-            mediaList.push({
-              url: res.data.url,
-              type: res.data.type || 'image',
-              size: res.data.size || file.size,
-              format: res.data.format || '',
-            });
-          }
-        } catch (err) {
-          console.error('图片上传失败:', err);
+    for (const item of mediaTotal.value) {
+      if (item.remote && item.url) {
+        mediaList.push({ url: item.url, type: 'image' });
+        continue;
+      }
+      if (!item.file) continue;
+      try {
+        const res = await uploadPostImage(item.file);
+        if (setting.successCode.includes(res.code)) {
+          mediaList.push({
+            url: res.data.url,
+            type: res.data.type || 'image',
+            size: res.data.size || item.file.size,
+            format: res.data.format || '',
+          });
         }
+      } catch (err) {
+        console.error('图片上传失败:', err);
       }
     }
 
-    // 发布帖子
-    const res = await createPosts({
+    const isEdit = !!editingPost.value;
+    const payload = {
       title,
       content,
-      type: selectedCategory.value || undefined,
-      media: mediaList.length > 0 ? mediaList : undefined,
-    });
+      type: selectedCategory.value || (isEdit ? '' : undefined),
+      // 编辑时即使一张图都没有也要传空数组：这代表「图被我删光了」。
+      // 传 undefined 会被后端当成「这次没动图」而把原图留着。
+      media: isEdit ? mediaList : mediaList.length > 0 ? mediaList : undefined,
+    };
 
-    if (setting.successCode.includes(res.code)) {
-      message.success('发布成功!');
+    const res = isEdit
+      ? await updatePosts(editingPost.value.id, payload)
+      : await createPosts(payload);
 
-      // 清空表单
+    if (!setting.successCode.includes(res.code)) {
+      message.error(res.msg || (isEdit ? '保存失败' : '发布失败'));
+      return;
+    }
+
+    message.success(isEdit ? '已保存修改' : '发布成功!');
+
+    if (isEdit) {
+      exitEdit();
+      userPosts.currentPage = 1;
+      await loadPosts();
+      // 回到列表顶部，方便确认改动后的样子
+      mainView.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      // 清空表单（图片预览区也要清，否则发完图还挂在那里）
       publishingTitleInnerValue.value = '';
       publishingContentInnerValue.value = '';
       selectedCategory.value = '';
       imageFiles.value = [];
+      mediaTotal.value = [];
+      imageInputRef.value?.setRemoteImages([]);
       if (textareaRef.value) {
         textareaRef.value.style.height = 'auto';
       }
@@ -350,16 +437,118 @@ const handleSubmit = async () => {
       // 重新加载帖子列表
       userPosts.currentPage = 1;
       await loadPosts();
-    } else {
-      message.error(res.msg || '发布失败');
     }
   } catch (err) {
-    console.error('发布失败:', err);
-    message.error('发布失败');
+    console.error('提交失败:', err);
+    // 被禁言时拦截器已经弹了完整原因，发布框也会切成提示卡，别再叠一句「发布失败」
+    if (!err?.muted) {
+      message.error(editingPost.value ? '保存失败' : '发布失败');
+    }
   } finally {
     submitting.value = false;
   }
 };
+
+// ===== 编辑已有帖子 =====
+// 帖子卡片菜单「编辑」→ /space/home?edit={id}：复用顶部这个发布框，
+// 只是换成「保存修改」并把原标题、正文、话题、图片回填进来。
+const route = useRoute();
+const router = useRouter();
+const publishingRef = ref(null);
+const imageInputRef = ref(null);
+const editingPost = ref(null);
+// 预览区的完整列表（老图 + 新选的图），顺序就是提交顺序
+const mediaTotal = ref([]);
+// 防止图片被重复回填（user 晚到 / 组件重新挂载都会再触发一次）
+let mediaFilledFor = null;
+
+function handleMediaTotalChange(list) {
+  mediaTotal.value = list || [];
+}
+
+function applyEditingMedia() {
+  if (!editingPost.value || !imageInputRef.value) return;
+  if (mediaFilledFor === editingPost.value.id) return;
+  mediaFilledFor = editingPost.value.id;
+  imageInputRef.value.setRemoteImages(
+    (editingPost.value.media || []).map((m) => ({
+      url: m.previewUrl || m.thumbnailUrl || m.rowUrl,
+    }))
+  );
+}
+
+// 发布框在 v-else-if="userStore.user" 里，用户信息晚到时组件还没挂上，
+// 所以除了主动补一次，也要盯着 ref 出现再补一次
+watch(imageInputRef, (el) => {
+  if (el) applyEditingMedia();
+});
+
+async function loadPostForEdit(id) {
+  // 禁言期间连自己的旧帖也不能改（后端 updatePost 同样会拦），
+  // 不然等于换个地方继续发内容。
+  if (userStore.isMuted) {
+    message.warning('你正在被禁言，暂时不能编辑帖子');
+    exitEdit();
+    return;
+  }
+  try {
+    const res = await getPostById(id);
+    if (!setting.successCode.includes(res.code) || !res.data) {
+      message.error('帖子不存在或已删除');
+      exitEdit();
+      return;
+    }
+    const post = res.data;
+    // 前端先拦一道给个明确提示，真正的权限判断在后端 updatePost 里
+    const isOwner = post.author?.id === userStore.user?.id;
+    if (!isOwner && !hasPermission('post:edit')) {
+      message.error('无权编辑这条帖子');
+      exitEdit();
+      return;
+    }
+
+    editingPost.value = post;
+    mediaFilledFor = null;
+    publishingTitleInnerValue.value = post.title || '';
+    publishingContentInnerValue.value = post.content || '';
+    selectedCategory.value = post.type || '';
+
+    await nextTick();
+    applyEditingMedia();
+    handleContentInput();
+    publishingRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch (e) {
+    message.error('加载帖子失败');
+    exitEdit();
+  }
+}
+
+/** 退出编辑模式，发布框恢复成空白 */
+function exitEdit() {
+  editingPost.value = null;
+  mediaFilledFor = null;
+  mediaTotal.value = [];
+  imageInputRef.value?.setRemoteImages([]);
+  publishingTitleInnerValue.value = '';
+  publishingContentInnerValue.value = '';
+  selectedCategory.value = '';
+  imageFiles.value = [];
+  if (textareaRef.value) textareaRef.value.style.height = 'auto';
+  if (route.query.edit) router.replace({ path: '/space/home' });
+}
+
+watch(
+  () => route.query.edit,
+  (id) => {
+    if (id && String(id) !== String(editingPost.value?.id ?? '')) {
+      loadPostForEdit(id);
+    } else if (!id && editingPost.value) {
+      // 地址栏的 edit 被清掉（比如点了浏览器后退），同步退出编辑
+      exitEdit();
+    }
+  },
+  { immediate: true }
+);
 
 //用户帖子记录
 const userPosts = reactive({
@@ -466,6 +655,25 @@ const onScroll = () => {
 };
 
 // ========== 生命周期 ==========
+/** 禁言提示卡上的「刷新状态」：到点了不必整页刷新也能恢复发布框 */
+const muteRefreshing = ref(false);
+async function handleRefreshMute() {
+  if (muteRefreshing.value) return;
+  muteRefreshing.value = true;
+  try {
+    // refreshUser 不碰 isLoading，发布框不会先闪成「登录后可评论」再变回来
+    await userStore.refreshUser();
+  } finally {
+    muteRefreshing.value = false;
+  }
+  if (userStore.isMuted) {
+    // 卡片上已经写全了原因和期限，toast 只补一句结论，别再重复一遍长文案
+    message.warning("仍在禁言中，解除后再试");
+  } else {
+    message.success("禁言已解除，现在可以发帖了");
+  }
+}
+
 onMounted(() => {
   // 首次加载（不分页模式还是无限滚动都走这里）
   loadPosts();
@@ -599,6 +807,126 @@ const handleDelete = (postId) => {
   background: var(--bg-primary);
   user-select: none;
   box-sizing: border-box;
+}
+
+/* 被禁言时顶替发布框的提示卡：和 .publishing 同宽同圆角，位置不跳 */
+.muted-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: var(--content-with);
+  margin-top: 16px;
+  padding: 16px 18px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid rgba(251, 114, 153, 0.35);
+  background: rgba(251, 114, 153, 0.08);
+  color: #fb7299;
+}
+
+.muted-notice__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.muted-notice__title {
+  margin: 0 0 4px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.muted-notice__desc {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+/* 提示卡右侧的「刷新状态」：描边胶囊，和站内其它次要操作同一套尺寸语言 */
+.muted-notice__refresh {
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(251, 114, 153, 0.45);
+  background: transparent;
+  color: #fb7299;
+  font-size: 0.75rem;
+  line-height: 26px;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.muted-notice__refresh:hover:not(:disabled) {
+  background: rgba(251, 114, 153, 0.12);
+  border-color: #fb7299;
+}
+
+.muted-notice__refresh:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* 手机宽度放不下并排：按钮换到第二行，左边距对齐标题文字（图标 18 + gap 10） */
+@media (max-width: 767px) {
+  .muted-notice {
+    flex-wrap: wrap;
+  }
+
+  .muted-notice__refresh {
+    margin-left: 28px;
+  }
+}
+
+/* 编辑模式：左侧留一条主色竖线，和「新发布」在视觉上区分开 */
+.publishing.is-editing {
+  position: relative;
+  box-shadow: inset 3px 0 0 var(--primary-color);
+}
+
+/* 编辑提示条 */
+.edit-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--bg-nomarl);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.edit-banner__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edit-banner__cancel {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--primary-color);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.edit-banner__cancel:hover {
+  background: var(--bg-hover);
+}
+
+/* 小屏空间窄：只留「正在编辑《标题》」，次要说明藏起来，免得被截成省略号 */
+@media (max-width: 767px) {
+  .edit-banner__hint {
+    display: none;
+  }
 }
 
 .publishing-title {
@@ -790,6 +1118,14 @@ const handleDelete = (postId) => {
   height: 32px;
   border-radius: 8px;
   font-weight: 500;
+}
+
+/* 编辑模式按钮文案是「保存修改」，比「发布」宽，固定 65px 会被挤成两行 */
+.publishing.is-editing .comment-submit-button {
+  width: auto;
+  min-width: 65px;
+  padding: 0 14px;
+  white-space: nowrap;
 }
 
 /* 个人帖子 */
