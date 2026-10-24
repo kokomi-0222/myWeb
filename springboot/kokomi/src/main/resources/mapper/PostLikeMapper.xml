@@ -24,6 +24,14 @@
         SELECT COUNT(*) FROM post_like WHERE post_id = #{postId} AND user_id = #{userId}
     </select>
 
+    <!-- 批量查「我在这些帖子里点过赞的」，列表页一次取完（消除 N+1） -->
+    <select id="selectLikedPostIds" resultType="java.lang.Long">
+        SELECT post_id FROM post_like
+        WHERE user_id = #{userId}
+          AND post_id IN
+        <foreach collection="postIds" item="pid" open="(" separator="," close=")">#{pid}</foreach>
+    </select>
+
     <select id="countByPostId" resultType="int">
         SELECT COUNT(*) FROM post_like WHERE post_id = #{postId}
     </select>

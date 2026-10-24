@@ -2,6 +2,8 @@ package com.example.kokomi.mapper;
 
 import com.example.kokomi.entity.PostLike;
 import org.apache.ibatis.annotations.Param;
+import java.util.Collection;
+import java.util.List;
 
 public interface PostLikeMapper {
 
@@ -19,4 +21,8 @@ public interface PostLikeMapper {
 
     // 统计帖子的点赞数
     int countByPostId(@Param("postId") Long postId);
+
+    // 批量查「指定用户在这些帖子里点过赞的 postId」，列表页用（消除 N+1）
+    List<Long> selectLikedPostIds(@Param("userId") Long userId,
+                                 @Param("postIds") Collection<Long> postIds);
 }

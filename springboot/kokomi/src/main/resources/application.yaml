@@ -6,6 +6,11 @@ server:
   port: 8080
 
 spring:
+  profiles:
+    # 本地开发默认加载 application-local.yaml（放在 springboot/kokomi/config/ 下，
+    # 含本机数据库密码，不入库）。线上用 --spring.profiles.active=prod 显式指定，
+    # default 不会生效。
+    default: local
   application:
     name: kokomi
   servlet:
@@ -14,16 +19,18 @@ spring:
       max-request-size: 10MB      # 整个请求最大 10MB
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: root
-    password: 'QQ1063627264.'
-    url: jdbc:mysql://localhost:3306/kokomi?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    # 凭据一律走环境变量，仓库里不留明文密码
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/kokomi?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
     hikari:
       connection-test-query: SELECT 1
       max-lifetime: 1800000
 
 # JWT 配置（标准写法：配置化）
 jwt:
-  secret: kokomi_2026_secure_secret_key_abcdefghijklmnopqrstuvwxyz
+  # 生产环境必须通过 JWT_SECRET 覆盖；默认值仅用于本地开发
+  secret: ${JWT_SECRET:kokomi_dev_only_secret_do_not_use_in_prod}
   #expire: 10000  # 10s 毫秒
   expire: 604800000  # 7天 毫秒
 
@@ -36,7 +43,13 @@ auth:
     - /publicKey
     - /upload/**
     - /post/getPosts
+    - /post/getUserPosts
+    - /post/stats
+    - /topic/list
+    # 角色字典：前台身份标签要把 roleCode 翻成中文，匿名访客也要能看到
+    - /role/list
     - /comments
+    - /user/profile/**
 #rsa秘钥对
 rsa:
   public-key: "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC82jIhsD1tYS9LSfJRNV/SpqzxD5UZVoCIB09owY90xJtEE3GzDzVaDtkFb5/ki+Pfv2OObRS6UZKTg+hfk7WVnPomvYG2YNaSyf8cN+SM9x4N+Xsdf3ZBVu4Zj43+kNM/0ISWNZdNZnRUSoW5YCHClDZ3+DlrMN3NRu9ezQiO4QIDAQAB"

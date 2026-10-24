@@ -16,6 +16,14 @@
         ORDER BY created_at ASC
     </select>
 
+    <!-- 批量取多条顶级评论的子回复，评论列表用（原来是每条顶级评论查一次） -->
+    <select id="selectRepliesByParentIds" resultType="com.example.kokomi.entity.Comment">
+        SELECT * FROM comment
+        WHERE parent_id IN
+        <foreach collection="parentIds" item="pid" open="(" separator="," close=")">#{pid}</foreach>
+        ORDER BY created_at ASC
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO comment (post_id, user_id, content, parent_id, reply_to, image, likes, is_hot, created_at)
         VALUES (#{postId}, #{userId}, #{content}, #{parentId}, #{replyTo}, #{image}, 0, 0, NOW())
@@ -47,6 +55,10 @@
     <select id="countTopLevelByPostId" resultType="int">
         SELECT COUNT(*) FROM comment
         WHERE post_id = #{postId} AND parent_id IS NULL
+    </select>
+
+    <select id="countAll" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM comment
     </select>
 
     <update id="incrementLikes">

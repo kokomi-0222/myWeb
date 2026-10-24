@@ -86,6 +86,14 @@ export function unlikePost(id) {
   })
 }
 
+// 转发（转发数 +1，并通知作者）
+export function forwardPost(id) {
+  return request({
+    url: `/post/${id}/forward`,
+    method: 'post'
+  })
+}
+
 // 获取评论列表
 export function getComments(postId) {
   return request({

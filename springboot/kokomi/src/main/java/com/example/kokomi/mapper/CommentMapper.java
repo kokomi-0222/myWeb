@@ -2,6 +2,7 @@ package com.example.kokomi.mapper;
 
 import com.example.kokomi.entity.Comment;
 import org.apache.ibatis.annotations.Param;
+import java.util.Collection;
 import java.util.List;
 
 public interface CommentMapper {
@@ -11,6 +12,9 @@ public interface CommentMapper {
 
     // 查询某条评论的所有子回复
     List<Comment> selectRepliesByParentId(@Param("parentId") Long parentId);
+
+    // 批量查询多条顶级评论的子回复（评论列表用，消除 N+1）
+    List<Comment> selectRepliesByParentIds(@Param("parentIds") Collection<Long> parentIds);
 
     // 插入评论
     int insert(Comment comment);
@@ -34,6 +38,9 @@ public interface CommentMapper {
 
     // 统计顶级评论数
     int countTopLevelByPostId(@Param("postId") Long postId);
+
+    // 全站评论数（含回复），首页统计用
+    Long countAll();
 
     // 点赞数 +1
     int incrementLikes(@Param("id") Long id);

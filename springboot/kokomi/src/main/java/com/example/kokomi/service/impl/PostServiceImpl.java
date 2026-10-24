@@ -6,13 +6,23 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 import com.example.kokomi.mapper.*;
 import com.example.kokomi.util.PermissionCache;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.example.kokomi.common.ResultCode;
 import com.example.kokomi.dto.CreatePostDTO;
@@ -22,9 +32,11 @@ import com.example.kokomi.entity.Comment;
 import com.example.kokomi.entity.Post;
 import com.example.kokomi.entity.PostLike;
 import com.example.kokomi.entity.PostMedia;
+import com.example.kokomi.entity.PostTag;
 import com.example.kokomi.entity.User;
 import com.example.kokomi.exception.CustomerException;
 import com.example.kokomi.service.PostService;
+import com.example.kokomi.service.NotificationService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.vo.PageVO;
 import com.example.kokomi.vo.PostAuthorVO;
@@ -44,6 +56,7 @@ public class PostServiceImpl implements PostService {
     private final UserRoleMapper userRoleMapper;
     private final RolePermissionMapper rolePermissionMapper;
     private final CommentMapper commentMapper;
+    private final NotificationService notificationService;
 
     @Value("${app.upload-path}")
     private String uploadPath;
@@ -56,6 +69,11 @@ public class PostServiceImpl implements PostService {
         Post post = postMapper.selectById(id);
         if (post == null) {
             throw new CustomerException(ResultCode.PARAM_ERROR, "帖子不存在");
+        }
+        // 浏览量 +1：同一访客 10 分钟内重复刷新只计一次
+        if (shouldCountView(id)) {
+            postMapper.incrementViews(id);
+            post.setViews((post.getViews() == null ? 0 : post.getViews()) + 1);
         }
         return convertToVO(post);
     }
@@ -195,6 +213,12 @@ public class PostServiceImpl implements PostService {
         int inserted = postLikeMapper.insertIgnore(like);
         if (inserted > 0) {
             postMapper.incrementLikes(postId);
+            // 通知作者。点赞类通知按 (接收者, 触发者, 类型, 目标) 去重：
+            // 取消赞再点赞只会刷新原通知的时间，不会在消息中心叠加新条目。
+            String title = post.getTitle();
+            String suffix = (title == null || title.isBlank()) ? "" : "《" + title + "》";
+            notificationService.notify(post.getUserId(), userId, "like_post",
+                    postId, null, "赞了你的帖子" + suffix);
         }
     }
 
@@ -213,6 +237,25 @@ public class PostServiceImpl implements PostService {
         if (deleted > 0) {
             postMapper.decrementLikes(postId);
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void forward(Long postId) {
+        Long userId = LoginUserHolder.getUserId();
+
+        Post post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "帖子不存在");
+        }
+
+        // 转发不做幂等：同一用户对同一帖子可以多次转发，每次都计数
+        postMapper.incrementForwards(postId);
+
+        String title = post.getTitle();
+        String suffix = (title == null || title.isBlank()) ? "" : "《" + title + "》";
+        notificationService.notify(post.getUserId(), userId, "forward",
+                postId, null, "转发了你的帖子" + suffix);
     }
 
     /**
@@ -280,74 +323,161 @@ public class PostServiceImpl implements PostService {
         }
     }
 
-    private PageVO<PostDetailVO> getPostList(PostPageQueryDTO dto) {
-        int offset = (dto.getPageNum() - 1) * dto.getPageSize();
+    @Override
+    public Map<String, Long> getStats() {
+        Map<String, Long> stats = new java.util.HashMap<>();
+        stats.put("posts", postMapper.countAll());
+        stats.put("users", userMapper.countAll());
+        stats.put("comments", commentMapper.countAll());
+        return stats;
+    }
 
-        //  只有一行查询
+    private PageVO<PostDetailVO> getPostList(PostPageQueryDTO dto) {        int offset = (dto.getPageNum() - 1) * dto.getPageSize();
+
         List<Post> postList = postMapper.selectPostPage(dto, offset);
         Long total = postMapper.selectPostCount(dto);
 
-        // 转 VO（不变）
-        List<PostDetailVO> voList = new ArrayList<>();
-        for (Post post : postList) {
-            voList.add(convertToVO(post));
-        }
-        return PageVO.build(voList, total, dto.getPageNum(), dto.getPageSize());
+        // 一次性批量组装（原来是每条帖子 4 次额外查询，10 条帖子 42 次 SQL）
+        return PageVO.build(toVOList(postList), total, dto.getPageNum(), dto.getPageSize());
     }
 
-    private PostDetailVO convertToVO(Post post) {
-        PostDetailVO vo = new PostDetailVO();
-        vo.setId(post.getId());
-        vo.setTitle(post.getTitle());
-        vo.setContent(post.getContent());
-        vo.setCreatedAt(post.getCreatedAt());
-        vo.setViews(post.getViews());
-        vo.setLikes(post.getLikes());
-        vo.setCommentsCount(post.getComments());
-        vo.setForward(post.getForwards());
-        vo.setType(post.getType());
-
-        // 作者
-        User user = userMapper.selectById(post.getUserId());
-        PostAuthorVO authorVO = new PostAuthorVO();
-        authorVO.setId(user.getId());
-        authorVO.setName(user.getName());
-        authorVO.setNameColor(user.getNameColor());
-        authorVO.setPrimaryRole(user.getPrimaryRole());
-        authorVO.setAvatar(user.getAvatar());
-        authorVO.setBadge(user.getBadge());
-        authorVO.setOrnament(user.getOrnament());
-        vo.setAuthor(authorVO);
-
-        // 媒体
-        List<PostMedia> mediaList = postMediaMapper.selectByPostId(post.getId());
-        List<PostMediaVO> mediaVOList = new ArrayList<>();
-        for (PostMedia m : mediaList) {
-            PostMediaVO mv = new PostMediaVO();
-            mv.setId(String.valueOf(m.getId()));
-            mv.setThumbnailUrl(m.getThumbnailUrl());
-            mv.setPreviewUrl(m.getPreviewUrl());
-            mv.setRowUrl(m.getRawUrl());
-            mv.setType(m.getType());
-            mv.setWidth(m.getWidth());
-            mv.setHeight(m.getHeight());
-            mv.setSize(m.getSize());
-            mv.setAlt(m.getAlt());
-            mv.setOrientation(1);
-            mv.setFormat(m.getFormat());
-            mv.setIsAnimated(m.getIsAnimated() == 1);
-            mediaVOList.add(mv);
+    /**
+     * 批量把帖子转成 VO。
+     * <p>
+     * 作者、媒体、标签、点赞状态四类关联数据各用一次 IN 查询取全，
+     * 整体 SQL 次数固定为 4~5 次，与帖子条数无关。
+     */
+    private List<PostDetailVO> toVOList(List<Post> posts) {
+        List<PostDetailVO> voList = new ArrayList<>();
+        if (posts == null || posts.isEmpty()) {
+            return voList;
         }
-        vo.setMedia(mediaVOList);
 
-        // 标签
-        vo.setTag(postTagMapper.selectTagNamesByPostId(post.getId()));
+        List<Long> postIds = posts.stream().map(Post::getId).toList();
+        Set<Long> authorIds = posts.stream()
+                .map(Post::getUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
 
-        // 当前用户是否已点赞
+        // 作者：一次批量查，同一作者只查一次
+        Map<Long, User> authorMap = authorIds.isEmpty()
+                ? Map.of()
+                : userMapper.selectByIds(authorIds).stream()
+                        .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a));
+
+        // 媒体 / 标签：按 post_id 分组
+        Map<Long, List<PostMedia>> mediaMap = postMediaMapper.selectByPostIds(postIds).stream()
+                .collect(Collectors.groupingBy(PostMedia::getPostId));
+        Map<Long, List<String>> tagMap = postTagMapper.selectByPostIds(postIds).stream()
+                .collect(Collectors.groupingBy(PostTag::getPostId,
+                        Collectors.mapping(PostTag::getTagName, Collectors.toList())));
+
+        // 当前用户点过赞的帖子集合，未登录时为空
         Long currentUserId = LoginUserHolder.getUserId();
-        boolean likedByMe = currentUserId != null
-                && postLikeMapper.existsByPostIdAndUserId(post.getId(), currentUserId) > 0;
-        vo.setLikedByMe(likedByMe);
-        return vo;
+        Set<Long> likedIds = currentUserId == null
+                ? Set.of()
+                : new HashSet<>(postLikeMapper.selectLikedPostIds(currentUserId, postIds));
+
+        for (Post post : posts) {
+            PostDetailVO vo = new PostDetailVO();
+            vo.setId(post.getId());
+            vo.setTitle(post.getTitle());
+            vo.setContent(post.getContent());
+            vo.setCreatedAt(post.getCreatedAt());
+            vo.setViews(post.getViews());
+            vo.setLikes(post.getLikes());
+            vo.setCommentsCount(post.getComments());
+            vo.setForward(post.getForwards());
+            vo.setType(post.getType());
+
+            User user = authorMap.get(post.getUserId());
+            if (user != null) {
+                PostAuthorVO authorVO = new PostAuthorVO();
+                authorVO.setId(user.getId());
+                authorVO.setName(user.getName());
+                authorVO.setNameColor(user.getNameColor());
+                authorVO.setRoleColor(user.getRoleColor());
+                authorVO.setPrimaryRole(user.getPrimaryRole());
+                authorVO.setAvatar(user.getAvatar());
+                authorVO.setBadge(user.getBadge());
+                authorVO.setOrnament(user.getOrnament());
+                vo.setAuthor(authorVO);
+            }
+
+            List<PostMediaVO> mediaVOList = new ArrayList<>();
+            for (PostMedia m : mediaMap.getOrDefault(post.getId(), List.of())) {
+                PostMediaVO mv = new PostMediaVO();
+                mv.setId(String.valueOf(m.getId()));
+                mv.setThumbnailUrl(m.getThumbnailUrl());
+                mv.setPreviewUrl(m.getPreviewUrl());
+                mv.setRowUrl(m.getRawUrl());
+                mv.setType(m.getType());
+                mv.setWidth(m.getWidth());
+                mv.setHeight(m.getHeight());
+                mv.setSize(m.getSize());
+                mv.setAlt(m.getAlt());
+                mv.setOrientation(1);
+                mv.setFormat(m.getFormat());
+                mv.setIsAnimated(m.getIsAnimated() != null && m.getIsAnimated() == 1);
+                mediaVOList.add(mv);
+            }
+            vo.setMedia(mediaVOList);
+
+            vo.setTag(tagMap.getOrDefault(post.getId(), List.of()));
+            vo.setLikedByMe(likedIds.contains(post.getId()));
+            voList.add(vo);
+        }
+        return voList;
+    }
+
+    /** 单条转换（创建帖子后立即返回用） */
+    private PostDetailVO convertToVO(Post post) {
+        List<PostDetailVO> list = toVOList(List.of(post));
+        return list.isEmpty() ? new PostDetailVO() : list.get(0);
+    }
+
+    /**
+     * 浏览量防刷：同一访客对同一帖子在窗口期内只计一次。
+     * 纯内存实现，重启后清零——浏览量本来就不是精确指标，够用即可。
+     */
+    private static final long VIEW_WINDOW_MS = 10 * 60 * 1000L;
+    private static final Map<String, Long> VIEW_HITS = new ConcurrentHashMap<>();
+
+    private boolean shouldCountView(Long postId) {
+        long now = System.currentTimeMillis();
+        // 简单容量保护：超过 5 万条时清掉过期项，避免无界增长
+        if (VIEW_HITS.size() > 50_000) {
+            VIEW_HITS.entrySet().removeIf(e -> now - e.getValue() > VIEW_WINDOW_MS);
+        }
+        String key = viewKey(postId);
+        Long last = VIEW_HITS.get(key);
+        if (last != null && now - last < VIEW_WINDOW_MS) {
+            return false;
+        }
+        VIEW_HITS.put(key, now);
+        return true;
+    }
+
+    private String viewKey(Long postId) {
+        Long userId = LoginUserHolder.getUserId();
+        if (userId != null) {
+            return postId + ":u" + userId;
+        }
+        try {
+            ServletRequestAttributes attrs =
+                    (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                HttpServletRequest req = attrs.getRequest();
+                // Nginx 已经设置了 X-Real-IP，优先用它；直连时退回 RemoteAddr
+                String ip = req.getHeader("X-Real-IP");
+                if (ip == null || ip.isBlank()) {
+                    ip = req.getRemoteAddr();
+                }
+                return postId + ":ip" + ip;
+            }
+        } catch (Exception ignored) {
+            // 拿不到请求上下文（例如内部调用）就退化成共享计数
+        }
+        return postId + ":anon";
     }
 }

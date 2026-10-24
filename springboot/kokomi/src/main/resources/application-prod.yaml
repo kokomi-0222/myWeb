@@ -5,7 +5,13 @@ app:
 
 spring:
   datasource:
-    password: 'QQ1063627264.'
+    # 生产库密码不再写进仓库：由 systemd 的 Environment= 注入
+    # 未配置时启动会直接失败（这是故意的，避免用错密码连到别的库）
+    password: ${DB_PASSWORD}
+
+jwt:
+  # 同理，必须由环境变量提供
+  secret: ${JWT_SECRET}
 
 # 生产环境关闭 SQL 日志，提升性能
 mybatis:

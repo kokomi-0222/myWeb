@@ -34,4 +34,10 @@ public interface PostService {
 
     // 取消点赞
     void unlike(Long postId);
+
+    // 转发：转发数 +1 并通知作者（允许同一用户多次转发）
+    void forward(Long postId);
+
+    // 全站统计：帖子数 / 用户数 / 评论数
+    java.util.Map<String, Long> getStats();
 }

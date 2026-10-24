@@ -1,34 +1,148 @@
-.global-message {
-  position: fixed;
-  top: 20vh;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 10px 20px;
-  border-radius: 6px;
-  color: #fff;
+/* ===========================================================
+   轻提示（ElMessage / utils/message.js）统一风格
+   Element Plus 默认是「彩色浅底 + 彩色文字 + 直角 4px」，
+   在暗色主题下（#121212 页面）会变成一块发灰的浅色斑，非常突兀。
+   这里整体重做：
+     1. 白/深灰浮层卡片 + 12px 圆角 + 柔和投影（跨主题都成立）
+     2. 图标用 19px 实心状态圆点（Element 的类型图标自带圆底，不再叠软色底）
+     3. 文字统一 --text-primary，不再用类型色，长错误信息可换行
+     4. 弹性滑入，重复提示自动合并成角标计数
+   只作用于带 .kokomi-toast 的消息（utils/message.js 统一注入），
+   不污染 Element 的默认外观。
+   =========================================================== */
+
+/* ---------- 卡片本体 ---------- */
+.el-message.kokomi-toast {
+  gap: 10px;
+  align-items: center;
+  padding: 11px 18px 11px 13px;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 12px;
+  background-color: var(--bg-primary);
+  box-shadow:
+    0 10px 30px rgba(15, 23, 42, 0.13),
+    0 2px 6px rgba(15, 23, 42, 0.06);
+  max-width: min(460px, calc(100vw - 32px));
+  transition:
+    opacity 0.2s ease,
+    transform 0.28s cubic-bezier(0.34, 1.3, 0.64, 1),
+    top 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 进场：从上方 10px 轻微缩放落下，替代默认的「整块下坠 100%」 */
+.el-message-fade-enter-from.kokomi-toast,
+.el-message-fade-leave-to.kokomi-toast {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.96);
+}
+
+/* ---------- 图标 ----------
+   Element 的类型图标本身就是「实心圆 + 镂空对勾」，
+   再套一层软色圆底会变成同心双圆（放大看很脏），
+   所以这里去掉底色，只把实心图标放大到 19px 直接当状态圆点用。 */
+.el-message.kokomi-toast .el-message__icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  padding: 0;
+  font-size: 19px;
+  background: none;
+  color: var(--primary-color);
+}
+
+/* 类型色。EP 用 .el-message-icon--xxx 单独上色，这里统一覆盖 */
+.el-message.kokomi-toast.el-message--success .el-message__icon,
+.el-message.kokomi-toast .el-message-icon--success {
+  color: #23c343;
+}
+
+.el-message.kokomi-toast.el-message--error .el-message__icon,
+.el-message.kokomi-toast .el-message-icon--error {
+  color: #f53f3f;
+}
+
+.el-message.kokomi-toast.el-message--warning .el-message__icon,
+.el-message.kokomi-toast .el-message-icon--warning {
+  color: #f5a623;
+}
+
+.el-message.kokomi-toast.el-message--info .el-message__icon,
+.el-message.kokomi-toast .el-message-icon--info {
+  color: var(--primary-color);
+}
+
+/* ---------- 文字 ---------- */
+.el-message.kokomi-toast .el-message__content {
+  padding: 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--text-primary);
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* ---------- 关闭按钮 ---------- */
+.el-message.kokomi-toast .el-message__closeBtn {
+  color: var(--text-secondary);
   font-size: 14px;
-  z-index: 99999;
-  white-space: nowrap;
-  animation: messageFadeIn 0.3s ease;
+  transition: color 0.2s ease;
 }
 
-@keyframes messageFadeIn {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -10px);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
+.el-message.kokomi-toast .el-message__closeBtn:hover {
+  color: var(--text-primary);
 }
 
-.message-success {
-  background-color: #19c37d;
+/* ---------- 重复提示合并后的角标 ---------- */
+.el-message.kokomi-toast .el-message__badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
 }
-.message-error {
-  background-color: #f53f3f;
+
+.el-message.kokomi-toast .el-message__badge .el-badge__content {
+  height: 18px;
+  line-height: 14px;
+  padding: 0 5px;
+  border: 2px solid var(--bg-primary);
+  border-radius: 9px;
+  background: var(--primary-color);
+  font-size: 11px;
+  font-weight: 600;
 }
-.message-info {
-  background-color: #409eff;
+
+/* ---------- 暗色：比页面背景亮一档 + 描边，避免糊成一片 ---------- */
+:root.dark .el-message.kokomi-toast {
+  border-color: var(--border-color);
+  background-color: var(--bg-secondary);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.55),
+    0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+:root.dark .el-message.kokomi-toast .el-message__badge .el-badge__content {
+  border-color: var(--bg-secondary);
+}
+
+/* 暗色下纯色图标略提亮，避免在 #1e1e1e 上发闷 */
+:root.dark .el-message.kokomi-toast.el-message--success .el-message__icon {
+  color: #2fd44f;
+}
+
+:root.dark .el-message.kokomi-toast.el-message--error .el-message__icon {
+  color: #ff6b6b;
+}
+
+:root.dark .el-message.kokomi-toast.el-message--warning .el-message__icon {
+  color: #ffb648;
+}
+
+/* ---------- 小屏 ---------- */
+@media (max-width: 480px) {
+  .el-message.kokomi-toast {
+    padding: 10px 14px 10px 11px;
+    border-radius: 10px;
+  }
 }

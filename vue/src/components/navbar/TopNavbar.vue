@@ -19,6 +19,15 @@
       :style="{ visibility: userStore.isLoading ? 'hidden' : 'visible' }"
     >
       <div v-if="showTools" class="header-bar-switch">
+        <!-- 后台入口：只有管理员（user:manage）才渲染，普通用户看不到这个图标 -->
+        <button
+          v-if="canEnterAdmin"
+          class="theme-toggle"
+          title="管理后台"
+          @click="goAdmin"
+        >
+          <IconDashboard :size="18" />
+        </button>
         <button
           class="theme-toggle"
           :title="uiStore.isDarkMode ? '切换为浅色模式' : '切换为深色模式'"
@@ -127,19 +136,35 @@
   </div>
 </template>
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
 import { useScroll } from "@/utils/useScroll";
 import { useUserStore } from "@/stores/user";
 import { useUIStore } from "@/stores/ui";
 import IconLight from "@/components/icons/IconLight.vue";
 import IconDark from "@/components/icons/IconDark.vue";
+import IconDashboard from "@/components/icons/IconDashboard.vue";
+import { usePermission } from "@/utils/usePermission";
 import router from "@/router";
+import { useRoute } from "vue-router";
+
+const route = useRoute();
 
 const navbar = document.querySelector(".header-bar");
 const navbarHeight = navbar?.offsetHeight || 54;
 const { isScrolled } = useScroll(navbarHeight);
 const userStore = useUserStore();
 const uiStore = useUIStore();
+const { hasPermission } = usePermission();
+
+/** 后台入口的显隐：登录 + user:manage，两样都得有 */
+const canEnterAdmin = computed(
+  () => userStore.isLogin && hasPermission("user:manage")
+);
+
+const goAdmin = () => {
+  // 后台是独立布局，这里不用整页刷新，SPA 跳转即可
+  router.push("/admin/dashboard");
+};
 
 defineProps({
   showTools: { type: Boolean, default: true },
@@ -152,15 +177,21 @@ const searchOptions = reactive([
   { label: "用户", value: "user" },
   { label: "分类", value: "category" },
 ]);
-const emit = defineEmits(["search"]); // 声明 emit 事件
+const emit = defineEmits(["search", "home"]); // search=搜索，home=点 logo/首页要求重置
+
+// 搜索条件被清掉时（点 logo、浏览器后退），输入框也要跟着清空
+watch(
+  () => route.query.keyword,
+  (keyword) => {
+    searchText.value = keyword ? String(keyword) : "";
+  }
+);
 
 // 当前角色中文名（用于下拉里的徽章）
 const roleLabel = computed(() => userStore.primaryRole?.name || "");
 
 function onSearch({ keyword, type }) {
-  console.log("搜索关键词:", keyword, "类型:", type);
   emit("search", { keyword, type });
-  // 调用 API
 }
 
 //导航栏上的登录按键处理
@@ -195,9 +226,12 @@ function goWithClose(close, path) {
 
 //去往首页
 const gotoMainPage = () => {
-  router.push("/").then(() => {
-    router.go(0);
-  });
+  // 已经在首页时，路由不会变化 → 交给首页重置搜索/话题，回到全部帖子
+  if (route.path === "/") {
+    emit("home");
+    return;
+  }
+  router.push("/");
 };
 </script>
 
@@ -406,6 +440,11 @@ const gotoMainPage = () => {
     border-color 0.2s ease,
     color 0.2s ease,
     transform 0.2s ease;
+}
+
+/* 后台图标和主题图标并排时留一点间距 */
+.header-bar-switch {
+  gap: 8px;
 }
 
 .theme-toggle:hover {

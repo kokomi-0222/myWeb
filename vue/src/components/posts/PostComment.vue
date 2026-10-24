@@ -26,12 +26,16 @@
       <!-- 评论列表 -->
       <ul v-if="displayedComments.length" class="comment-list">
         <li v-for="comment in displayedComments" :key="comment.id" class="comment-item">
-          <div class="comment-avatar">
+          <div class="comment-avatar" @click.stop="goUser(comment.author)">
             <Avatar :src="comment.author.avatar" alt="" :size="40" />
           </div>
           <div class="comment-body">
             <div class="comment-header">
-              <span class="comment-author" :style="getAuthorStyle(comment.author)">
+              <span
+                class="comment-author"
+                :style="getAuthorStyle(comment.author)"
+                @click.stop="goUser(comment.author)"
+              >
                 {{ comment.author.name }}
               </span>
             </div>
@@ -76,12 +80,16 @@
 
             <ul v-if="getVisibleReplies(comment).length" class="reply-list">
               <li v-for="reply in getVisibleReplies(comment)" :key="reply.id" class="reply-item">
-                <div class="reply-avatar">
+                <div class="reply-avatar" @click.stop="goUser(reply.author)">
                   <Avatar :src="reply.author.avatar" alt="" :size="24" />
                 </div>
                 <div class="reply-body">
                   <div class="reply-main">
-                    <span class="reply-author" :style="getAuthorStyle(reply.author)">{{ reply.author.name }}</span>
+                    <span
+                      class="reply-author"
+                      :style="getAuthorStyle(reply.author)"
+                      @click.stop="goUser(reply.author)"
+                    >{{ reply.author.name }}</span>
                     <span class="reply-content">
                       <template v-if="reply.replyTo">
                         回复 <span class="reply-target">@{{ reply.replyTo }}</span>：
@@ -410,6 +418,18 @@ const getAuthorStyle = (author) => ({
   color: author?.nameColor || "var(--text-primary, #18191c)",
 });
 
+// 点击头像 / 昵称进入作者主页；自己的名字直接回个人空间
+// 与 PostCard 的 goUser 保持同一套规则
+const goUser = (author) => {
+  const id = author?.id;
+  if (!id) return;
+  if (userStore.isLogin && String(userStore.user?.id) === String(id)) {
+    router.push("/space/home");
+    return;
+  }
+  router.push(`/user/${id}`);
+};
+
 const comments = ref([]);
 
 // 本地追踪点赞状态（当前会话内有效）
@@ -579,10 +599,11 @@ const handleCommentLike = async (comment) => {
 // 删除评论
 const handleCommentDelete = async (comment) => {
   try {
-    await ElMessageBox.confirm("确定删除这条评论？", "提示", {
-      confirmButtonText: "确定",
+    await ElMessageBox.confirm("删除后无法恢复，确定继续吗？", "删除评论", {
+      confirmButtonText: "删除",
       cancelButtonText: "取消",
       type: "warning",
+      customClass: "danger-confirm",
     });
     await deleteComment(comment.id);
     // 检查是否是顶级评论
@@ -744,23 +765,41 @@ const previewImage = (url) => {
 
 .comment-avatar {
   margin-right: 12px;
+  cursor: pointer;
+  border-radius: 50%;
+  /* 不让 flex 把它拉伸到和评论正文一样高，否则头像盒中心会对不准 */
+  align-self: flex-start;
+  flex-shrink: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.comment-avatar:hover {
+  opacity: 0.85;
 }
 
 .comment-body {
   flex: 1;
 }
 
+/* 高度与头像（40px）一致 + 垂直居中 → 昵称正好落在头像的水平中线上 */
 .comment-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  min-height: 40px;
+  margin-bottom: 3px;
   font-size: 0.875rem;
 }
 
 .comment-author {
   font-weight: 500;
   color: var(--text-primary, #18191c);
+  cursor: pointer;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.comment-author:hover {
+  opacity: 0.75;
 }
 
 .comment-time {
@@ -768,8 +807,9 @@ const previewImage = (url) => {
   color: var(--text-secondary);
 }
 
+/* 与昵称之间只留一点呼吸感（margin 会和 .comment-header 的 margin-bottom 折叠，取较大值） */
 .comment-main {
-  margin: 2px 0 4px;
+  margin: 0 0 4px;
 }
 
 .comment-text {
@@ -866,6 +906,13 @@ const previewImage = (url) => {
 .reply-avatar {
   margin-right: 8px;
   margin-top: 2px;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.reply-avatar:hover {
+  opacity: 0.85;
 }
 
 .reply-body {
@@ -879,6 +926,12 @@ const previewImage = (url) => {
 .reply-author {
   font-weight: 500;
   margin-right: 4px;
+  cursor: pointer;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.reply-author:hover {
+  opacity: 0.75;
 }
 
 .reply-content {

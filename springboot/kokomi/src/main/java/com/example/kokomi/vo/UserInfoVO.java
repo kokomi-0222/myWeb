@@ -26,6 +26,7 @@ public class UserInfoVO {
         userVO.setUsername(bo.getUsername());
         userVO.setName(bo.getName());
         userVO.setNameColor(bo.getNameColor());
+        userVO.setRoleColor(bo.getRoleColor());
         userVO.setPrimaryRole(bo.getPrimaryRole());
         userVO.setAvatar(bo.getAvatar());
         userVO.setBadge(bo.getBadge());

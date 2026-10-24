@@ -73,6 +73,31 @@
         </button>
 
         <button
+          v-if="canEnterAdmin"
+          type="button"
+          class="drawer-nav__item"
+          @click="go('/admin/dashboard')"
+        >
+          <IconDashboard :size="20" />
+          <span>管理后台</span>
+        </button>
+
+        <!-- 深色模式：做成一个普通菜单项，视觉上与上下行完全同构，
+             右侧只留一个状态小字。夹在菜单中间也不会显得突兀。
+             位置固定在「退出登录」之前，退出登录永远是最末一项 -->
+        <button
+          type="button"
+          class="drawer-nav__item drawer-nav__item--theme"
+          :class="{ 'is-on': uiStore.isDarkMode }"
+          :aria-pressed="uiStore.isDarkMode"
+          @click="uiStore.toggleTheme()"
+        >
+          <IconDark :size="20" />
+          <span>深色模式</span>
+          <span class="theme-state">{{ uiStore.isDarkMode ? "已开启" : "已关闭" }}</span>
+        </button>
+
+        <button
           v-if="userStore.isLogin"
           type="button"
           class="drawer-nav__item drawer-nav__item--danger"
@@ -114,18 +139,22 @@
   </div>
 </template>
 <script setup>
-import { ref, reactive, nextTick, watch } from "vue";
+import { ref, reactive, computed, nextTick, watch, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import router from "@/router";
 import { useUserStore } from "@/stores/user";
 import { useUIStore } from "@/stores/ui";
+import { useTopicStore } from "@/stores/topic";
 import IconHome from "@/components/icons/IconHome.vue";
 import IconUser from "@/components/icons/IconUser.vue";
 import IconMessage from "@/components/icons/IconMessage.vue";
 import IconLock from "@/components/icons/IconLock.vue";
 import IconLogout from "@/components/icons/IconLogout.vue";
 import IconClose from "@/components/icons/IconClose.vue";
+import IconDark from "@/components/icons/IconDark.vue";
+import IconDashboard from "@/components/icons/IconDashboard.vue";
 import InputSearch from "@/components/inputs/InputSearch.vue";
+import { usePermission } from "@/utils/usePermission";
 
 const route = useRoute();
 
@@ -137,11 +166,29 @@ const menuItems = [
   { path: "/space/password", text: "修改密码", icon: IconLock },
 ];
 
+// 手机端也要能进后台，否则管理员在小屏下没有入口
+const { hasPermission } = usePermission();
+const canEnterAdmin = computed(
+  () => userStore.isLogin && hasPermission("user:manage")
+);
+
 const isActive = (path) =>
   path === "/" ? route.path === "/" : route.path.startsWith(path);
 
+const emit = defineEmits(["search", "home"]); // search=搜索，home=点 logo/首页要求重置
+
 const go = (path) => {
   closeDrawer();
+  closeSearchMenu();
+  if (path === "/") {
+    // 已经在首页时路由不会变化，必须让首页自己重置，否则点了没反应
+    if (route.path === "/") {
+      emit("home");
+      return;
+    }
+    router.push("/");
+    return;
+  }
   if (route.path !== path) router.push(path);
 };
 
@@ -165,9 +212,15 @@ const searchOptions = reactive([
   { label: "用户", value: "user" },
   { label: "分类", value: "category" },
 ]);
-const emit = defineEmits(["search"]); // 声明 emit 事件
-// 热门话题（与首页左侧话题保持一致，点击即按分类搜索）
-const hotSearchTags = ref(["技术", "生活", "游戏", "音乐", "影视", "文章", "其他"]);
+// 热门话题（与首页左侧话题同源）：只取已经有帖子的话题，最多展示 8 个。
+// 空话题也会出现在首页话题栏（站长刚建的），但放进「热门」里会显得没内容。
+const topicStore = useTopicStore();
+const hotSearchTags = computed(() =>
+  topicStore.usedTopics.slice(0, 8).map((t) => t.name)
+);
+onMounted(() => {
+  topicStore.loadTopics();
+});
 
 const toggleDrawer = () => {
   drawerVisible.value = !drawerVisible.value;
@@ -194,6 +247,14 @@ function onSearch({ keyword, type }) {
   closeSearchMenu();
   emit("search", { keyword, type });
 }
+
+// 搜索条件被清掉时（点 logo / 首页 / 浏览器后退），输入框内容同步清空
+watch(
+  () => route.query.keyword,
+  (keyword) => {
+    searchText.value = keyword ? String(keyword) : "";
+  }
+);
 
 // 点击热门话题标签：按关键词搜索
 const handleHotTagClick = (tag) => {
@@ -397,6 +458,9 @@ function handleLogin() {
   max-width: 82vw;
   height: 100%;
   padding: 0;
+  /* flex column：让 .drawer-nav 吃掉剩余高度，「外观」就能吸到底部 */
+  display: flex;
+  flex-direction: column;
   background: var(--bg-primary);
   color: var(--text-primary);
   border-radius: 0 16px 16px 0;
@@ -423,6 +487,7 @@ function handleLogin() {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
   margin: 16px 12px 8px;
   padding: 14px 12px;
   border-radius: 12px;
@@ -494,6 +559,9 @@ function handleLogin() {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* 撑满剩余高度，「外观」靠 margin-top:auto 吸底；min-height:0 防内容多时溢出 */
+  flex: 1;
+  min-height: 0;
   padding: 8px 12px 20px;
 }
 
@@ -503,6 +571,7 @@ function handleLogin() {
   gap: 12px;
   width: 100%;
   height: 46px;
+  flex-shrink: 0;
   padding: 0 14px;
   border: none;
   border-radius: 11px;
@@ -527,6 +596,19 @@ function handleLogin() {
 
 .drawer-nav__item.is-active {
   background: var(--primary-color-soft);
+  color: var(--primary-color);
+}
+
+/* 深色模式菜单项：右侧状态小字推到最右 */
+.theme-state {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: color 0.18s ease;
+}
+
+.drawer-nav__item--theme.is-on .theme-state {
   color: var(--primary-color);
 }
 

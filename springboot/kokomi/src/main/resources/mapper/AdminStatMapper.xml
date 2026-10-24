@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.kokomi.mapper.AdminStatMapper">
+
+    <!-- 注意列名不统一：user 用 create_time，post / comment 用 created_at。
+         这里用别名直接映射到 VO 字段，避免和 map-underscore-to-camel-case 打架。 -->
+    <select id="selectCounts" resultType="com.example.kokomi.vo.AdminStatVO">
+        SELECT
+            (SELECT COUNT(*) FROM `user`)                                   AS userCount,
+            (SELECT COUNT(*) FROM `post`)                                   AS postCount,
+            (SELECT COUNT(*) FROM `comment`)                                AS commentCount,
+            (SELECT COUNT(*) FROM `topic`)                                  AS topicCount,
+            (SELECT COUNT(*) FROM `user`    WHERE create_time &gt;= CURDATE()) AS todayUserCount,
+            (SELECT COUNT(*) FROM `post`    WHERE created_at  &gt;= CURDATE()) AS todayPostCount,
+            (SELECT COUNT(*) FROM `comment` WHERE created_at  &gt;= CURDATE()) AS todayCommentCount
+    </select>
+
+    <select id="selectRecentUsers" resultType="com.example.kokomi.vo.AdminStatVO$RecentUser">
+        SELECT id, name, username, avatar, primary_role AS primaryRole, create_time AS createTime
+        FROM `user`
+        ORDER BY create_time DESC, id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectRecentPosts" resultType="com.example.kokomi.vo.AdminStatVO$RecentPost">
+        SELECT p.id,
+               p.title,
+               p.type,
+               p.created_at AS createTime,
+               p.views,
+               p.likes,
+               IFNULL(u.name, u.username) AS authorName
+        FROM `post` p
+        LEFT JOIN `user` u ON u.id = p.user_id
+        ORDER BY p.created_at DESC, p.id DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

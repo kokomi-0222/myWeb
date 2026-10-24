@@ -2,8 +2,8 @@
 import axios from 'axios'
 import setting from '@/config/setting'
 import { getAccessToken, removeAccessToken } from '@/utils/accessToken'
-import { handleMockRequest } from '@/mocks/index'
 import message from './message'
+import { logError, logWarn } from './logger'
 
 // ======================
 //  真实请求实例（仅在非 mock 时使用）
@@ -46,10 +46,23 @@ realService.interceptors.response.use(
     if (res.code == setting.noPermissionCode) {
       return Promise.reject(new Error('权限不足'))
     }
-    
+
+    // 走到这里的都是「非预期」的业务失败：登录过期(401)、权限不足(403) 属于正常流程，
+    // 上面已经分别返回，不打印以免刷屏；其余打一条 warn，方便线上快速定位是哪个接口。
+    logWarn('[请求失败]', {
+      method: (response.config?.method || 'get').toUpperCase(),
+      url: response.config?.url,
+      code: res.code,
+      msg: res.msg,
+    })
+
     return Promise.reject(new Error(res.msg || '请求失败'))
   },
   (error) => {
+    // 网络层 / HTTP 层异常（断网、超时、5xx、413…）：用户侧只弹一句提示，
+    // 控制台打全上下文（地址、方法、状态码、响应体），不留「网络异常」这种无从排查的线索。
+    logError('网络请求', error)
+
     // 413：请求体超过服务器（Nginx）允许的大小，通常是上传了过大的图片。
     // 这种情况必须给出准确提示，否则用户只会看到含糊的「网络异常」。
     if (error.response?.status === 413) {
@@ -79,14 +92,17 @@ realService.interceptors.response.use(
  * @param {import('axios').AxiosRequestConfig} config
  * @returns {Promise<T>}
  */
-export default function request(config) {
-  if (setting.mock) {
-    // 🔸 Mock 模式：不走网络，直接返回模拟数据
+export default async function request(config) {
+  // Mock 层只在开发环境按需加载：
+  // 1. import.meta.env.DEV 在生产构建时会被替换为 false，整段被 tree-shake 掉，
+  //    1331 行假数据不会进产物；
+  // 2. 开发环境也是动态 import，只有真的开了 setting.mock 才加载对应 chunk。
+  if (import.meta.env.DEV && setting.mock) {
+    const { handleMockRequest } = await import('@/mocks/index')
     return handleMockRequest(config)
-  } else {
-    // 🔸 真实模式：走 axios + 拦截器
-    return realService(config)
   }
+  // 🔸 真实模式：走 axios + 拦截器
+  return realService(config)
 }
 
 // ======================

@@ -5,7 +5,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -13,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.kokomi.common.ResultCode;
 import com.example.kokomi.entity.Comment;
+import com.example.kokomi.entity.Post;
 import com.example.kokomi.entity.User;
 import com.example.kokomi.exception.CustomerException;
 import com.example.kokomi.mapper.CommentLikeMapper;
@@ -23,6 +30,7 @@ import com.example.kokomi.mapper.UserMapper;
 import com.example.kokomi.mapper.UserRoleMapper;
 import com.example.kokomi.util.PermissionCache;
 import com.example.kokomi.service.CommentService;
+import com.example.kokomi.service.NotificationService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.vo.CommentAuthorVO;
 import com.example.kokomi.vo.CommentVO;
@@ -40,6 +48,7 @@ public class CommentServiceImpl implements CommentService {
     private final UserMapper userMapper;
     private final UserRoleMapper userRoleMapper;
     private final RolePermissionMapper rolePermissionMapper;
+    private final NotificationService notificationService;
 
     @Value("${app.upload-path}")
     private String uploadPath;
@@ -50,20 +59,7 @@ public class CommentServiceImpl implements CommentService {
     @Override
     public List<CommentVO> getCommentsByPostId(Long postId) {
         List<Comment> topLevel = commentMapper.selectTopLevelByPostId(postId);
-        List<CommentVO> result = new ArrayList<>();
-
-        for (Comment comment : topLevel) {
-            CommentVO vo = convertToVO(comment);
-            // 加载子回复
-            List<Comment> replies = commentMapper.selectRepliesByParentId(comment.getId());
-            List<CommentVO> replyVOs = new ArrayList<>();
-            for (Comment reply : replies) {
-                replyVOs.add(convertToVO(reply));
-            }
-            vo.setReplies(replyVOs);
-            result.add(vo);
-        }
-        return result;
+        return buildTree(topLevel);
     }
 
     @Override
@@ -72,18 +68,67 @@ public class CommentServiceImpl implements CommentService {
         List<Comment> topLevel = commentMapper.selectTopLevelByPostIdPaginated(postId, offset, pageSize);
         int total = commentMapper.countTopLevelByPostId(postId);
 
-        List<CommentVO> voList = new ArrayList<>();
-        for (Comment comment : topLevel) {
-            CommentVO vo = convertToVO(comment);
-            List<Comment> replies = commentMapper.selectRepliesByParentId(comment.getId());
-            List<CommentVO> replyVOs = new ArrayList<>();
-            for (Comment reply : replies) {
-                replyVOs.add(convertToVO(reply));
-            }
-            vo.setReplies(replyVOs);
-            voList.add(vo);
+        return PageVO.build(buildTree(topLevel), (long) total, pageNum, pageSize);
+    }
+
+    /**
+     * 把顶级评论 + 其子回复组装成树。
+     * <p>
+     * 作者信息、点赞状态、子回复各用一次批量查询，整体 SQL 次数固定，
+     * 与评论条数无关（原来是每条评论 2~3 次查询，10 条顶级 + 30 条回复约 100 次）。
+     */
+    private List<CommentVO> buildTree(List<Comment> topLevel) {
+        List<CommentVO> result = new ArrayList<>();
+        if (topLevel == null || topLevel.isEmpty()) {
+            return result;
         }
-        return PageVO.build(voList, (long) total, pageNum, pageSize);
+
+        List<Long> parentIds = topLevel.stream().map(Comment::getId).toList();
+        // 一次取走所有子回复，再按 parentId 挂到对应评论下
+        List<Comment> replies = commentMapper.selectRepliesByParentIds(parentIds);
+
+        List<Comment> all = new ArrayList<>(topLevel);
+        all.addAll(replies);
+
+        // 作者：一次批量查
+        Set<Long> userIds = all.stream()
+                .map(Comment::getUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, User> authorMap = userIds.isEmpty()
+                ? Map.of()
+                : userMapper.selectByIds(userIds).stream()
+                        .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a));
+
+        // 当前用户点赞过的评论 id 集合
+        Long currentUserId = LoginUserHolder.getUserId();
+        Set<Long> likedIds = currentUserId == null
+                ? Set.of()
+                : new HashSet<>(commentLikeMapper.selectLikedCommentIds(
+                        currentUserId, all.stream().map(Comment::getId).toList()));
+
+        // 先把所有评论转成 VO
+        Map<Long, CommentVO> voMap = new HashMap<>();
+        for (Comment c : all) {
+            voMap.put(c.getId(), toVO(c, authorMap, likedIds));
+        }
+
+        // 再把子回复挂到父评论上；父评论不在当前页的回复直接丢弃（翻页时正常现象）
+        for (Comment reply : replies) {
+            CommentVO parent = voMap.get(reply.getParentId());
+            CommentVO child = voMap.get(reply.getId());
+            if (parent != null && child != null) {
+                parent.getReplies().add(child);
+            }
+        }
+
+        for (Comment c : topLevel) {
+            CommentVO vo = voMap.get(c.getId());
+            if (vo != null) {
+                result.add(vo);
+            }
+        }
+        return result;
     }
 
     @Override
@@ -91,7 +136,8 @@ public class CommentServiceImpl implements CommentService {
     public CommentVO createComment(Long postId, String content, Long parentId, String replyTo, String image) {
         Long userId = LoginUserHolder.getUserId();
 
-        if (postMapper.selectById(postId) == null) {
+        Post post = postMapper.selectById(postId);
+        if (post == null) {
             throw new CustomerException(ResultCode.PARAM_ERROR, "帖子不存在");
         }
         if ((content == null || content.trim().isEmpty()) && (image == null || image.isEmpty())) {
@@ -99,8 +145,9 @@ public class CommentServiceImpl implements CommentService {
         }
 
         // 校验 parentId：父评论必须属于同一帖子，防止跨帖挂载
+        Comment parentComment = null;
         if (parentId != null) {
-            Comment parentComment = commentMapper.selectById(parentId);
+            parentComment = commentMapper.selectById(parentId);
             if (parentComment == null || !parentComment.getPostId().equals(postId)) {
                 throw new CustomerException(ResultCode.PARAM_ERROR, "父评论不属于该帖子");
             }
@@ -127,7 +174,28 @@ public class CommentServiceImpl implements CommentService {
             postMapper.incrementComments(postId);
         }
 
+        // 通知：顶级评论提醒帖子作者，回复提醒被回复的人
+        String excerpt = excerpt(comment.getContent());
+        if (parentComment != null) {
+            notificationService.notify(parentComment.getUserId(), userId, "reply",
+                    postId, comment.getId(), "回复了你的评论：" + excerpt);
+        } else {
+            String title = post.getTitle();
+            String suffix = (title == null || title.isBlank()) ? "" : "《" + title + "》";
+            notificationService.notify(post.getUserId(), userId, "comment",
+                    postId, comment.getId(), "评论了你的帖子" + suffix + "：" + excerpt);
+        }
+
         return convertToVO(comment);
+    }
+
+    /** 评论摘要：去掉换行、截断，避免通知里出现一大段内容 */
+    private String excerpt(String text) {
+        if (text == null) {
+            return "";
+        }
+        String flat = text.replaceAll("\\s+", " ").trim();
+        return flat.length() <= 40 ? flat : flat.substring(0, 40) + "…";
     }
 
     @Override
@@ -144,6 +212,8 @@ public class CommentServiceImpl implements CommentService {
         int inserted = commentLikeMapper.insertIgnore(commentId, userId);
         if (inserted > 0) {
             commentMapper.incrementLikes(commentId);
+            notificationService.notify(comment.getUserId(), userId, "like_comment",
+                    comment.getPostId(), commentId, "赞了你的评论：" + excerpt(comment.getContent()));
         }
     }
 
@@ -204,7 +274,24 @@ public class CommentServiceImpl implements CommentService {
         }
     }
 
+    /** 单条评论转换（发评论后立即返回用） */
     private CommentVO convertToVO(Comment comment) {
+        Long currentUserId = LoginUserHolder.getUserId();
+        Set<Long> likedIds = currentUserId != null
+                && commentLikeMapper.existsByCommentIdAndUserId(comment.getId(), currentUserId) > 0
+                        ? Set.of(comment.getId())
+                        : Set.of();
+        User user = userMapper.selectById(comment.getUserId());
+        Map<Long, User> authorMap = user == null ? Map.of() : Map.of(user.getId(), user);
+        CommentVO vo = toVO(comment, authorMap, likedIds);
+        // 单条场景下没有子回复，保持空列表而不是 null
+        return vo;
+    }
+
+    /**
+     * 单条评论 → VO，作者与点赞状态从已批量查好的 Map/Set 里取，不再访问数据库。
+     */
+    private CommentVO toVO(Comment comment, Map<Long, User> authorMap, Set<Long> likedIds) {
         CommentVO vo = new CommentVO();
         vo.setId(comment.getId());
         vo.setPostId(comment.getPostId());
@@ -215,23 +302,21 @@ public class CommentServiceImpl implements CommentService {
         vo.setParentId(comment.getParentId());
         vo.setReplyTo(comment.getReplyTo());
         vo.setImage(comment.getImage());
+        vo.setReplies(new ArrayList<>());
 
-        // 作者信息
-        User user = userMapper.selectById(comment.getUserId());
+        User user = authorMap.get(comment.getUserId());
         if (user != null) {
             CommentAuthorVO author = new CommentAuthorVO();
             author.setId(user.getId());
             author.setName(user.getName());
             author.setNameColor(user.getNameColor());
+            author.setRoleColor(user.getRoleColor());
+            author.setPrimaryRole(user.getPrimaryRole());
             author.setAvatar(user.getAvatar());
             vo.setAuthor(author);
         }
 
-        // 当前用户是否已点赞
-        Long currentUserId = LoginUserHolder.getUserId();
-        vo.setLikedByMe(currentUserId != null
-                && commentLikeMapper.existsByCommentIdAndUserId(comment.getId(), currentUserId) > 0);
-
+        vo.setLikedByMe(likedIds.contains(comment.getId()));
         return vo;
     }
 

@@ -180,7 +180,6 @@ const mockToken = {
 export function mockLogin({ data }) {
   // 注意：现在前端传的是 account + password
   const { account, password } = data;
-  console.log('登录：', account, password);
   // 没传账号直接返回错误
   if (!account || !password) {
     return { code: "401", message: '用户名/手机号/邮箱或密码错误' };

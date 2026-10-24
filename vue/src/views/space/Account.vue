@@ -194,7 +194,6 @@ const handleAvatarChange = async (e) => {
       progress.value = percent;
     });
 
-    console.log("uploadAvatar:", res);
     if (!setting.successCode.includes(res.code)) {
       message.error(res.message);
       return;
@@ -228,7 +227,6 @@ const handleSave = async () => {
   }
  
 
-  console.log("保存个人信息：", userInfo)
   // 等待接口执行完
   const res = await userStore.updateProfile(userInfo)
   if (res?.success) {

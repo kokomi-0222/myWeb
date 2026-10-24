@@ -10,6 +10,7 @@ public class UserBO {
     private String username;
     private String name;
     private String nameColor;
+    private String roleColor;
     private String primaryRole;
     private String avatar;
     private String badge;

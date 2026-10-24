@@ -36,6 +36,12 @@ public class PostController {
         return Result.success(postService.getUserPosts(dto));
     }
 
+    // 全站统计（公开）：首页「社区数据」用，不受当前筛选条件影响
+    @GetMapping("/stats")
+    public Result<java.util.Map<String, Long>> stats() {
+        return Result.success(postService.getStats());
+    }
+
     // 帖子详情
     @GetMapping("/{postId}")
     public Result<PostDetailVO> getPostById(@PathVariable Long postId) {
@@ -66,6 +72,13 @@ public class PostController {
     @DeleteMapping("/{postId}/like")
     public Result<Void> unlike(@PathVariable Long postId) {
         postService.unlike(postId);
+        return Result.success();
+    }
+
+    // 转发（转发数 +1，并给作者发通知）
+    @PostMapping("/{postId}/forward")
+    public Result<Void> forward(@PathVariable Long postId) {
+        postService.forward(postId);
         return Result.success();
     }
 }

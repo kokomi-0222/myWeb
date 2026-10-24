@@ -82,7 +82,6 @@ export function handleMockRequest(config) {
             data
         })
         // 模拟网络延迟
-        //console.log(`response:` , mockData)
         return new Promise(resolve => {
             setTimeout(() => resolve(mockData), 200)
         })

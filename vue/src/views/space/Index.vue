@@ -23,6 +23,10 @@
                 <component :is="menu.icon" size="20"></component>
               </i>
               <span class="menu-item__text">{{ menu.text }}</span>
+              <span
+                v-if="menu.key === 'message' && notifyStore.unread > 0"
+                class="menu-item__badge"
+              >{{ notifyStore.unread > 99 ? "99+" : notifyStore.unread }}</span>
             </li>
           </ul>
         </div>
@@ -36,13 +40,22 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, onMounted } from "vue";
 import IconHome from "@/components/icons/IconHome.vue";
 import IconUser from "@/components/icons/IconUser.vue";
 import IconMessage from "@/components/icons/IconMessage.vue";
 import router from "@/router";
 import IconLock from "@/components/icons/IconLock.vue";
+import { useNotificationStore } from "@/stores/notification";
 
+const notifyStore = useNotificationStore();
+
+// 进入个人中心时拉一次未读数，用于「消息管理」的红点
+onMounted(() => {
+  notifyStore.fetchUnread();
+});
+
+// 「用户管理」已独立成 /admin 后台（入口在顶栏），这里不再放管理相关菜单
 const menuList = [
   { path: "home", text: "首页", key: "home", icon: IconHome },
   { path: "account", text: "账号管理", key: "account", icon: IconUser },
@@ -178,6 +191,22 @@ const handleGlobalSearch = () => {
 
 .menu-item__text {
   white-space: nowrap;
+}
+
+/* 未读消息数：贴着「消息管理」右侧的小红点 */
+.menu-item__badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #fb7299;
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .main-content {

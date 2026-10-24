@@ -25,6 +25,17 @@
         ORDER BY sort ASC
     </select>
 
+    <!-- 批量按帖子 id 查媒体，列表页一次取完，避免每帖一次查询 -->
+    <select id="selectByPostIds" resultType="com.example.kokomi.entity.PostMedia">
+        SELECT
+            id, post_id, thumbnail_url, preview_url, raw_url, type,
+            width, height, size, alt, format, is_animated, sort, created_at
+        FROM post_media
+        WHERE post_id IN
+        <foreach collection="postIds" item="pid" open="(" separator="," close=")">#{pid}</foreach>
+        ORDER BY post_id ASC, sort ASC
+    </select>
+
     <insert id="insertBatch" parameterType="list">
         INSERT INTO post_media (post_id, thumbnail_url, preview_url, raw_url, type, width, height, size, alt, format, is_animated, sort, created_at)
         VALUES

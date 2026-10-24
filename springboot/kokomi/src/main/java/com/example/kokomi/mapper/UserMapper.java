@@ -3,6 +3,7 @@ package com.example.kokomi.mapper;
 import com.example.kokomi.entity.User;
 import org.apache.ibatis.annotations.*;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -22,6 +23,23 @@ public interface UserMapper {
 
     @Select("select * from user where id = #{id}")
     User selectById(Long id);
+
+    /**
+     * 批量按 id 查用户，供帖子/评论列表一次性取作者信息（消除 N+1）。
+     * 只查展示需要的字段，不返回 password / token_version 等敏感列。
+     */
+    @Select("""
+            <script>
+            select id, name, name_color, role_color, primary_role, avatar, badge, ornament, signature, create_time
+            from user where id in
+            <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+            </script>
+            """)
+    List<User> selectByIds(@Param("ids") Collection<Long> ids);
+
+    /** 全站注册用户数（首页统计用） */
+    @Select("select count(*) from user")
+    Long countAll();
 
 
     //根据id更新用户信息
@@ -47,5 +65,66 @@ public interface UserMapper {
     @Update("UPDATE user SET password = #{newPassword}, token_version = token_version + 1 WHERE id = #{userId}")
     int updatePasswordAndVersion(@Param("userId") Long userId, @Param("newPassword") String newPassword);
 
+    /**
+     * 用户管理页的分页查询。
+     * 只查展示需要的列，不返回 password / token_version。
+     * keyword 同时匹配账号、昵称、邮箱。
+     */
+    @Select("""
+            <script>
+            select id, username, name, name_color, role_color, avatar, primary_role, create_time
+            from user
+            <where>
+                <if test="keyword != null and keyword != ''">
+                    username like concat('%', #{keyword}, '%')
+                    or name like concat('%', #{keyword}, '%')
+                    or email like concat('%', #{keyword}, '%')
+                </if>
+            </where>
+            order by id asc
+            limit #{offset}, #{limit}
+            </script>
+            """)
+    List<User> selectAdminPage(@Param("keyword") String keyword,
+                               @Param("offset") int offset,
+                               @Param("limit") int limit);
+
+    /** 用户管理页的总数（与 selectAdminPage 条件保持一致） */
+    @Select("""
+            <script>
+            select count(*) from user
+            <where>
+                <if test="keyword != null and keyword != ''">
+                    username like concat('%', #{keyword}, '%')
+                    or name like concat('%', #{keyword}, '%')
+                    or email like concat('%', #{keyword}, '%')
+                </if>
+            </where>
+            </script>
+            """)
+    Long countAdminPage(@Param("keyword") String keyword);
+
+    /**
+     * 后台改某个用户的「外观」：名字颜色 + 身份标签底色。
+     * 两个值都允许为 null —— null 表示恢复默认（前端会自动回退）。
+     * 只动这两列，不碰 nickname/avatar 等其它资料，也不会让登录态失效。
+     */
+    @Update("""
+            update user
+            set name_color = #{nameColor},
+                role_color = #{roleColor}
+            where id = #{userId}
+            """)
+    int updateStyle(@Param("userId") Long userId,
+                    @Param("nameColor") String nameColor,
+                    @Param("roleColor") String roleColor);
+
+    /**
+     * 同步「身份标签」用的 primary_role。
+     * 只影响显示（帖子、主页上挂哪个角色名），鉴权始终看 user_role，
+     * 所以这里写错了最多是标签不对，不会多给或少给权限。
+     */
+    @Update("update user set primary_role = #{roleCode} where id = #{userId}")
+    int updatePrimaryRole(@Param("userId") Long userId, @Param("roleCode") String roleCode);
 
 }

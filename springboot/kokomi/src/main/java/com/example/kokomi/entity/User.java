@@ -17,6 +17,8 @@ public class User {
     private String password;
     private String name;
     private String nameColor;
+    /** 身份标签（名字旁边那个小方块）的底色；为空时前端回退用 nameColor */
+    private String roleColor;
     private String primaryRole;
     private String avatar;
     private String badge;

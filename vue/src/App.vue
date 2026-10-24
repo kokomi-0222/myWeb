@@ -8,8 +8,15 @@
 import { onMounted, watch } from "vue";
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
+import { useRoleStore } from "@/stores/role";
+import { log } from "@/utils/logger";
 const ui = useUIStore();
 const user = useUserStore();
+const roleStore = useRoleStore();
+
+// 角色字典：身份标签要把 roleCode 翻成中文，越早拉越好（失败也不影响页面）
+onMounted(() => roleStore.load());
+
 watch(
   () => ui.isDarkMode,
   (isDark) => {
@@ -67,7 +74,9 @@ let title2 = `
 let content = `
   欢迎来到kokomi的小窝！
 `;
-console.log(
+// 控制台欢迎语：开发和生产环境都打印。
+// 必须走 utils/logger 的 log()：vite 构建配了 esbuild.pure，直接写 console.log 会被整句删掉。
+log(
   `%c${title1} %c${title2}
 %c${content}`,
   styleTitle1,

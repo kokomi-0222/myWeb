@@ -1,7 +1,7 @@
 <template>
   <div class="kokomi-app">
-    <TopNavbar @search="handleGlobalSearch" />
-    <MobileNavbar @search="handleGlobalSearch" />
+    <TopNavbar @search="handleGlobalSearch" @home="handleGoHome" />
+    <MobileNavbar @search="handleGlobalSearch" @home="handleGoHome" />
     <div class="header-banner">
       <Banner />
     </div>
@@ -21,13 +21,13 @@
             </li>
             <li
               v-for="topic in topics"
-              :key="topic.type"
+              :key="topic.value"
               class="topic-item"
-              :class="{ 'is-active': currentType === topic.type }"
-              @click="handleTopicClick(topic.type)"
+              :class="{ 'is-active': currentType === topic.value }"
+              @click="handleTopicClick(topic.value)"
             >
               <span class="topic-dot" :style="{ background: topic.color }"></span>
-              <span class="topic-name">{{ topic.label }}</span>
+              <span class="topic-name">{{ topic.name }}</span>
             </li>
           </ul>
         </div>
@@ -128,7 +128,7 @@
           <div class="side-card__title">社区数据</div>
           <div class="stat-grid">
             <div class="stat-item">
-              <div class="stat-num">{{ posts.total }}</div>
+              <div class="stat-num">{{ siteStats.posts }}</div>
               <div class="stat-label">帖子</div>
             </div>
             <div class="stat-item">
@@ -151,14 +151,19 @@
 
 <script setup>
 import { getPosts } from "@/api/posts";
+import { getSiteStats } from "@/api/user";
 import setting from "@/config/setting";
+import { useTopicStore } from "@/stores/topic";
+import { useRoute } from "vue-router";
+import router from "@/router";
+
+const route = useRoute();
 
 import {
   ref,
   reactive,
   computed,
-  onMounted,
-  onBeforeUnmount,
+  onMounted,  onBeforeUnmount,
   watch,
   nextTick,
 } from "vue";
@@ -171,16 +176,11 @@ const sortOptions = [
   { label: "评论", sortBy: "comments" },
 ];
 
-// ========== 话题（与 PostCard 的 TYPE_MAP 保持一致） ==========
-const topics = [
-  { type: "tech", label: "技术", color: "#00aeec" },
-  { type: "life", label: "生活", color: "#fb7299" },
-  { type: "game", label: "游戏", color: "#6b7cff" },
-  { type: "music", label: "音乐", color: "#f5a623" },
-  { type: "movie", label: "影视", color: "#23c343" },
-  { type: "article", label: "文章", color: "#8b5cf6" },
-  { type: "other", label: "其他", color: "#8a8a8a" },
-];
+// ========== 话题 ==========
+// 话题由后端 /topic/list 提供（话题表 + 帖子里实际用到的类型），
+// 站长新增话题后这里自动出现，不再需要在多个文件里同步硬编码列表。
+const topicStore = useTopicStore();
+const topics = computed(() => topicStore.list);
 //帖子信息
 const posts = reactive({
   list: [],
@@ -189,6 +189,22 @@ const posts = reactive({
   pageSize: setting.postsPageSize || 10,
   loading: false,
 });
+
+// 全站统计（右侧「社区数据」用，不随话题筛选变化）
+const siteStats = reactive({ posts: 0, users: 0, comments: 0 });
+
+const loadSiteStats = async () => {
+  try {
+    const res = await getSiteStats();
+    if (setting.successCode.includes(res.code) && res.data) {
+      siteStats.posts = res.data.posts ?? 0;
+      siteStats.users = res.data.users ?? 0;
+      siteStats.comments = res.data.comments ?? 0;
+    }
+  } catch (err) {
+    console.warn("加载站点统计失败:", err);
+  }
+};
 //分类选项
 const currentSort = ref(null);
 // 未选择排序时，界面默认高亮「更新」（请求仍传 null，不改变后端默认排序）
@@ -198,8 +214,8 @@ const currentType = ref("");
 
 // 当前话题标题
 const currentTopicLabel = computed(() => {
-  const topic = topics.find((t) => t.type === currentType.value);
-  return topic ? topic.label : "最新";
+  const topic = topics.value.find((t) => t.value === currentType.value);
+  return topic ? topic.name : "最新";
 });
 
 // 点击话题筛选
@@ -223,30 +239,65 @@ const hasMore = computed(() => {
 });
 // ========== 处理全局搜索 ==========
 const searchParams = reactive({
-  keyword: "",
+  keyword: "", // 实际传给后端的值（分类搜索会转成英文）
+  rawKeyword: "", // 用户原始输入（写进 URL、用于和路由比对）
   searchType: "",
   type: "",
 });
 
-// 分类搜索：用户输入的是中文标签，后端存的是英文值，这里做一次转换
-const CATEGORY_VALUE_MAP = {
-  技术: "tech",
-  生活: "life",
-  游戏: "game",
-  音乐: "music",
-  影视: "movie",
-  文章: "article",
-  其他: "other",
+// 分类搜索：用户输入的是中文标签，后端存的是存储值，这里做一次转换
+// 原来是一张写死的 MAP，现在交给话题字典按名字查，新建的话题也能直接搜
+const resolveCategoryValue = (rawKeyword) => topicStore.valueOfName(rawKeyword);
+
+// 把搜索条件写进 URL
+// 目的：刷新/前进后退能还原搜索态，也让人能一眼看出「当前不是首页原始列表」
+const writeSearchQuery = (keyword, type) => {
+  const query = {};
+  if (keyword) {
+    query.keyword = keyword;
+    if (type) query.type = type;
+  }
+  if (
+    String(route.query.keyword || "") === String(query.keyword || "") &&
+    String(route.query.type || "") === String(query.type || "")
+  ) {
+    return; // location 没变化，避免触发无谓的路由跳转
+  }
+  router.replace({ path: "/", query }).catch(() => {});
+};
+
+// 回到「全部帖子」的干净状态（点 logo / 首页 / 清空搜索都走这里）
+const resetSearch = () => {
+  searchParams.keyword = "";
+  searchParams.rawKeyword = "";
+  searchParams.searchType = "";
+  searchParams.type = "";
+  currentType.value = ""; // 话题筛选也一并清掉
+
+  posts.currentPage = 1;
+  posts.list = [];
+  posts.total = 0;
+
+  writeSearchQuery("", "");
+  loadPosts();
+  window.scrollTo({ top: 0, behavior: "auto" });
 };
 
 // 搜索触发函数
-const handleGlobalSearch = ({ keyword, type }) => {
-  const rawKeyword = keyword?.trim() || "";
+const handleGlobalSearch = ({ keyword, type } = {}) => {
+  const rawKeyword = String(keyword ?? "").trim();
+
+  // 空关键词 = 撤销搜索，回到全部
+  if (!rawKeyword) {
+    resetSearch();
+    return;
+  }
 
   // 更新搜索参数
+  searchParams.rawKeyword = rawKeyword;
   searchParams.keyword =
-    type === "category" && rawKeyword
-      ? CATEGORY_VALUE_MAP[rawKeyword] || rawKeyword.toLowerCase()
+    type === "category"
+      ? resolveCategoryValue(rawKeyword)
       : rawKeyword;
   searchParams.searchType = type || "";
   searchParams.type = "";
@@ -257,8 +308,15 @@ const handleGlobalSearch = ({ keyword, type }) => {
   posts.list = [];
   posts.total = 0;
 
+  writeSearchQuery(rawKeyword, type);
+
   // 重新加载（带搜索参数）
   loadPosts();
+};
+
+// 顶栏 / 移动端导航点「首页」「logo」时调用
+const handleGoHome = () => {
+  resetSearch();
 };
 
 // ========== 加载逻辑 ==========
@@ -284,7 +342,6 @@ const loadPosts = async (isLoadMore = false) => {
     if (setting.successCode.includes(res.code)) {
       const newPosts = res.data.list || [];
       const newTotal = res.data.total || 0;
-      console.log("getPosts:", res);
       if (isLoadMore) {
         posts.list.push(...newPosts);
         posts.currentPage += 1; // 已成功加载下一页
@@ -338,15 +395,51 @@ const onScroll = () => {
 };
 
 // ========== 生命周期 ==========
-onMounted(() => {
-  // 首次加载（不分页模式还是无限滚动都走这里）
-  loadPosts();
+onMounted(async () => {
+  // 话题字典和帖子列表并行拉：不带关键词时两者互不依赖，首屏不受影响
+  const topicsReady = topicStore.loadTopics();
+
+  if (route.query.keyword) {
+    // 分类搜索要把中文话题名转成存储值，必须等字典先就位
+    await topicsReady;
+    // 从他人主页带关键词跳回来时，直接沿用搜索条件
+    handleGlobalSearch({
+      keyword: String(route.query.keyword),
+      type: route.query.type ? String(route.query.type) : "",
+    });
+  } else {
+    // 首次加载（不分页模式还是无限滚动都走这里）
+    loadPosts();
+  }
+  // 全站统计独立请求，只拉一次
+  loadSiteStats();
 
   // 只有无限滚动模式才监听 window scroll
   if (!setting.showPagination) {
     window.addEventListener("scroll", onScroll);
   }
 });
+
+// 地址栏里的搜索条件变化时同步列表
+// 覆盖三种场景：浏览器前进/后退、外站带 ?keyword= 进来、点 logo 把条件清空
+watch(
+  () => [String(route.query.keyword || ""), String(route.query.type || "")],
+  ([keyword, type]) => {
+    if (!keyword) {
+      // URL 已无搜索条件，但页面还停在搜索结果上 → 回到全部
+      if (searchParams.rawKeyword || searchParams.searchType) resetSearch();
+      return;
+    }
+    if (
+      keyword === searchParams.rawKeyword &&
+      type === searchParams.searchType
+    ) {
+      return; // 自己刚写进去的，不用重复请求
+    }
+    handleGlobalSearch({ keyword, type });
+  }
+);
+
 
 onBeforeUnmount(() => {
   window.removeEventListener("scroll", onScroll);

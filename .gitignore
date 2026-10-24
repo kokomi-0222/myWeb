@@ -4,12 +4,18 @@ CLAUDE.md
 shots/
 tools/ext-assets/
 
-# ---- 服务器运维配置（Nginx 等，含线上路径，不入库）----
+# ---- 本地/生产凭据（不入库）----
+# 数据库密码、JWT secret 一律走环境变量；本机值写在这里，不会被打进 jar
+springboot/kokomi/config/
+
+# ---- 服务器运维配置（Nginx / systemd 等，含线上路径与生产密码，不入库）----
 domian.conf
 *.nginx.conf
+springboot/kokomi.service
 
 # ---- 前端构建产物、历史备份与部署包 ----
-# dist 由 npm run build 重建；dist_old_* 是每次构建前的备份；dist_*.zip 是部署包
+# dist 由 npm run build 重建；dist_xxx/ 是带用途后缀的临时构建目录
+# （dist_mb、dist_topic2 这类，压完就没人用了）；dist_*.zip 是部署包
 vue/dist/
-vue/dist_old_*/
+vue/dist_*/
 vue/dist_*.zip

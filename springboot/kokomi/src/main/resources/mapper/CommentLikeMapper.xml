@@ -24,6 +24,14 @@
         WHERE comment_id = #{commentId} AND user_id = #{userId}
     </select>
 
+    <!-- 批量查「我在这些评论里点过赞的」，评论列表一次取完 -->
+    <select id="selectLikedCommentIds" resultType="java.lang.Long">
+        SELECT comment_id FROM comment_like
+        WHERE user_id = #{userId}
+          AND comment_id IN
+        <foreach collection="commentIds" item="cid" open="(" separator="," close=")">#{cid}</foreach>
+    </select>
+
     <delete id="deleteByCommentId">
         DELETE FROM comment_like WHERE comment_id = #{commentId}
     </delete>

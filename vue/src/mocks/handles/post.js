@@ -461,12 +461,7 @@ let posts = [
 ]
 
 export function mockGetPosts({ params }) {
-  console.log('[MOCK] 获取帖子列表')
   const { pageNum = 1, pageSize = 10, sort, keyword, type } = params
-  console.log(`[MOCK] 分页参数: pageNum=${pageNum}, pageSize=${pageSize}`)
-  console.log(`[MOCK] 排序参数: sort=${sort}`)
-  console.log(`[MOCK] 关键字参数: keyword=${keyword}`)
-  console.log(`[MOCK] 类型参数: type=${type}`)
 
   // 过滤
   let filtered = posts
@@ -502,18 +497,11 @@ export function mockGetPosts({ params }) {
 }
 
 export function mockGetUserPosts({ headers, params }) {
-  console.log('[MOCK] 获取用户帖子列表')
   const { pageNum = 1, pageSize = 10, sort, keyword, type } = params
-  console.log(`[MOCK] 分页参数: pageNum=${pageNum}, pageSize=${pageSize}`)
-  console.log(`[MOCK] 排序参数: sort=${sort}`)
-  console.log(`[MOCK] 关键字参数: keyword=${keyword}`)
-  console.log(`[MOCK] 类型参数: type=${type}`)
-  console.log(`[MOCK] 获取用户token: ${JSON.stringify(headers)}`)
 
   const res = mockGetUserInfo({ headers: headers })
 
   if (res.code !== '200') {
-    console.log('[MOCK] 获取用户信息失败')
     return {
       code: '200',
       data: null,
@@ -545,7 +533,6 @@ export function mockGetUserPosts({ headers, params }) {
   }
 
   const total = userPosts.length
-  console.log(`[MOCK] 获取用户帖子总数成功: ${total}`)
   const list = userPosts.slice((pageNum - 1) * pageSize, pageNum * pageSize)
   return {
     code: '200',

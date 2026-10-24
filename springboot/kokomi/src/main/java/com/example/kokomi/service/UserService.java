@@ -27,4 +27,9 @@ public interface UserService {
      * 修改密码
      */
     Result<String> updatePassword(EncryptDataDTO dto);
+
+    /**
+     * 获取指定用户的公开主页信息（任何人可访问，不含邮箱/手机号等隐私字段）
+     */
+    com.example.kokomi.vo.UserProfileVO getPublicProfile(Long userId);
 }

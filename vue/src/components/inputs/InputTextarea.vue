@@ -252,10 +252,8 @@ function handleImageChange(files) {
 
 // 修改提交逻辑：携带图片文件
 const handleSubmit = async () => {
-  console.log("提交评论");
   if (isSubmitting.value || props.disabled) return;
   // 空内容校验：文字+图片都为空时不提交
-  console.log(inputValue.value, imageFiles.value);
   if (!inputValue.value.trim() && !imageFiles.value) return;
 
   try {

@@ -12,6 +12,8 @@
     --bg-nomarl: #f0f2f5;
     --bg-hover: #e4e7eb;
     --border-color-hover: #d0d0d0;
+    /* 下拉菜单的浮层底色：亮色跟页面同白，暗色要比页面亮一档（见 :root.dark） */
+    --dropdown-bg: #ffffff;
 
 
 
@@ -94,6 +96,7 @@
     --bg-nomarl: #2d2d2e;
     --bg-hover: #505050;
     --border-color-hover: #4a4a4a;
+    --dropdown-bg: #1e1e1e;
 
     --input-bg: #2a2a2a;
     --input-border: #4a4a4a;

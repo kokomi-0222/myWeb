@@ -21,9 +21,11 @@ import com.example.kokomi.dto.UserUpdateDTO;
 import com.example.kokomi.entity.User;
 import com.example.kokomi.exception.CustomerException;
 import com.example.kokomi.mapper.RolePermissionMapper;
+import com.example.kokomi.mapper.PostMapper;
 import com.example.kokomi.mapper.UserMapper;
 import com.example.kokomi.mapper.UserRoleMapper;
 import com.example.kokomi.service.UserService;
+import com.example.kokomi.vo.UserProfileVO;
 import com.example.kokomi.util.CaptchaCache;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.util.PermissionCache;
@@ -41,9 +43,23 @@ import tools.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
+    /**
+     * 新注册用户的默认角色编码。
+     * <p>
+     * 注册时会同时写入 user 的 primary_role（身份标签）和 user_role（鉴权用）两处：
+     * 前者只负责显示，后者才是权限链路的起点。只写前者的话，
+     * /user/info 的 permissions 会是空数组、后台用户管理页会显示「无角色」。
+     * <p>
+     * member 目前不携带任何权限码（发帖、评论只校验登录），
+     * 以后想给全体普通用户开放某个能力，只需给 member 授一个权限码即可，
+     * 无需再改代码。
+     */
+    private static final String DEFAULT_ROLE = "member";
+
     private final UserMapper userMapper;
     private final UserRoleMapper userRoleMapper;
     private final RolePermissionMapper rolePermissionMapper;
+    private final PostMapper postMapper;
     private final RsaUtil rsaUtil;
     private final ObjectMapper objectMapper;
 
@@ -102,6 +118,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Result<Void> register(EncryptDataDTO encryptedDto){
         // 验证码校验
         if (StrUtil.isBlank(encryptedDto.getCaptchaKey())
@@ -173,7 +190,7 @@ public class UserServiceImpl implements UserService {
         user.setPassword(encodePwd);
         if (isEmail) user.setEmail(account);
         if (isPhone) user.setPhone(account);
-        user.setPrimaryRole("member");
+        user.setPrimaryRole(DEFAULT_ROLE);
         user.setNameColor("#18191c");
         // 插入后自动获取自增 ID
         int rows = userMapper.insert(user);
@@ -191,6 +208,11 @@ public class UserServiceImpl implements UserService {
         if (rows != 1) {
             throw new CustomerException(ResultCode.REGISTER_ERROR, "操作失败");
         }
+
+        // 挂上默认角色：user_role 是权限链路的起点，
+        // 不写这一条的话，新用户的 permissions 永远是空数组
+        userRoleMapper.insertUserRole(userId, DEFAULT_ROLE);
+
         return Result.success();
     }
 
@@ -370,16 +392,43 @@ public class UserServiceImpl implements UserService {
 
 
 
+    @Override
+    public UserProfileVO getPublicProfile(Long userId) {
+        if (userId == null || userId <= 0) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "用户不存在");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "用户不存在");
+        }
+
+        UserProfileVO vo = new UserProfileVO();
+        vo.setId(user.getId());
+        vo.setName(user.getName());
+        vo.setNameColor(user.getNameColor());
+        vo.setRoleColor(user.getRoleColor());
+        vo.setPrimaryRole(user.getPrimaryRole());
+        vo.setAvatar(user.getAvatar());
+        vo.setBadge(user.getBadge());
+        vo.setOrnament(user.getOrnament());
+        vo.setSignature(user.getSignature());
+        vo.setCreateTime(user.getCreateTime());
+
+        Long count = postMapper.countByUserId(userId);
+        vo.setPostCount(count == null ? 0L : count);
+        return vo;
+    }
+
     /**
      * 抽取：User → UserBO 转换方法
      */
-    private UserBO convertToUserBO(User user) {
-        UserBO userBO = new UserBO();
+    private UserBO convertToUserBO(User user) {        UserBO userBO = new UserBO();
 
         userBO.setId(user.getId());
         userBO.setUsername(user.getUsername());
         userBO.setName(user.getName());
         userBO.setNameColor(user.getNameColor());
+        userBO.setRoleColor(user.getRoleColor());
         userBO.setPrimaryRole(user.getPrimaryRole());
         userBO.setAvatar(user.getAvatar());
         userBO.setBadge(user.getBadge());

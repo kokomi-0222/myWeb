@@ -36,4 +36,16 @@ public interface PostMapper {
 
     // 评论数 -1
     int decrementComments(@Param("id") Long id);
+
+    // 转发数 +1
+    int incrementForwards(@Param("id") Long id);
+
+    // 浏览量 +1
+    int incrementViews(@Param("id") Long id);
+
+    // 全站帖子总数（不带任何筛选条件）
+    Long countAll();
+
+    // 某个用户发布的帖子数
+    Long countByUserId(@Param("userId") Long userId);
 }

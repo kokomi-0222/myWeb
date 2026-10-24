@@ -1,6 +1,8 @@
 package com.example.kokomi.mapper;
 
 import org.apache.ibatis.annotations.Param;
+import java.util.Collection;
+import java.util.List;
 
 public interface CommentLikeMapper {
 
@@ -14,4 +16,8 @@ public interface CommentLikeMapper {
     int existsByCommentIdAndUserId(@Param("commentId") Long commentId, @Param("userId") Long userId);
 
     int deleteByCommentId(@Param("commentId") Long commentId);
+
+    // 批量查「指定用户在这些评论里点过赞的 commentId」，评论列表用（消除 N+1）
+    List<Long> selectLikedCommentIds(@Param("userId") Long userId,
+                                     @Param("commentIds") Collection<Long> commentIds);
 }

@@ -9,7 +9,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>心海的小窝</title>
 
- 
+  <!-- 主题预置：在首屏渲染前把 dark 类挂上，避免深色用户看到白屏闪一下。
+       key 必须与 stores/ui.js 里的 THEME_KEY 保持一致。 -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('kokomi-theme')
+        var dark = saved
+          ? saved === 'dark'
+          : window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (dark) document.documentElement.classList.add('dark')
+      } catch (e) {}
+    })();
+  </script>
 </head>
 
 <body>

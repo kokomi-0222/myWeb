@@ -82,6 +82,22 @@ export function getUserPermissions() {
   })
 }
 
+// 他人主页的公开资料（无需登录）
+export function getUserProfile(id) {
+  return request({
+    url: `/user/profile/${id}`,
+    method: 'get',
+  })
+}
+
+// 全站统计：帖子数 / 用户数 / 评论数
+export function getSiteStats() {
+  return request({
+    url: '/post/stats',
+    method: 'get',
+  })
+}
+
 export async function updatePassword(data) {
   if (setting.loginRSA) {
     data = await encryptedData(data)

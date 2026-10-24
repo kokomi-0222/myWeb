@@ -8,6 +8,13 @@
         SELECT tag_name FROM post_tag WHERE post_id = #{postId}
     </select>
 
+    <!-- 批量查多个帖子的标签，列表页用（消除 N+1） -->
+    <select id="selectByPostIds" resultType="com.example.kokomi.entity.PostTag">
+        SELECT id, post_id, tag_name FROM post_tag
+        WHERE post_id IN
+        <foreach collection="postIds" item="pid" open="(" separator="," close=")">#{pid}</foreach>
+    </select>
+
     <insert id="insertBatch" parameterType="list">
         INSERT INTO post_tag (post_id, tag_name)
         VALUES

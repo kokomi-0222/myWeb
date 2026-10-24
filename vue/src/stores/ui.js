@@ -5,7 +5,25 @@ import { ref, computed } from 'vue'
 export const useUIStore = defineStore('ui', () => {
     
   const loginModalOpen = ref(false)
-  const isDarkMode = ref(false)
+
+  // ========== 暗色主题 ==========
+  // 存在 localStorage 里，否则手机端每次刷新都掉回浅色（以前就是这个毛病）。
+  // 首次访问跟随系统偏好，用户手动切过之后一切以 localStorage 为准。
+  const THEME_KEY = 'kokomi-theme'
+
+  function readInitialDark() {
+    if (typeof window === 'undefined') return false
+    try {
+      const saved = window.localStorage.getItem(THEME_KEY)
+      if (saved === 'dark') return true
+      if (saved === 'light') return false
+    } catch (e) {
+      // 隐私模式 / 禁用存储时 localStorage 会抛异常，降级为浅色即可
+    }
+    return !!window.matchMedia?.('(prefers-color-scheme: dark)')?.matches
+  }
+
+  const isDarkMode = ref(readInitialDark())
 
   // ========== 屏幕尺寸状态（惰性初始化） ==========
   const _windowWidth = ref(0)
@@ -57,8 +75,19 @@ export const useUIStore = defineStore('ui', () => {
     loginModalOpen.value = false
   }
 
+  function setDarkMode(value) {
+    isDarkMode.value = !!value
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(THEME_KEY, value ? 'dark' : 'light')
+      } catch (e) {
+        // 存不了就算了，不影响本次会话的切换
+      }
+    }
+  }
+
   function toggleTheme() {
-    isDarkMode.value = !isDarkMode.value
+    setDarkMode(!isDarkMode.value)
   }
 
   // 如果你确实需要手动清理（比如在测试中），可以暴露（通常不需要）
@@ -82,6 +111,7 @@ export const useUIStore = defineStore('ui', () => {
     // 方法
     openLoginModal,
     closeLoginModal,
+    setDarkMode,
     toggleTheme,
   }
 })

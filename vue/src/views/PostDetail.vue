@@ -25,8 +25,10 @@
 
       <!-- 帖子内容 + 评论区 -->
       <template v-else>
+        <!-- 右侧竖排悬浮操作条（≥1200px 显示） -->
+        <PostActionBar :post="post" @comment-click="scrollToComments" />
         <PostCard :post="post" :show-comments="false" :clickable="false" :collapsible="false" />
-        <div class="post-detail-comments">
+        <div ref="commentsRef" class="post-detail-comments">
           <PostComment
             :post-id="post.id"
             :post-author-id="post.author.id"
@@ -37,6 +39,10 @@
         </div>
       </template>
     </div>
+
+    <!-- 详情页也要挂登录弹窗：未登录点赞/转发/评论时会调用 openLoginModal，
+         以前这个页面没挂，点了没反应 -->
+    <LoginModal />
   </div>
 </template>
 
@@ -47,7 +53,9 @@ import { getPostById } from '@/api/posts'
 import TopNavbar from '@/components/navbar/TopNavbar.vue'
 import Banner from '@/components/modules/Banner.vue'
 import PostCard from '@/components/posts/PostCard.vue'
+import PostActionBar from '@/components/posts/PostActionBar.vue'
 import PostComment from '@/components/posts/PostComment.vue'
+import LoginModal from '@/components/modules/LoginModal.vue'
 
 /*
  * 横幅：与首页完全同源 —— 同一个 Banner.vue、同一套 assets/images/banner/layer01..32.png，
@@ -64,9 +72,15 @@ const router = useRouter()
 
 const post = ref(null)
 const loading = ref(true)
+const commentsRef = ref(null)
 
 const goBack = () => {
   router.back()
+}
+
+// 右侧操作条「评论」按钮：滚到评论区
+const scrollToComments = () => {
+  commentsRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 const handleComment = () => {
@@ -160,6 +174,8 @@ onMounted(async () => {
   border-radius: 12px;
   border: 1px solid var(--border-color);
   padding: 0 20px 16px;
+  /* 右侧操作条点「评论」滚动到这里时，别被固定顶栏盖住 */
+  scroll-margin-top: calc(var(--header-bar-height) + 12px);
 }
 
 /* 移动端：与首页保持一致——隐藏 banner，容器贴边 */
@@ -169,7 +185,9 @@ onMounted(async () => {
   }
 
   .post-detail-container {
-    padding: 12px 0 0;
+    /* 横幅在移动端隐藏后，必须手动让出固定顶栏的高度，
+       否则帖子卡片会钻到顶栏底下（作者头像和昵称被切掉） */
+    padding: calc(var(--header-bar-height) + 6px) 0 0;
     max-width: 100%;
   }
 

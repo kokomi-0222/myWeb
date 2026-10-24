@@ -2,21 +2,31 @@
   <article class="post-card">
     <!-- 帖子头部 -->
     <header class="post-card__header">
-      <!-- 作者头像 -->
-      <Avatar
-        class="post-card__avatar"
-        :src="post.author.avatar"
-        :alt="post.author.name"
-        :size="48"
-        :badge="post.author.badge"
-      />
+      <!-- 作者头像：点击进入作者主页 -->
+      <span class="post-card__avatar-link" @click.stop="goUser">
+        <Avatar
+          class="post-card__avatar"
+          :src="post.author.avatar"
+          :alt="post.author.name"
+          :size="48"
+          :badge="post.author.badge"
+        />
+      </span>
       <!-- 作者信息：一行 meta：名字 · 徽章 · 时间 -->
       <div class="post-card__author-info">
         <div class="post-card__meta">
-          <span class="post-card__author-name" :style="{ color: post.author.nameColor }">
+          <span
+            class="post-card__author-name"
+            :style="{ color: post.author.nameColor }"
+            @click.stop="goUser"
+          >
             {{ post.author.name }}
           </span>
-          <span v-if="post.author.primaryRole === 'admin'" class="post-card__role-badge">管理员</span>
+          <span
+            v-if="roleTagLabel"
+            class="post-card__role-badge"
+            :style="roleTagStyle"
+          >{{ roleTagLabel }}</span>
           <span class="post-card__time-divider" aria-hidden="true">·</span>
           <time class="post-card__time">{{ formatRelativeTime(post.createdAt) }}</time>
         </div>
@@ -34,6 +44,8 @@
           :offset-y="5"
           :show-arrow="true"
           placement="bottom-end"
+          arrow-color="var(--dropdown-bg)"
+          arrow-border-color="var(--border-color)"
         >
           <template #trigger>
             <div class="post-card__more-trigger">
@@ -43,19 +55,33 @@
             </div>
           </template>
           <template #menu="{ close }">
-            <div
-              class="more-actions-item"
-              v-for="action in moreActions"
-              :key="action.key"
-              @click="
-                () => {
-                  moreActionsHandle(action);
-                  close();
-                }
-              "
-            >
-              {{ action.label }}
-            </div>
+            <template v-for="(action, index) in moreActions" :key="action.key">
+              <!-- 危险操作（删除类）与普通操作之间加一条分隔 -->
+              <div
+                v-if="action.danger && (index === 0 || !moreActions[index - 1].danger)"
+                class="more-actions-divider"
+                aria-hidden="true"
+              ></div>
+              <div
+                class="more-actions-item"
+                :class="{ 'is-danger': action.danger }"
+                role="menuitem"
+                @click="
+                  () => {
+                    moreActionsHandle(action);
+                    close();
+                  }
+                "
+              >
+                <component
+                  :is="ACTION_ICONS[action.key]"
+                  v-if="ACTION_ICONS[action.key]"
+                  class="more-actions-item__icon"
+                  :size="15"
+                />
+                <span class="more-actions-item__label">{{ action.label }}</span>
+              </div>
+            </template>
           </template>
         </Dropdown>
       </div>
@@ -127,7 +153,7 @@
     <!-- 底部操作区 -->
     <footer class="post-card__footer">
       <div class="post-card__stats">
-        <div class="post-card__stat views">
+        <div class="post-card__stat" title="转发这条帖子" @click.stop="handleForward">
           <IconForward size="18" />
           {{ forwardCount > 0 ? formatNumber(forwardCount) : "转发" }}
         </div>
@@ -169,14 +195,33 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from "vue";
 import { useUserStore } from "@/stores/user";
 import { useUIStore } from "@/stores/ui";
+import { useTopicStore } from "@/stores/topic";
 import DOMPurify from "dompurify"; // 防 XSS
 import { usePermission } from "@/utils/usePermission";
 import { ALL_ACTIONS } from "@/utils/postActions";
 import { formatRelativeTime, formatAbsoluteTime } from "@/utils/time";
 import { deletePosts, likePost, unlikePost } from "@/api/posts";
+import { confirmAndForward } from "@/utils/postForward";
+import { copyPostLink } from "@/utils/sharePost";
+import { roleLabelOf, shouldShowRoleTag, rolePillStyle } from "@/utils/roleTag";
 import { useRouter } from "vue-router";
 
 import message from "@/utils/message";
+import IconEdit from "@/components/icons/IconEdit.vue";
+import IconTrash from "@/components/icons/IconTrash.vue";
+import IconFlag from "@/components/icons/IconFlag.vue";
+import IconBan from "@/components/icons/IconBan.vue";
+import IconShare from "@/components/icons/IconShare.vue";
+
+// 「更多」菜单里每一项的图标，key 对应 utils/postActions.js 的 action.key
+const ACTION_ICONS = {
+  edit: IconEdit,
+  delete: IconTrash,
+  adminDelete: IconTrash,
+  share: IconShare,
+  report: IconFlag,
+  block: IconBan,
+};
 // Props
 const props = defineProps({
   post: {
@@ -205,6 +250,15 @@ const props = defineProps({
 // Emits
 const emit = defineEmits(["like", "comment", "reply", "edit", "delete"]);
 
+// 身份标签：管理员/版主/编辑/会员才显示，普通用户不挂（否则每帖都是噪音）
+// 颜色优先用作者被后台设的 roleColor，没设就沿用原来的粉
+const roleTagLabel = computed(() =>
+  shouldShowRoleTag(props.post?.author?.primaryRole)
+    ? roleLabelOf(props.post.author.primaryRole)
+    : ""
+);
+const roleTagStyle = computed(() => rolePillStyle(props.post?.author?.roleColor));
+
 // Router
 const router = useRouter();
 
@@ -218,6 +272,19 @@ const goDetail = () => {
 
 // Store
 const userStore = useUserStore();
+const topicStore = useTopicStore();
+topicStore.loadTopics();
+
+// 点击头像 / 昵称进入作者主页；自己的名字直接回个人空间
+const goUser = () => {
+  const authorId = props.post.author?.id;
+  if (!authorId) return;
+  if (userStore.isLogin && String(userStore.user?.id) === String(authorId)) {
+    router.push("/space/home");
+    return;
+  }
+  router.push(`/user/${authorId}`);
+};
 
 //ui
 const ui = useUIStore();
@@ -260,8 +327,9 @@ const forwardCount = computed(() => {
   return Number.isFinite(n) ? n : 0;
 });
 
-const TYPE_MAP = { tech: '技术', life: '生活', game: '游戏', music: '音乐', movie: '影视', article: '文章', other: '其他' };
-const typeLabel = computed(() => TYPE_MAP[props.post?.type] || props.post?.type || '');
+// 类型标签走话题字典：站长新建的话题也能正确显示名字，
+// 字典里没有的历史值原样返回（labelOf 内部做了兜底）
+const typeLabel = computed(() => topicStore.labelOf(props.post?.type));
 
 // Computed
 const isAuthor = computed(() => {
@@ -295,11 +363,17 @@ const moreActions = computed(() => {
 
 // 处理点击
 const moreActionsHandle = (action) => {
+  if (action.key === "share") {
+    // 分享 = 直接复制帖子链接，不弹面板
+    copyPostLink(props.post);
+    return;
+  }
   if (action.key === "delete") {
-    ElMessageBox.confirm("确定删除这条帖子？", "提示", {
-      confirmButtonText: "确定",
+    ElMessageBox.confirm("删除后无法恢复，确定继续吗？", "删除帖子", {
+      confirmButtonText: "删除",
       cancelButtonText: "取消",
       type: "warning",
+      customClass: "danger-confirm",
     })
       .then(async () => {
         try {
@@ -319,6 +393,7 @@ const moreActionsHandle = (action) => {
         confirmButtonText: "强制删除",
         cancelButtonText: "取消",
         type: "error",
+        customClass: "danger-confirm",
       }
     )
       .then(async () => {
@@ -487,6 +562,11 @@ const toggleComment = () => {
   commentVisible.value = !commentVisible.value;
 };
 
+// 转发：确认后计数 +1，并通知作者（详情由 utils/postForward 统一处理）
+const handleForward = () => {
+  confirmAndForward(props.post);
+};
+
 const handleComment = () => {
   // 评论数 +1（本地更新，避免刷新整个列表）
   if (props.post) {
@@ -564,6 +644,19 @@ const handleCommentDeleted = () => {
   opacity: 0.8;
 }
 
+/* 头像可点击：鼠标手势与轻微反馈 */
+.post-card__avatar-link {
+  display: inline-flex;
+  flex-shrink: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.post-card__avatar-link:hover {
+  opacity: 0.85;
+}
+
 .post-card__role-badge {
   flex-shrink: 0;
   font-size: 0.7rem;
@@ -615,7 +708,7 @@ const handleCommentDeleted = () => {
 }
 
 .post-card__more-trigger:hover {
-  background-color: var(--bg-hover);
+  background-color: var(--bg-nomarl);
 }
 
 .post-card__more-icon {
@@ -630,27 +723,63 @@ const handleCommentDeleted = () => {
   opacity: 0.65;
 }
 
+/* ---------- 「更多」菜单项 ----------
+   菜单容器自己只有 5px 内衬（见文件末尾未 scoped 的 .dropdown-menu--postCard-more），
+   圆角和高亮都交给菜单项，形成「内衬式」菜单，hover 时不会顶到容器边角。 */
 .more-actions-item {
-  color: var(--text-secondary);
-  background-color: var(--bg-primary);
-  cursor: pointer;
   display: flex;
   align-items: center;
-  padding: 4px 16px;
-  font-size: 0.875rem;
+  gap: 9px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .more-actions-item:hover,
-.more-actions-item:focus {
-  color: var(--text-primary);
-  background-color: var(--bg-secondary);
+.more-actions-item:focus-visible {
+  background-color: var(--bg-nomarl);
+  outline: none;
 }
 
-.danger-item {
-  color: #ff4d4f !important;
+.more-actions-item__icon {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  opacity: 0.62;
+  transition: opacity 0.15s ease;
 }
-.danger-item:hover {
-  background-color: #fff2f2 !important;
+
+.more-actions-item:hover .more-actions-item__icon {
+  opacity: 0.9;
+}
+
+/* 危险项（删除 / 强制删除）：常态就红，hover 加一层淡红底 */
+.more-actions-item.is-danger {
+  color: #f53f3f;
+}
+
+.more-actions-item.is-danger .more-actions-item__icon {
+  opacity: 0.8;
+}
+
+.more-actions-item.is-danger:hover,
+.more-actions-item.is-danger:focus-visible {
+  background-color: rgba(245, 63, 63, 0.1);
+  color: #e63939;
+}
+
+.more-actions-divider {
+  height: 1px;
+  margin: 4px 8px;
+  background-color: var(--border-color);
+  opacity: 0.7;
 }
 
 .post-card__body {
@@ -858,7 +987,8 @@ const handleCommentDeleted = () => {
     --post-card-avatar-size: 40px;
     --post-card-gap: 8px;
     padding: 14px 16px 6px;
-    margin-bottom: 0;
+    /* 卡片之间留出 8px 呼吸位，之前是 0，一整列白块糊成一条 */
+    margin-bottom: 8px;
     border-radius: 0;
     border-left: none;
     border-right: none;
@@ -898,12 +1028,25 @@ const handleCommentDeleted = () => {
 }
 </style>
 <style>
-.dropdown-menu--postCard-more {
-  width: 100px;
+/* 「更多」下拉菜单容器（Teleport 到 body，必须用非 scoped 样式）
+   5px 内衬 + 12px 圆角，高亮由 .more-actions-item 自己画，形成内衬式菜单。
+   ⚠️ 类名写两遍是为了压过 Dropdown.vue 里 `.global-dropdown-menu{min-width:10px}`
+   的 scoped 选择器（它是 0,2,0，单类名只有 0,1,0 会失效） */
+.dropdown-menu--postCard-more.dropdown-menu--postCard-more {
+  min-width: 124px;
+  padding: 5px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px var(--box-shadow);
-  padding: 8px 0px;
-  background-color: var(--bg-primary);
+  border-radius: 12px;
+  background-color: var(--dropdown-bg);
+  box-shadow:
+    0 10px 28px rgba(15, 23, 42, 0.14),
+    0 2px 6px rgba(15, 23, 42, 0.06);
+}
+
+/* 暗色：更深的投影，避免和背景糊成一片 */
+:root.dark .dropdown-menu--postCard-more {
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.55),
+    0 1px 3px rgba(0, 0, 0, 0.4);
 }
 </style>

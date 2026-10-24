@@ -10,6 +10,7 @@ import {
 import setting from '@/config/setting'
 import { getAccessToken, setAccessToken, removeAccessToken } from '@/utils/accessToken'
 import { initPermissions } from '@/utils/usePermission.js'
+import { roleLabelOf } from '@/utils/roleTag'
 
 export const useUserStore = defineStore('user', () => {
   const user = ref(null)
@@ -59,7 +60,6 @@ export const useUserStore = defineStore('user', () => {
         return { success: false, message: '用户信息格式错误' }
       }
       if (setting.successCode.includes(res.code)) {
-        console.log('getUserInfo', res.data)
         user.value = res.data.user
         roles.value = res.data.roles || []
         initPermissions(res.data.permissions || [])
@@ -147,7 +147,13 @@ export const useUserStore = defineStore('user', () => {
     { role: 'guest', name: '访客', color: '#c0c4cc' },
   ]
   const primaryRole = computed(() => {
-    return roleOptions.find((item) => item.role === user.value?.primaryRole)
+    const code = user.value?.primaryRole
+    if (!code) return undefined
+    const hit = roleOptions.find((item) => item.role === code)
+    if (hit) return hit
+    // 后台自建的角色不在这张表里：名字从角色字典翻（/role/list），
+    // 颜色沿用默认标签粉，否则「我的空间」会渲染出一个空方块。
+    return { role: code, name: roleLabelOf(code), color: '#fb7299' }
   })
 
   return {

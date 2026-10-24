@@ -1,5 +1,6 @@
 // utils/postActions.js
 import { usePermission } from "@/utils/usePermission";
+import { copyPostLink } from "@/utils/sharePost";
 /**
  * 所有可用的操作项
  * 每个 action 可以通过 requiredPermission 控制是否显示
@@ -10,9 +11,8 @@ export const ALL_ACTIONS = [
     key: 'edit',
     label: '编辑',
     requiredPermission: ({ isOwnPost }) => isOwnPost,
-    handler: (post) => {
-      console.log('编辑帖子', post.id)
-      // 跳转编辑页等
+    handler: () => {
+      // 待实现：跳转编辑页（复用发布框，回填原内容）
     }
   },
   {
@@ -28,16 +28,16 @@ export const ALL_ACTIONS = [
     key: 'report',
     label: '举报',
     requiredPermission: 'post:report', // 需要该权限
-    handler: (post) => {
-      console.log('举报帖子', post.id)
+    handler: () => {
+      // 待实现：举报弹窗 / 提交流程
     }
   },
   {
     key: 'block',
     label: '拉黑作者',
     requiredPermission: 'user:block',
-    handler: (post) => {
-      console.log('拉黑用户', post.author.id)
+    handler: () => {
+      // 待实现：拉黑作者
     }
   },
 
@@ -46,9 +46,10 @@ export const ALL_ACTIONS = [
     key: 'share',
     label: '分享',
     requiredPermission: () => true,
-    handler: (post) => {
-      console.log('分享帖子', post.id)
-    }
+    // 分享的唯一动作：把帖子链接复制到剪贴板（见 utils/sharePost.js）。
+    // PostCard 会提前拦截 key === 'share'，这里保持同样的实现，
+    // 保证任何直接调用 handler 的地方行为一致。
+    handler: (post) => copyPostLink(post)
   },
 
   // —— 管理员专属 ——

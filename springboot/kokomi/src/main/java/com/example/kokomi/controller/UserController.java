@@ -56,5 +56,13 @@ public class UserController {
         return userService.updatePassword(dto);
     }
 
+    /**
+     * 公开的用户主页资料（未登录也能看）。
+     * 只返回昵称、头像、签名、帖子数等展示字段，不含邮箱/手机号。
+     */
+    @GetMapping("/profile/{id}")
+    public Result<com.example.kokomi.vo.UserProfileVO> profile(@PathVariable Long id) {
+        return Result.success(userService.getPublicProfile(id));
+    }
 
 }

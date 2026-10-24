@@ -15,7 +15,10 @@
           userStore.user?.name
         }}</span>
       </div>
-      <div class="user-role" :style="{ backgroundColor: userStore.user?.nameColor }">
+      <div
+        class="user-role"
+        :style="{ backgroundColor: roleBlockBg, color: roleBlockFg }"
+      >
         <span>{{ userStore.primaryRole?.name }}</span>
       </div>
     </div>
@@ -56,8 +59,17 @@
           :class="{ active: selectedCategory === cat.value }"
           @click="selectedCategory = selectedCategory === cat.value ? '' : cat.value"
         >
-          {{ cat.label }}
+          {{ cat.name }}
         </span>
+        <!-- 只有持有 topic:create 权限的角色（站长）能看到，普通用户只能在已有话题里选 -->
+        <button
+          v-if="canCreateTopic"
+          type="button"
+          class="category-tag category-tag--add"
+          @click="handleCreateTopic"
+        >
+          + 新建话题
+        </button>
       </div>
 
       <div class="publishing-content">
@@ -147,6 +159,7 @@
 <script setup>
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
+import { useTopicStore } from "@/stores/topic";
 import IconUser from "@/components/icons/IconUser.vue";
 import {
   computed,
@@ -162,24 +175,70 @@ import { getMyPosts } from "@/api/posts";
 import { createPosts } from "@/api/posts";
 import { uploadPostImage } from "@/api/file";
 import message from "@/utils/message";
+import { usePermission } from "@/utils/usePermission";
+import { roleBlockColor, contrastText } from "@/utils/roleTag";
+import { ElMessageBox } from "element-plus";
 
 const uiStore = useUIStore();
 const userStore = useUserStore();
 const id = `input-${Math.random().toString(36).substring(2, 11)}`;
 
+// 身份标签方块：后台设了 roleColor 就用它，没设沿用 nameColor（和拆字段前一致）
+const roleBlockBg = computed(() =>
+  roleBlockColor(userStore.user?.roleColor, userStore.user?.nameColor)
+);
+// 文字色按底色亮度算，浅色底上不会出现看不见的白字
+const roleBlockFg = computed(() => contrastText(roleBlockBg.value));
+
 const submitting = ref(false);
 
-// 分类选项
-const postCategories = [
-  { label: '技术', value: 'tech' },
-  { label: '生活', value: 'life' },
-  { label: '游戏', value: 'game' },
-  { label: '音乐', value: 'music' },
-  { label: '影视', value: 'movie' },
-  { label: '文章', value: 'article' },
-  { label: '其他', value: 'other' },
-];
+// 分类选项：改成读话题字典，站长新建的话题立刻能选
+const topicStore = useTopicStore();
+const postCategories = computed(() => topicStore.list);
 const selectedCategory = ref('');
+
+// 谁能新建话题，跟后端的 topic:create 权限保持一致
+// （登录接口本来就返回 permissions 数组，这里直接查）
+const { hasPermission } = usePermission();
+const canCreateTopic = computed(() => hasPermission('topic:create'));
+
+/**
+ * 新建话题。用 ElMessageBox.prompt 而不是自己写弹窗，
+ * 样式已经在 assets/css/message-box.css 里统一过，和删除确认框是同一套。
+ */
+const handleCreateTopic = async () => {
+  let name = '';
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '新建后所有人在发布时都能选到它，话题栏也会出现',
+      '新建话题',
+      {
+        confirmButtonText: '创建',
+        cancelButtonText: '取消',
+        inputPlaceholder: '例如：读书、旅行、编程',
+        inputValidator: (v) => {
+          const s = String(v ?? '').trim();
+          if (!s) return '话题名称不能为空';
+          if (s.length > 16) return '话题名称不能超过16个字';
+          if (topicStore.list.some((t) => t.name === s)) return '这个话题已经存在了';
+          return true;
+        },
+      }
+    );
+    name = String(value ?? '').trim();
+  } catch {
+    return; // 用户点了取消 / 关闭
+  }
+
+  try {
+    const created = await topicStore.addTopic(name);
+    // 建完直接选中，省得再点一次
+    if (created?.value) selectedCategory.value = created.value;
+    message.success(`已新建话题「${created?.name || name}」`);
+  } catch (err) {
+    message.error(err?.message || '新建话题失败');
+  }
+};
 
 
 
@@ -363,7 +422,6 @@ const loadPosts = async (isLoadMore = false) => {
     if (setting.successCode.includes(res.code)) {
       const newPosts = res.data.list || [];
       const newTotal = res.data.total || 0;
-      //console.log(res.data);
       if (isLoadMore) {
         userPosts.list.push(...newPosts);
         userPosts.currentPage += 1; // 已成功加载下一页
@@ -411,6 +469,9 @@ const onScroll = () => {
 onMounted(() => {
   // 首次加载（不分页模式还是无限滚动都走这里）
   loadPosts();
+
+  // 话题字典：发布框的分类标签要读它（store 有缓存，不会重复请求）
+  topicStore.loadTopics();
 
   // 只有无限滚动模式才监听 window scroll
   if (!setting.showPagination) {
@@ -633,6 +694,21 @@ const handleDelete = (postId) => {
 .category-tag.active {
   color: #fff;
   background: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+/* 「+ 新建话题」：虚线边框跟实心的分类标签区分开，
+   一眼能看出它是动作而不是某个可选分类 */
+.category-tag--add {
+  font-family: inherit;
+  color: var(--text-tertiary, var(--text-secondary));
+  background: transparent;
+  border: 1px dashed var(--border-color);
+}
+
+.category-tag--add:hover {
+  color: var(--primary-color);
+  background: transparent;
   border-color: var(--primary-color);
 }
 

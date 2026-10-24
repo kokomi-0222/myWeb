@@ -46,6 +46,16 @@ public class PermissionCache {
     }
 
     /**
+     * 清空全部缓存。
+     * <p>
+     * 改「角色 → 权限」矩阵时用：受影响的是挂了这个角色的所有人，
+     * 这里不知道具体是谁，全清最简单也不会漏（下次请求会各自回表重建）。
+     */
+    public static void clear() {
+        CACHE.clear();
+    }
+
+    /**
      * 检查用户是否拥有指定权限（仅查缓存，缓存缺失返回 false）
      */
     public static boolean hasPermission(Long userId, String perm) {

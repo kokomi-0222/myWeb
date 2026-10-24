@@ -3,8 +3,26 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="com.example.kokomi.mapper.PostMapper">
+    <!-- 列表查询必须取全文。
+         ⚠️ 这里曾经写成 SUBSTRING(content, 1, 1200)，本意是省带宽，
+         但列表卡片的「展开全文」读的就是这份数据 —— 截断后展开也只能
+         看到 1200 字，用户以为是发布时丢内容。正文上限 1 万字，一页
+         10 条最多约 30 万字符，gzip 后百来 KB，这点开销不值得牺牲完整性。
+         列表页的长文折叠交给前端 CSS（变量 post-preview-lines）处理。 -->
     <select id="selectPostPage" resultType="com.example.kokomi.entity.Post">
-        SELECT * FROM post
+        SELECT
+            id,
+            title,
+            content,
+            user_id,
+            type,
+            created_at,
+            updated_at,
+            views,
+            likes,
+            comments,
+            forwards
+        FROM post
         <where>
             <if test="query.userId != null">
                 user_id = #{query.userId}
@@ -88,9 +106,29 @@
         UPDATE post SET likes = likes + 1 WHERE id = #{id}
     </update>
 
+    <!-- 转发数 +1：允许同一用户多次转发，与点赞的幂等语义不同 -->
+    <update id="incrementForwards">
+        UPDATE post SET forwards = forwards + 1 WHERE id = #{id}
+    </update>
+
     <update id="decrementLikes">
         UPDATE post SET likes = likes - 1 WHERE id = #{id} AND likes > 0
     </update>
+
+    <!-- 浏览量自增。用 GREATEST 兜底 NULL，避免历史行为 NULL 时 1 + NULL = NULL -->
+    <update id="incrementViews">
+        UPDATE post SET views = IFNULL(views, 0) + 1 WHERE id = #{id}
+    </update>
+
+    <!-- 全站统计（不受筛选条件影响），用于首页「社区数据」 -->
+    <select id="countAll" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM post
+    </select>
+
+    <!-- 某个用户发布的帖子数，用户主页展示 -->
+    <select id="countByUserId" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM post WHERE user_id = #{userId}
+    </select>
 
     <update id="incrementComments">
         UPDATE post SET comments = comments + 1 WHERE id = #{id}
