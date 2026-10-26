@@ -29,6 +29,9 @@ public class UserVO {
     private LocalDateTime banUntil;
     private String banReason;
 
+    /** 邮箱是否已验证：false 时前端显示「去验证邮箱」，后端会拦发帖/评论/举报 */
+    private Boolean emailVerified;
+
     /**
      * 标准转换：BO → VO。
      * <p>
@@ -54,6 +57,8 @@ public class UserVO {
         vo.setStatus(bo.getStatus() == null ? 0 : bo.getStatus());
         vo.setBanUntil(bo.getBanUntil());
         vo.setBanReason(bo.getBanReason());
+        // null 当作已验证：迁移脚本没跑到底时也不会把老用户全锁死
+        vo.setEmailVerified(bo.getEmailVerified() == null || bo.getEmailVerified());
         return vo;
     }
 }

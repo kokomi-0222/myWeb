@@ -33,6 +33,7 @@ import com.example.kokomi.service.NotificationService;
 import com.example.kokomi.service.PostService;
 import com.example.kokomi.service.ReportService;
 import com.example.kokomi.service.UserBanService;
+import com.example.kokomi.service.UserVerifyService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.vo.PageVO;
 import com.example.kokomi.vo.ReportDetailVO;
@@ -73,6 +74,7 @@ public class ReportServiceImpl implements ReportService {
     private final CommentService commentService;
     private final NotificationService notificationService;
     private final UserBanService userBanService;
+    private final UserVerifyService userVerifyService;
 
     // ---------------------------------------------------------------- 提交
 
@@ -80,6 +82,8 @@ public class ReportServiceImpl implements ReportService {
     @Transactional(rollbackFor = Exception.class)
     public Long create(CreateReportDTO dto) {
         Long reporterId = requireLogin();
+        // 幽灵号批量举报会把后台队列刷爆，先要求验证邮箱
+        userVerifyService.requireVerified(reporterId);
 
         String type = StrUtil.trimToEmpty(dto.getTargetType()).toLowerCase();
         if (!TYPES.contains(type)) {

@@ -78,6 +78,13 @@
           <span v-if="savingId === u.id" class="user-row__state">保存中…</span>
           <span v-else-if="u.roles.length === 0" class="user-row__state is-warn">无角色</span>
           <span
+            v-if="u.emailVerified === false"
+            class="ban-chip verify-chip"
+            title="邮箱未验证：能登录能浏览，但发帖 / 评论 / 举报会被拦"
+          >
+            未验证
+          </span>
+          <span
             v-if="u.status"
             class="ban-chip"
             :class="{ 'ban-chip--mute': u.status === 1 }"
@@ -116,6 +123,17 @@
           @click="handleUnban(u)"
         >
           解除
+        </button>
+
+        <!-- 手动激活：SMTP 故障或老手机号账号没有邮箱时的兜底 -->
+        <button
+          v-if="u.emailVerified === false"
+          type="button"
+          class="user-row__style-btn"
+          title="手动把邮箱标记为已验证，让对方立刻可以发言"
+          @click="handleVerifyEmail(u)"
+        >
+          激活
         </button>
 
         <!-- 外观：名字颜色 + 身份标签底色 -->
@@ -334,7 +352,7 @@ import { ElMessageBox } from "element-plus";
 import IconSearch from "@/components/icons/IconSearch.vue";
 import IconClose from "@/components/icons/IconClose.vue";
 import IconPerson from "@/components/icons/IconPerson.vue";
-import { getAdminUsers, getAdminRoleList, updateUserRoles, updateUserStyle, unbanUser, punishUser } from "@/api/admin";
+import { getAdminUsers, getAdminRoleList, updateUserRoles, updateUserStyle, unbanUser, punishUser, verifyUserEmail } from "@/api/admin";
 import { useUserStore } from "@/stores/user";
 import {
   normalizeHex,
@@ -496,6 +514,31 @@ function banSuffix(u) {
   if (Number.isNaN(d.getTime())) return "";
   const pad = (n) => String(n).padStart(2, "0");
   return `（至 ${d.getMonth() + 1}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}）`;
+}
+
+/** 手动激活邮箱：发信服务出问题、或老手机号账号没有邮箱时的兜底入口 */
+async function handleVerifyEmail(u) {
+  const name = u.name || u.username || `#${u.id}`;
+  try {
+    await ElMessageBox.confirm(
+      `标记后「${name}」立刻可以发帖和评论，不需要再收验证码。只在对方确实收不到邮件时用。`,
+      "手动激活邮箱",
+      { type: "info", confirmButtonText: "激活", cancelButtonText: "取消" }
+    );
+  } catch {
+    return; // 用户取消
+  }
+  try {
+    const res = await verifyUserEmail(u.id);
+    if (res.code === 200) {
+      message(res.msg || "已激活", "success");
+      load();
+    } else {
+      message(res.msg || "操作失败", "error");
+    }
+  } catch (err) {
+    message(err?.msg || "网络异常，请稍后重试", "error");
+  }
 }
 
 /** 解除：永久处罚没有自动到期，只能从这里撤销 */
@@ -1280,6 +1323,13 @@ const saveStyle = async () => {
 }
 
 /* 禁言用琥珀色，封号保留红色：一眼能分出轻重 */
+/* 未验证：中性灰。它不是处罚，只是「还没解锁发言」 */
+.verify-chip {
+  color: var(--text-secondary);
+  background: var(--bg-nomarl);
+  border: 1px solid var(--border-color);
+}
+
 .ban-chip--mute {
   background: rgba(217, 119, 6, 0.12);
   color: #d97706;

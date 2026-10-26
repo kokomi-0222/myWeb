@@ -30,6 +30,8 @@ import com.example.kokomi.mapper.UserRoleMapper;
 import com.example.kokomi.service.UserService;
 import com.example.kokomi.vo.UserProfileVO;
 import com.example.kokomi.util.CaptchaCache;
+import com.example.kokomi.util.IpUtils;
+import com.example.kokomi.util.RegisterRateLimit;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.util.PermissionCache;
 import com.example.kokomi.util.RsaUtil;
@@ -135,6 +137,12 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Result<Void> register(EncryptDataDTO encryptedDto){
+        // 注册频率兜底：正常用户碰不到（同 IP 20 个/小时），脚本刷号才会撞上。
+        // 邮箱验证挡住的是「注册了能发垃圾」，这一层挡的是「把 user 表刷爆」。
+        if (!RegisterRateLimit.tryAcquire(IpUtils.getCurrentIP())) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "注册太频繁，请稍后再试");
+        }
+
         // 验证码校验
         if (StrUtil.isBlank(encryptedDto.getCaptchaKey())
                 || StrUtil.isBlank(encryptedDto.getCaptchaCode())) {
@@ -184,11 +192,15 @@ public class UserServiceImpl implements UserService {
             throw new CustomerException(ResultCode.REGISTER_ERROR, "密码只能包含字母、数字、下划线");
         }
 
-        // 账号必须是 邮箱 OR 手机号
+        // 只允许邮箱注册。
+        // 手机号以前也能注册，但没有短信服务就验证不了归属，等于留了个「随便填」的口子；
+        // 老手机号账号仍可正常登录（selectByAccount 同时匹配 phone），只是不再新增。
         boolean isEmail = Validator.isEmail(account);
-        boolean isPhone = Validator.isMobile(account);
-        if (!isEmail && !isPhone) {
-            throw new CustomerException(ResultCode.REGISTER_ERROR, "账号必须是手机号或邮箱");
+        if (!isEmail) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "目前只支持邮箱注册");
+        }
+        if (account.length() > 50) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "邮箱过长");
         }
 
         // 账号是否已注册
@@ -200,11 +212,11 @@ public class UserServiceImpl implements UserService {
         // 密码加密
         String encodePwd = BCrypt.hashpw(password, BCrypt.gensalt());
 
-        // 入库
+        // 入库（email_verified 走数据库默认值 0 = 未验证，
+        // 未验证的账号能登录能浏览，但发帖/评论/举报会被 507 拦住）
         User user = new User();
         user.setPassword(encodePwd);
-        if (isEmail) user.setEmail(account);
-        if (isPhone) user.setPhone(account);
+        user.setEmail(account);
         user.setPrimaryRole(DEFAULT_ROLE);
         user.setNameColor("#18191c");
         // 插入后自动获取自增 ID
@@ -483,6 +495,7 @@ public class UserServiceImpl implements UserService {
         userBO.setStatus(user.getStatus() == null ? BanLevel.NORMAL : user.getStatus());
         userBO.setBanUntil(user.getBanUntil());
         userBO.setBanReason(user.getBanReason());
+        userBO.setEmailVerified(user.getEmailVerified() == null || user.getEmailVerified() == 1);
         return userBO;
     }
 }

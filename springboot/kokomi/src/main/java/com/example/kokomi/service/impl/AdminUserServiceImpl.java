@@ -12,6 +12,7 @@ import com.example.kokomi.mapper.UserMapper;
 import com.example.kokomi.mapper.UserRoleMapper;
 import com.example.kokomi.service.AdminUserService;
 import com.example.kokomi.service.UserBanService;
+import com.example.kokomi.service.UserVerifyService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.util.PermissionCache;
 import com.example.kokomi.vo.AdminUserVO;
@@ -39,6 +40,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final UserRoleMapper userRoleMapper;
     private final RoleMapper roleMapper;
     private final UserBanService userBanService;
+    private final UserVerifyService userVerifyService;
 
     @Override
     public PageVO<AdminUserVO> page(String keyword, Integer pageNum, Integer pageSize) {
@@ -79,6 +81,7 @@ public class AdminUserServiceImpl implements AdminUserService {
             vo.setStatus(u.getStatus() == null ? 0 : u.getStatus());
             vo.setBanUntil(u.getBanUntil());
             vo.setBanReason(u.getBanReason());
+            vo.setEmailVerified(u.getEmailVerified() == null || u.getEmailVerified() == 1);
             vo.setRoles(roleMap.getOrDefault(u.getId(), new ArrayList<>()));
             list.add(vo);
         }
@@ -193,5 +196,10 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     public void unban(Long userId) {
         userBanService.release(userId);
+    }
+
+    @Override
+    public void markEmailVerified(Long userId) {
+        userVerifyService.markVerified(userId);
     }
 }

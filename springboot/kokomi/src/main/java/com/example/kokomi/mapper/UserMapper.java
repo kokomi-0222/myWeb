@@ -73,7 +73,7 @@ public interface UserMapper {
     @Select("""
             <script>
             select id, username, name, name_color, role_color, avatar, primary_role,
-                   status, ban_until, ban_reason, create_time
+                   status, ban_until, ban_reason, create_time, email_verified
             from user
             <where>
                 <if test="keyword != null and keyword != ''">
@@ -168,5 +168,13 @@ public interface UserMapper {
     /** 只查封禁相关字段，避免为了一个 status 把密码哈希也读出来 */
     @Select("select id, status, ban_until, ban_reason from user where id = #{userId}")
     User selectBanState(@Param("userId") Long userId);
+
+    /** 只查邮箱验证相关字段（发言前每次都要判一次，别把整行读出来） */
+    @Select("select id, email, email_verified from user where id = #{userId}")
+    User selectVerifyState(@Param("userId") Long userId);
+
+    /** 标记邮箱已验证（用户自己输对验证码，或管理员手动兜底） */
+    @Update("update user set email_verified = 1 where id = #{userId}")
+    int setEmailVerified(@Param("userId") Long userId);
 
 }

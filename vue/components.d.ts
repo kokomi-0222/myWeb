@@ -43,6 +43,7 @@ declare module 'vue' {
     IconLike: typeof import('./src/components/icons/IconLike.vue')['default']
     IconLock: typeof import('./src/components/icons/IconLock.vue')['default']
     IconLogout: typeof import('./src/components/icons/IconLogout.vue')['default']
+    IconMail: typeof import('./src/components/icons/IconMail.vue')['default']
     IconMessage: typeof import('./src/components/icons/IconMessage.vue')['default']
     IconMore: typeof import('./src/components/icons/IconMore.vue')['default']
     IconPerson: typeof import('./src/components/icons/IconPerson.vue')['default']
@@ -76,5 +77,6 @@ declare module 'vue' {
     ThemeToggle: typeof import('./src/components/buttons/ThemeToggle.vue')['default']
     Tooltip: typeof import('./src/components/modules/Tooltip.vue')['default']
     TopNavbar: typeof import('./src/components/navbar/TopNavbar.vue')['default']
+    VerifyEmailModal: typeof import('./src/components/modules/VerifyEmailModal.vue')['default']
   }
 }

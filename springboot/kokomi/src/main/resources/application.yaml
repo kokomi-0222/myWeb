@@ -1,6 +1,12 @@
 app:
   base-url: http://localhost:8080
   upload-path: ${user.dir}/upload/
+  mail:
+    # 邮件里署的发件人名
+    from-name: 心海的小窝
+    # 本地开发用：SMTP 没配时，把验证码明文放进 /user/verify/send 的响应里，
+    # 省得每次去翻后端日志。线上不要开（默认 false，prod 也没有这个键）。
+    dev-echo: ${MAIL_DEV_ECHO:false}
 
 server:
   port: 8080
@@ -26,6 +32,26 @@ spring:
     hikari:
       connection-test-query: SELECT 1
       max-lifetime: 1800000
+
+  # 注册验证码邮件。QQ 邮箱：设置 → 账户 → 开启 SMTP 服务 → 生成授权码（不是登录密码）。
+  # 两个凭据都从环境变量读，仓库里不留明文；本地可以写在 gitignored 的
+  # springboot/kokomi/config/application-local.yaml 里（同 datasource 的 password 一样）。
+  mail:
+    host: ${MAIL_HOST:smtp.qq.com}
+    port: ${MAIL_PORT:465}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          # QQ/163 在境外机房偶尔很慢，卡住不如快点报错让用户点重发
+          connectiontimeout: 6000
+          timeout: 8000
+          writetimeout: 8000
 
 # JWT 配置（标准写法：配置化）
 jwt:

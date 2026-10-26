@@ -32,6 +32,9 @@ public class UserBO {
     private LocalDateTime banUntil;
     private String banReason;
 
+    /** 邮箱是否已验证（未验证只能浏览，不能发帖/评论/举报） */
+    private Boolean emailVerified;
+
     // 角色、权限
     private List<String> roles;
     private List<String> permissions;

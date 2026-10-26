@@ -23,6 +23,14 @@
           <div v-else-if="userStore.isMuted" class="comment-muted-tip">
             {{ userStore.muteText }}
           </div>
+          <!-- 邮箱未验证：可点，直接把验证弹窗叫出来（和禁言的只读提示区分开） -->
+          <div
+            v-else-if="userStore.needsVerifyEmail"
+            class="comment-muted-tip comment-muted-tip--verify"
+            @click="ui.openVerifyModal()"
+          >
+            验证邮箱后才能评论，点这里去验证
+          </div>
           <InputTextarea v-else v-model="commentContent" placeholder="天青色等烟雨，而我在等你..." @submit="handleCommentSubmit" :max-image-count="1" />
         </div>
       </div>
@@ -180,6 +188,13 @@
               <Avatar :src="userStore.user?.avatar" alt="" :size="40" />
               <div class="reply-input-area">
                 <div v-if="userStore.isMuted" class="comment-muted-tip">{{ userStore.muteText }}</div>
+                <div
+                  v-else-if="userStore.needsVerifyEmail"
+                  class="comment-muted-tip comment-muted-tip--verify"
+                  @click="ui.openVerifyModal()"
+                >
+                  验证邮箱后才能回复，点这里去验证
+                </div>
                 <InputTextarea  v-else v-model="replyInputs[comment.id]" :placeholder="replyTargets[comment.id]
                 ? `回复 @${replyTargets[comment.id]}`
                 : `回复 @${comment.author.name}`
@@ -791,6 +806,19 @@ const previewImage = (url) => {
   border: 1px solid rgba(251, 114, 153, 0.35);
   border-radius: 8px;
   word-break: break-word;
+}
+
+/* 邮箱未验证：主色蓝 + 可点（和禁言的粉色只读提示区分） */
+.comment-muted-tip--verify {
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+  border-color: var(--primary-color-soft);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.comment-muted-tip--verify:hover {
+  border-color: var(--primary-color);
 }
 
 /* 左 12px = 评论头像的 margin-right，让输入框和评论首行文字左对齐 */

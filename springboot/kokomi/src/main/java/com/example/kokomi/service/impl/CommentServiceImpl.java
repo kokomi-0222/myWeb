@@ -33,6 +33,7 @@ import com.example.kokomi.util.PermissionCache;
 import com.example.kokomi.service.CommentService;
 import com.example.kokomi.service.NotificationService;
 import com.example.kokomi.service.UserBanService;
+import com.example.kokomi.service.UserVerifyService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.vo.CommentAuthorVO;
 import com.example.kokomi.vo.CommentVO;
@@ -52,6 +53,7 @@ public class CommentServiceImpl implements CommentService {
     private final RolePermissionMapper rolePermissionMapper;
     private final NotificationService notificationService;
     private final UserBanService userBanService;
+    private final UserVerifyService userVerifyService;
 
     @Value("${app.upload-path}")
     private String uploadPath;
@@ -140,6 +142,8 @@ public class CommentServiceImpl implements CommentService {
         Long userId = LoginUserHolder.getUserId();
         // 评论和回复都走这里，禁言 / 封号的人一律拦住
         userBanService.checkCanSpeak(userId);
+        // 邮箱未验证的账号同样不能评论（幽灵号的主要价值就是刷评论）
+        userVerifyService.requireVerified(userId);
 
         Post post = postMapper.selectById(postId);
         if (post == null) {

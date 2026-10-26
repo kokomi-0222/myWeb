@@ -53,6 +53,23 @@ export async function register(data, captchaKey, captchaCode) {
   })
 }
 
+/** 给当前登录用户的邮箱发验证码（60 秒一次、每小时 5 封） */
+export function sendVerifyCode() {
+  return request({
+    url: '/user/verify/send',
+    method: 'post',
+  })
+}
+
+/** 提交邮箱验证码 */
+export function confirmVerifyCode(code) {
+  return request({
+    url: '/user/verify/confirm',
+    method: 'post',
+    data: { code },
+  })
+}
+
 export function logout() {
   return request({
     url: '/user/logout',

@@ -39,6 +39,7 @@ import com.example.kokomi.exception.CustomerException;
 import com.example.kokomi.service.PostService;
 import com.example.kokomi.service.NotificationService;
 import com.example.kokomi.service.UserBanService;
+import com.example.kokomi.service.UserVerifyService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.vo.PageVO;
 import com.example.kokomi.vo.PostAuthorVO;
@@ -60,6 +61,7 @@ public class PostServiceImpl implements PostService {
     private final CommentMapper commentMapper;
     private final NotificationService notificationService;
     private final UserBanService userBanService;
+    private final UserVerifyService userVerifyService;
 
     @Value("${app.upload-path}")
     private String uploadPath;
@@ -107,6 +109,8 @@ public class PostServiceImpl implements PostService {
         Long userId = LoginUserHolder.getUserId();
         // 被禁言 / 封号的人不能发新帖（前端已经把发布框禁掉了，这里兜底）
         userBanService.checkCanSpeak(userId);
+        // 邮箱未验证的账号（批量注册出来的幽灵号）也不能发内容
+        userVerifyService.requireVerified(userId);
 
         Post post = new Post();
         post.setTitle(dto.getTitle() != null ? dto.getTitle().trim() : "");
@@ -184,6 +188,7 @@ public class PostServiceImpl implements PostService {
             // 禁言的人连自己的旧帖也不能改——不然等于换个地方继续发内容。
             // 版主 / 编辑改别人的帖不受影响。
             userBanService.checkCanSpeak(userId);
+            userVerifyService.requireVerified(userId);
         }
 
         // 只覆盖文案与类型，互动计数一律不动

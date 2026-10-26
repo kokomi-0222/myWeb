@@ -83,6 +83,11 @@
             <artifactId>hutool-all</artifactId>
             <version>5.8.40</version>
         </dependency>
+        <!-- 邮件：注册后的邮箱验证码（QQ / 163 的 SMTP） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
         <!-- 测试 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

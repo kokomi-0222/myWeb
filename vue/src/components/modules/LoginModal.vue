@@ -80,7 +80,7 @@
         <div v-else autocomplete="off" class="form-body">
           <div class="form-header">
             <h2 class="form-title">创建账号</h2>
-            <p class="form-subtitle">加入心海的小窝，记录你的日常</p>
+            <p class="form-subtitle">用邮箱注册，登录后验证一下就能发帖了</p>
           </div>
           <div
             style="width: 0; height: 0; overflow: hidden; position: absolute; z-index: -1"
@@ -92,7 +92,7 @@
             <InputLine
               ref="regAccRef"
               v-model="registerForm.account"
-              label="手机号 / 邮箱"
+              label="邮箱"
               type="text"
               autocomplete="off"
               @focus="regErr.account = ''"
@@ -239,7 +239,6 @@ watch(
 );
 
 // 工具函数（加了类型，无红线）
-const isPhone = (val: string) => /^1[3-9]\d{9}$/.test(val);
 const isEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
 
 // ================ 校验 ================
@@ -272,10 +271,12 @@ const validateRegister = (): boolean => {
 
   const acc = registerForm.account.trim();
   if (!acc) {
-    regErr.value.account = "请输入手机号/邮箱";
+    regErr.value.account = "请输入邮箱";
     ok = false;
-  } else if (!isPhone(acc) && !isEmail(acc)) {
-    regErr.value.account = "必须是正确的手机号或邮箱";
+  } else if (!isEmail(acc)) {
+    // 只收邮箱：没有短信服务，手机号注册的账号没法验证归属，
+    // 等于给批量注册留了个随便填的口子
+    regErr.value.account = "请输入正确的邮箱";
     ok = false;
   }
 
@@ -351,7 +352,7 @@ const handleRegister = async () => {
 
   const res = await userStore.register(registerForm, captchaKey.value, captchaCode.value);
   if (res.success) {
-    message.success("注册成功，请登录");
+    message.success("注册成功，登录后验证邮箱即可发言");
     goToLogin();
   } else {
     message.error(res.message || "注册失败");
@@ -391,6 +392,10 @@ const goToRegister = () => {
 const goToLogin = () => {
   formType.value = "login";
   captchaErr.value = "";
+  // 注册成功后把账号填进去，省得手再打一遍（很多人注册完就直接去登录了）
+  if (registerForm.account.trim()) {
+    loginForm.account = registerForm.account.trim();
+  }
   fetchCaptcha();
 };
 </script>

@@ -25,6 +25,7 @@
     <div class="user-tips">
       <span class="user-tips-text">
         <template v-if="userStore.isMuted">你暂时不能发布新内容</template>
+        <template v-else-if="userStore.needsVerifyEmail">验证邮箱后就能发布啦</template>
         <template v-else>{{ editingPost ? "正在编辑已发布的帖子" : "今天想说些什么呢？" }}</template>
       </span>
     </div>
@@ -52,6 +53,28 @@
         @click="handleRefreshMute"
       >
         {{ muteRefreshing ? "检查中…" : "刷新状态" }}
+      </button>
+    </div>
+    <!--
+      邮箱未验证：和禁言一样，不给一个点了会报错的编辑框。
+      账号能登录能浏览，只是后端会拦发帖 / 评论 / 举报（507）。
+    -->
+    <div v-else-if="userStore.needsVerifyEmail" class="muted-notice muted-notice--verify">
+      <IconMail class="muted-notice__icon" size="18" />
+      <div class="muted-notice__body">
+        <p class="muted-notice__title">验证邮箱后才能发布</p>
+        <p class="muted-notice__desc">
+          <template v-if="userStore.user?.email">验证码会发到 {{ userStore.user.email }}</template>
+          <template v-else>点右侧按钮获取验证码</template>
+        </p>
+        <p class="muted-notice__hint">一次验证长期有效，只是为了挡住批量注册的垃圾账号</p>
+      </div>
+      <button
+        type="button"
+        class="muted-notice__refresh"
+        @click="uiStore.openVerifyModal()"
+      >
+        去验证
       </button>
     </div>
     <div v-else ref="publishingRef" class="publishing" :class="{ 'is-editing': editingPost }">
@@ -229,6 +252,7 @@ import { ElMessageBox } from "element-plus";
 import { useRoute, useRouter } from "vue-router";
 import IconEdit from "@/components/icons/IconEdit.vue";
 import IconAlert from "@/components/icons/IconAlert.vue";
+import IconMail from "@/components/icons/IconMail.vue";
 
 const uiStore = useUIStore();
 const userStore = useUserStore();
@@ -828,6 +852,23 @@ const handleDelete = (postId) => {
   border: 1px solid rgba(251, 114, 153, 0.35);
   background: rgba(251, 114, 153, 0.08);
   color: #fb7299;
+}
+
+/* 邮箱未验证用主色蓝，和「禁言」的粉色区分开：一个是提醒你去做件事，一个是被罚 */
+.muted-notice--verify {
+  border-color: var(--primary-color-soft);
+  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+  color: var(--primary-color);
+}
+
+.muted-notice--verify .muted-notice__desc,
+.muted-notice--verify .muted-notice__hint {
+  color: var(--text-secondary);
+}
+
+.muted-notice--verify .muted-notice__refresh {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
 }
 
 .muted-notice__icon {

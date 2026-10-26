@@ -30,4 +30,7 @@ public class AdminUserVO {
     /** 解除时间，null 且 status != 0 表示永久 */
     private LocalDateTime banUntil;
     private String banReason;
+
+    /** 邮箱是否已验证（未验证的账号发不了内容，管理员可手动激活兜底） */
+    private Boolean emailVerified;
 }

@@ -75,6 +75,17 @@ export function unbanUser(userId) {
   })
 }
 
+/**
+ * 手动把某个用户的邮箱标记为已验证。
+ * 用途：SMTP 出故障、或用户是老手机号账号没有邮箱时，别让人卡死在「发不了内容」。
+ */
+export function verifyUserEmail(userId) {
+  return request({
+    url: `/admin/user/${userId}/verify`,
+    method: 'post',
+  })
+}
+
 /* ---------------- 角色权限 ---------------- */
 
 /** 角色列表：每个角色带已勾选的权限码 + 名下用户数 */

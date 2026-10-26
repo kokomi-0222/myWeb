@@ -38,4 +38,10 @@ public class User {
     /** 处罚理由，本人登录 / 发言被拦时展示 */
     private String banReason;
 
+    /**
+     * 邮箱是否已验证：1 已验证 / 0 未验证。
+     * 只有验证过的账号才能发帖、评论、举报（防批量注册幽灵号）。
+     */
+    private Integer emailVerified;
+
 }

@@ -32,4 +32,10 @@ public interface AdminUserService {
 
     /** 解除处罚（禁言和封号都从这里撤销；永久处罚也只能在这里撤销） */
     void unban(Long userId);
+
+    /**
+     * 手动把邮箱标记为已验证。
+     * 用途：SMTP 挂了、或者用户是老手机号账号没有邮箱时，别让人卡死在「不能发言」。
+     */
+    void markEmailVerified(Long userId);
 }

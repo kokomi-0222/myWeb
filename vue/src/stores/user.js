@@ -212,12 +212,20 @@ export const useUserStore = defineStore('user', () => {
     return `${when}${reason}`
   })
 
+  // ---- 邮箱验证 ----
+  // 未验证 = 能登录、能浏览，但发帖 / 评论 / 举报会被后端 507 拦下。
+  // emailVerified 只在后端明确给了 false 时才算未验证（老接口没有这个字段，默认放行）。
+  const emailVerified = computed(() => user.value?.emailVerified !== false)
+  const needsVerifyEmail = computed(() => isLogin.value && !emailVerified.value)
+
   // 后端回了「你已被禁言」（说明发帖 / 评论被拦了）时，立刻把用户信息拉新一次。
   // 发布框和评论框会马上换成提示条，不用重新登录、也不用等用户自己刷新。
   // 禁言不再作废 token，所以这是前端感知处罚的唯一时机。
   // setup store 只在第一次 useUserStore() 时执行，监听不会重复挂。
   if (typeof window !== 'undefined') {
     window.addEventListener('kokomi:muted', refreshUser)
+    // 被 507 拦下（或刚验证完）时同步一次状态，提示卡才会消失 / 出现
+    window.addEventListener('kokomi:unverified', refreshUser)
   }
 
   return {
@@ -232,6 +240,8 @@ export const useUserStore = defineStore('user', () => {
     banUntilText,
     muteText,
     muteDetail,
+    emailVerified,
+    needsVerifyEmail,
     login,
     getUserInfo,
     refreshUser,

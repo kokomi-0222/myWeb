@@ -5,6 +5,8 @@ import { ref, computed } from 'vue'
 export const useUIStore = defineStore('ui', () => {
     
   const loginModalOpen = ref(false)
+  // 「验证邮箱」弹窗：未验证时点发布框提示 / 被 507 拦下都会把它叫出来
+  const verifyModalOpen = ref(false)
 
   // ========== 暗色主题 ==========
   // 存在 localStorage 里，否则手机端每次刷新都掉回浅色（以前就是这个毛病）。
@@ -75,6 +77,14 @@ export const useUIStore = defineStore('ui', () => {
     loginModalOpen.value = false
   }
 
+  function openVerifyModal() {
+    verifyModalOpen.value = true
+  }
+
+  function closeVerifyModal() {
+    verifyModalOpen.value = false
+  }
+
   function setDarkMode(value) {
     isDarkMode.value = !!value
     if (typeof window !== 'undefined') {
@@ -106,11 +116,14 @@ export const useUIStore = defineStore('ui', () => {
     isDesktop,
 
     loginModalOpen,
+    verifyModalOpen,
     isDarkMode,
 
     // 方法
     openLoginModal,
     closeLoginModal,
+    openVerifyModal,
+    closeVerifyModal,
     setDarkMode,
     toggleTheme,
   }

@@ -85,4 +85,14 @@ public class AdminUserController {
         adminUserService.unban(id);
         return Result.success(null, "已解除");
     }
+
+    /**
+     * 手动把邮箱标记为已验证（发信服务故障时的兜底）。
+     */
+    @PostMapping("/user/{id}/verify")
+    @RequirePermission(value = "user:manage", message = "只有管理员可以激活账号")
+    public Result<Void> verifyEmail(@PathVariable Long id) {
+        adminUserService.markEmailVerified(id);
+        return Result.success(null, "邮箱已标记为已验证");
+    }
 }

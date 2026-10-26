@@ -37,6 +37,16 @@ realService.interceptors.response.use(
     if (setting.successCode.includes(res.code)) {
       return res
     }
+
+    // 邮箱未验证：这不是「操作失败」，而是「还没解锁发言」。
+    // 不弹红色错误（会盖住验证弹窗），只广播一次让弹窗自己出来。
+    if (setting.unverifiedCode && res.code == setting.unverifiedCode) {
+      window.dispatchEvent(new CustomEvent('kokomi:unverified'))
+      const err = new Error(res.msg || '验证邮箱后才能发布内容')
+      err.unverified = true
+      return Promise.reject(err)
+    }
+
     message.error(res.msg)
     if (res.code == setting.invalidCode) {
       removeAccessToken()

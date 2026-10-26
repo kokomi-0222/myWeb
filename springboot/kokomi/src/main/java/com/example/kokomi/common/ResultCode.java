@@ -25,6 +25,13 @@ public class ResultCode {
     // 前者可能只是角色不够，后者要立刻把发布框换成提示条。
     public static final int MUTED = 506;
 
+    // 邮箱未验证：能登录、能浏览，但不能发帖 / 评论 / 举报。
+    // 和 MUTED 分开是为了让前端提示不同的引导（一个让等解禁，一个让去验证邮箱）。
+    public static final int EMAIL_UNVERIFIED = 507;
+
+    // 邮箱验证码错误 / 过期 / 试错次数用完
+    public static final int VERIFY_CODE_ERROR = 508;
+
     // RSA 加密解密
     public static final int RSA_ENCRYPT_ERROR = 1001;
     public static final int RSA_DECRYPT_ERROR = 1002;
