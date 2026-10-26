@@ -252,14 +252,16 @@ const props = defineProps({
 // Emits
 const emit = defineEmits(["like", "comment", "reply", "edit", "delete"]);
 
-// 身份标签：管理员/版主/编辑/会员才显示，普通用户不挂（否则每帖都是噪音）
-// 颜色优先用作者被后台设的 roleColor，没设就沿用原来的粉
+// 身份标签：管理员/版主/编辑/会员/游客显示，普通用户不挂（否则每帖都是噪音）
+// 颜色优先用作者被后台设的 roleColor，没设就按角色取默认色（游客深灰 / 会员金…）
 const roleTagLabel = computed(() =>
   shouldShowRoleTag(props.post?.author?.primaryRole)
     ? roleLabelOf(props.post.author.primaryRole)
     : ""
 );
-const roleTagStyle = computed(() => rolePillStyle(props.post?.author?.roleColor));
+const roleTagStyle = computed(() =>
+  rolePillStyle(props.post?.author?.roleColor, props.post?.author?.primaryRole)
+);
 
 // Router
 const router = useRouter();

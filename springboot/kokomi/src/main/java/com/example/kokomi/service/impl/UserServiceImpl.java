@@ -216,11 +216,13 @@ public class UserServiceImpl implements UserService {
         String encodePwd = BCrypt.hashpw(password, BCrypt.gensalt());
 
         // 入库。email 留空、email_verified 走默认值 0 —— 此时是纯游客：
-        // 能登录能浏览能点赞，发帖和评论都会被拦（509 / 507）。
+        // 能登录能浏览能点赞，发帖和评论都会被拦（507）。
+        // 角色必须在这里显式给：insert 语句会把它写进去，靠列默认值会落成 member。
+        // name_color 不设 —— 它是固定色、不随主题变，深色值在暗色模式下会看不见，
+        // 交给 DDL 默认的 #636161。
         User user = new User();
         user.setPassword(encodePwd);
         user.setPrimaryRole(DEFAULT_ROLE);
-        user.setNameColor("#18191c");
         // 插入后自动获取自增 ID
         int rows = userMapper.insert(user);
         if(rows != 1){

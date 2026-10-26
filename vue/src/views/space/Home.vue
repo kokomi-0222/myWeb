@@ -11,9 +11,7 @@
     <div class="user-info">
       <Avatar :src="userStore.user?.avatar" :alt="userStore.user?.name" :size="48" />
       <div class="user-name">
-        <span :style="{ color: userStore.user?.nameColor }">{{
-          userStore.user?.name
-        }}</span>
+        <span :style="nameStyle">{{ userStore.user?.name }}</span>
       </div>
       <div
         class="user-role"
@@ -260,7 +258,7 @@ import message from "@/utils/message";
 import { normalizeContent, isBlankContent } from "@/utils/contentText";
 import { handleTabIndent } from "@/utils/textareaTab";
 import { usePermission } from "@/utils/usePermission";
-import { roleBlockColor, contrastText } from "@/utils/roleTag";
+import { roleBlockColor, contrastText, readableNameColor } from "@/utils/roleTag";
 import { ElMessageBox } from "element-plus";
 import { useRoute, useRouter } from "vue-router";
 import IconEdit from "@/components/icons/IconEdit.vue";
@@ -272,9 +270,20 @@ const uiStore = useUIStore();
 const userStore = useUserStore();
 const id = `input-${Math.random().toString(36).substring(2, 11)}`;
 
-// 身份标签方块：后台设了 roleColor 就用它，没设沿用 nameColor（和拆字段前一致）
+// 名字颜色：name_color 是固定色、不随主题变，默认的 #636161 在暗色下看不清，
+// 所以按当前主题兜一层「太暗就提亮」；用户自己选的、看得清的颜色原样保留。
+const nameStyle = computed(() => ({
+  color: readableNameColor(userStore.user?.nameColor, uiStore.isDarkMode) || undefined,
+}));
+
+// 身份标签方块：后台设了 roleColor 用它，否则按角色给默认色（游客深灰 / 普通用户蓝 / 会员金）。
+// ⚠️ 别回退 nameColor —— 那是名字色，默认近黑，会让所有等级长成同一个黑块。
 const roleBlockBg = computed(() =>
-  roleBlockColor(userStore.user?.roleColor, userStore.user?.nameColor)
+  roleBlockColor(
+    userStore.user?.roleColor,
+    userStore.user?.nameColor,
+    userStore.user?.primaryRole
+  )
 );
 // 文字色按底色亮度算，浅色底上不会出现看不见的白字
 const roleBlockFg = computed(() => contrastText(roleBlockBg.value));

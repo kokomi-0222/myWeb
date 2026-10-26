@@ -7,7 +7,7 @@
 
 | 要动的东西 | 数量 | 说明 |
 |---|---|---|
-| SQL 脚本 | **2 个** | 先跑，必须在新 jar 启动之前 |
+| SQL 脚本 | **3 个** | 前两个先跑、必须在新 jar 启动之前；第三个是数据纠正，随时能跑 |
 | 后端 jar | **1 个** | 重新 `mvn package` 打出来的那个 |
 | 前端构建包 | **1 个** | `vue/dist_1026_tier.zip`，解压覆盖站点目录 |
 | 环境变量 | **2 个必填** | `MAIL_USERNAME` / `MAIL_PASSWORD`，不配没人能绑邮箱 |
@@ -19,14 +19,15 @@
 
 ## 1. 数据库（先跑）
 
-### 1.1 两个脚本分别干什么
+### 1.1 三个脚本分别干什么
 
 | 脚本 | 干什么 | 为什么要它 |
 |---|---|---|
 | `springboot/sql_email_verify.sql` | 给 `user` 加 `email_verified TINYINT`（默认 0），并把**存量用户回填成 1** | 没有这列，后端启动就报字段不存在；老用户不回填会被当成游客锁死 |
 | `springboot/sql_tier_permission.sql` | 新增 `comment:create` 权限码、新增 `guest` 角色、写死「角色 → 权限」矩阵、清空 `guest` 的权限 | 等级制的地基。代码里一句角色名都没写死，全靠这张表 |
+| `springboot/sql_fix_primary_role.sql` | 把「`user_role` 是 `guest`、但 `user.primary_role` 写着 `member`」的账号纠正成 `guest` | 修一个显示 bug：注册的 insert 漏写了 `primary_role`，落成 DDL 默认的 `member`。**权限一直是对的**（判定看 `user_role`），只是个人中心显示成「普通用户」 |
 
-⚠️ 两个脚本都**幂等**，重复跑不会出事，但顺序不能反（`sql_email_verify` 在前）。
+⚠️ 三个脚本都**幂等**，重复跑不会出事。前两个顺序不能反（`sql_email_verify` 在前），第三个跟 jar 无关、随时能跑。
 
 ### 1.2 执行
 
@@ -34,6 +35,7 @@
 cd /path/to/myWeb
 mysql -uroot -p --default-character-set=utf8mb4 kokomi < springboot/sql_email_verify.sql
 mysql -uroot -p --default-character-set=utf8mb4 kokomi < springboot/sql_tier_permission.sql
+mysql -uroot -p --default-character-set=utf8mb4 kokomi < springboot/sql_fix_primary_role.sql
 ```
 
 两个必须带：
@@ -67,6 +69,20 @@ SELECT COUNT(*) AS unverified FROM `user` WHERE `email_verified` = 0;
 -- 2. 游客角色确实没挂任何权限（应该是 0 行）
 SELECT * FROM `role_permission` WHERE BINARY `role_code` = 'guest';
 ```
+
+`sql_fix_primary_role.sql` 末尾自带复验，期望输出：
+
+```
+guest角色但显示非guest
+0
+role        n
+member      3
+moderator   1
+vip         1
+guest       N     ← 刚注册的游客
+```
+
+第一条必须是 0。第二条是各角色的分布，扫一眼确认没有意外的 `NULL`。
 
 ### 1.4 会踩的坑
 
@@ -172,7 +188,7 @@ unzip -o dist_1026_tier.zip -d /path/to/site/
 
 ```bash
 curl -s https://kokomi.net.cn/ | grep -o 'assets/index-[^"]*\.js'
-# 包里的应该是 assets/index-D9tY7jEr.js；不一致 = 还在用缓存
+# 包里的应该是 assets/index-l_peF5fu.js；不一致 = 还在用缓存
 ```
 
 ---
@@ -183,6 +199,7 @@ curl -s https://kokomi.net.cn/ | grep -o 'assets/index-[^"]*\.js'
 # 1) SQL 先跑（脚本自带复验查询，看输出对不对）
 mysql -uroot -p --default-character-set=utf8mb4 kokomi < springboot/sql_email_verify.sql
 mysql -uroot -p --default-character-set=utf8mb4 kokomi < springboot/sql_tier_permission.sql
+mysql -uroot -p --default-character-set=utf8mb4 kokomi < springboot/sql_fix_primary_role.sql
 
 # 2) 配发信环境变量（一次性）
 sudo vi /etc/systemd/system/kokomi.service.d/override.conf

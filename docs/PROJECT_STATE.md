@@ -215,6 +215,31 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 - 前端等级判定全在 `stores/user.js`，都用权限码：`canPost = hasPermission('post:create')`、`canComment = hasPermission('comment:create')`、`needsBindEmail = !canComment`。空间页三张卡按顺序出现：禁言卡 → 待绑邮箱卡（蓝，带「去绑定」）→ 待开通发帖卡（金，无按钮）。
 - ✅ **存量账号零影响**：老用户都是 `member`，`member` 两个码都有，跑完脚本发帖评论和以前一样；老用户的 `email_verified` 被回填成 1，不算待绑定。只有新注册的账号才落到 `guest`。
 
+### 5.9 身份牌配色（`roleColor` / `nameColor` 各管什么）
+
+三个字段别混：
+
+| 字段 | 管什么 | NULL 时 |
+|---|---|---|
+| `user.name_color` | **只有名字** | 走 DDL 默认 `#636161` |
+| `user.role_color` | **只有身份牌**（方块 + 帖子胶囊 + 主页胶囊） | 按角色取 `ROLE_DEFAULT_COLORS` |
+| `user.primary_role` | 显示哪个等级的牌子 | 就不显示牌子 |
+
+角色默认色（`vue/src/utils/roleTag.js` 的 `ROLE_DEFAULT_COLORS`）：
+
+| 角色 | 颜色 | 理由 |
+|---|---|---|
+| `admin` / `moderator` / `editor` | `#e966b2` 品牌粉 | 管理团队同色系 |
+| `vip` 会员 | `#e6a23c` 金 | 和空间页「会员」提示卡、`IconCrown` 呼应 |
+| `member` 普通用户 | `#00aeec` 主题蓝 | 绝大多数人，用最中性的品牌色 |
+| `guest` 游客 | `#4e5969` 深灰 | 「还没验证」的状态，越不抢眼越好 |
+
+- **优先级**：后台单独设的 `role_color` → 角色默认色 → `name_color`（只给自建角色兜底）→ 空。
+- ⚠️ **别把 `name_color` 当身份牌底色**。第一版就是这么写的，而 `name_color` 默认近黑，结果是**游客、普通用户、会员全是同一个黑块**，等级完全看不出来。用户的原话：「普通用户的牌子不要用黑色，黑色给游客用」。
+- ⚠️ **`name_color` 是固定色、不随主题变**：默认 `#636161` 在暗色下亮度只有 98、对比度 3.4:1，名字几乎糊在背景里。所以空间页和他人主页都过一层 `readableNameColor(hex, isDark)` —— 暗色下亮度 < 110 提亮成 `#e5e6eb`，亮色下 > 220 压成 `#18191c`，其它情况**原样保留**（尊重用户选的颜色）。
+- **`SILENT_ROLES` 只静默 `member`**：普通用户占绝大多数，每帖挂个「普通用户」是噪音；游客要显示，「还没验证」是需要让看帖人知道的状态（而且游客现在发不了帖，只有历史帖会出现）。
+- 后台「外观」弹窗的预览也走同一套（`roleBlockColor` 传 `styleTarget.primaryRole`），清空标签底色时预览显示角色默认色，不是名字色。
+
 ## 6. 已知的坑（都是真踩过的）
 
 **构建 / 部署**
@@ -248,6 +273,11 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 - 前端等级判定不要各页面自己拼 `userStore.user.permissions.includes(...)`，走 `stores/user.js` 的 `canPost / canComment / needsBindEmail`，否则改规则要全仓搜。
 
 **数据库**
+- ⚠️ **`UserMapper.insert` 只写了 `(password, email, phone)`**（老版本留下的），注册时 `user.setPrimaryRole("guest")` / `setNameColor(...)` 设了也白设 —— Service 层的值根本没进 SQL。后果：新注册账号的 `user.primary_role` 落成 DDL 默认的 `'member'`，而 `user_role` 里挂的是 `guest`。**权限是对的（确实发不了帖），但个人中心显示「普通用户」**，用户看到「我是普通用户却不能发帖」，极难解释。
+  - 已修：insert 显式写 `primary_role`；`name_color` 故意不写（见下一条）。
+  - 存量脏数据用 `springboot/sql_fix_primary_role.sql` 纠正（以 `user_role` 为准）。
+  - 教训：**Java 里 set 了不等于写进去了**，改角色/默认值这类字段时，先去 mapper 里看一眼 insert 有没有这一列。
+- ⚠️ **`name_color` 是固定色，不随明暗主题变**。往注册流程里写死 `#18191c` 之类的深色，等于把「暗色模式下名字看不见」埋进去。想给默认值就用 DDL 的 `#636161`，显示层用 `readableNameColor()` 兜。
 - `user.create_time`，`post` / `comment` 是 `created_at`，列名不统一。
 - `user.primary_role`(general_ci) 与 `user_role.role_code`(0900_ai_ci) 排序规则不同，列对列比较会 `Illegal mix of collations` 并**中止整份脚本**（终端看着像跑完了）→ 一律 `BINARY a = BINARY b`。
 - `PostMapper.xml` 注释里禁止连续 `--`，MyBatis 启动即崩。
@@ -333,9 +363,10 @@ node tools/test-report-ui.js
 node tools/test-ban-ui.js
 node tools/test-ui-polish.js     # 后台确认框 / 下拉框风格 / 移动端禁言提示卡
 node tools/test-admin-select.js  # 举报页下拉：自绘面板 / 暗色 / 详情弹窗层级 / 手机宽度
+node tools/test-role-tag-color.js # 身份牌配色：游客深灰 / 普通用户蓝 / 会员金 / 管理粉 + 注册落库角色
 ```
 
-- ⚠️ 本地测试账号 `id=9`（`member`）**额外挂了 `vip` 角色**，否则一批老测试里「普通账号发帖」会被 509 全部拦掉。别在测试里假设 member 能发帖。
+- ⚠️ 本地测试账号 `id=9` 额外挂着 `vip` 角色（早期规则下 `member` 不能发帖时留下的）。现在 `member` 也能发帖，这条已经不影响结果，但别据此假设「测试环境里 member 发不了帖」—— `test-tier-permission-api.py` 专门验这条规则本身。
 
 - `tools/_local.py` 是凭据读取工具（**不含明文，已入库**）：优先读环境变量 `DB_PASSWORD` / `JWT_SECRET`，否则读 `springboot/kokomi/config/application-local.yaml`。所以只要 §3.1 那个文件在，测试脚本就能跑。
 - `tools/refresh_tokens.py` 重新签发 `shots/tmp/tokens.json`。`exp` 会过期、封号会让 `token_version + 1`，UI 测试 401 时先跑它，别急着怀疑代码。

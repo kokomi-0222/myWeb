@@ -500,7 +500,13 @@ const previewNameStyle = computed(() => ({
 }));
 
 const previewTagStyle = computed(() => {
-  const bg = roleBlockColor(styleForm.roleColor, styleForm.nameColor);
+  // 清空「标签底色」时预览要显示角色默认色（游客深灰 / 普通用户蓝…），
+  // 不是 nameColor —— 后者是名字色，拿它当牌子底色会让所有等级长成同一个黑块。
+  const bg = roleBlockColor(
+    styleForm.roleColor,
+    styleForm.nameColor,
+    styleTarget.value?.primaryRole
+  );
   return {
     backgroundColor: bg || "var(--bg-secondary)",
     color: bg ? contrastText(bg) : "var(--text-primary)",

@@ -46,9 +46,20 @@ public interface UserMapper {
     int updateById(User user);
 
 
-    // 插入用户，自动返回自增id
-    @Insert("insert into user(password, email, phone) " +
-            "values(#{password}, #{email}, #{phone})")
+    /**
+     * 【注册专用】插入用户，自动返回自增 id。
+     * <p>
+     * ⚠️ `primary_role` **必须显式写**，不能靠列默认值。
+     * 库里这列的 DDL 默认值是老版本留下的 `'member'`（那时候注册出来就是普通用户），
+     * 而现在注册出来是游客。少写这一列的话：`user_role` 挂的是 `guest`
+     * （权限判定正确、确实发不了帖），但 `user.primary_role` 落成默认的 `member`，
+     * 个人中心就会显示成「普通用户」——用户看到「我是普通用户却不能发帖」，非常难解释。
+     * <p>
+     * `name_color` 故意**不写**，走 DDL 默认的 `#636161`。
+     * 名字色是个固定值、不随主题变，写死成 `#18191c` 之类在暗色下会直接看不见。
+     */
+    @Insert("insert into user(password, email, phone, primary_role) " +
+            "values(#{password}, #{email}, #{phone}, #{primaryRole})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(User user);
 

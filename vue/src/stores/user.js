@@ -10,7 +10,7 @@ import {
 import setting from '@/config/setting'
 import { getAccessToken, setAccessToken, removeAccessToken } from '@/utils/accessToken'
 import { initPermissions, usePermission } from '@/utils/usePermission.js'
-import { roleLabelOf } from '@/utils/roleTag'
+import { roleLabelOf, ROLE_DEFAULT_COLORS } from '@/utils/roleTag'
 
 export const useUserStore = defineStore('user', () => {
   const user = ref(null)
@@ -159,13 +159,16 @@ export const useUserStore = defineStore('user', () => {
     getUserInfo()
   }
 
+  // 颜色统一取自 roleTag.js 的 ROLE_DEFAULT_COLORS，别在这里另写一套
+  // （以前这里 member 是 #636161、guest 是 #a0a4ab，和实际渲染的颜色对不上，
+  //  真正决定方块颜色的是 roleBlockColor 的兜底逻辑）
   const roleOptions = [
-    { role: 'admin', name: '管理员', color: '#e966b2' },
-    { role: 'moderator', name: '版主', color: '#e966b2' },
-    { role: 'editor', name: '编辑', color: '#e966b2' },
-    { role: 'vip', name: '会员', color: '#e966b2' },
-    { role: 'member', name: '普通用户', color: '#636161' },
-    { role: 'guest', name: '游客', color: '#a0a4ab' },
+    { role: 'admin', name: '管理员', color: ROLE_DEFAULT_COLORS.admin },
+    { role: 'moderator', name: '版主', color: ROLE_DEFAULT_COLORS.moderator },
+    { role: 'editor', name: '编辑', color: ROLE_DEFAULT_COLORS.editor },
+    { role: 'vip', name: '会员', color: ROLE_DEFAULT_COLORS.vip },
+    { role: 'member', name: '普通用户', color: ROLE_DEFAULT_COLORS.member },
+    { role: 'guest', name: '游客', color: ROLE_DEFAULT_COLORS.guest },
   ]
   const primaryRole = computed(() => {
     const code = user.value?.primaryRole

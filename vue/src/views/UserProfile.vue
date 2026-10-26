@@ -31,13 +31,13 @@
           />
           <div class="profile-card__info">
             <div class="profile-card__name-row">
-              <h1 class="profile-card__name" :style="{ color: profile.nameColor }">
+              <h1 class="profile-card__name" :style="nameStyle">
                 {{ profile.name || "未命名用户" }}
               </h1>
               <span
                 v-if="shouldShowRoleTag(profile.primaryRole)"
                 class="profile-card__role"
-                :style="rolePillStyle(profile.roleColor)"
+                :style="rolePillStyle(profile.roleColor, profile.primaryRole)"
               >{{ roleLabelOf(profile.primaryRole) }}</span>
               <button
                 v-if="canReportUser"
@@ -122,17 +122,24 @@ import { getUserProfile } from "@/api/user";
 import { getUserPosts } from "@/api/posts";
 import { useUserStore } from "@/stores/user";
 import { useReportStore } from "@/stores/report";
+import { useUIStore } from "@/stores/ui";
 import setting from "@/config/setting";
 import message from "@/utils/message";
-import { roleLabelOf, shouldShowRoleTag, rolePillStyle } from "@/utils/roleTag";
+import { roleLabelOf, shouldShowRoleTag, rolePillStyle, readableNameColor } from "@/utils/roleTag";
 
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 const reportStore = useReportStore();
+const uiStore = useUIStore();
 
 const profile = ref(null);
 const loadingProfile = ref(false);
+
+// 和空间页同一套：name_color 是固定色，暗色下太暗就提亮，看得清的保持原样
+const nameStyle = computed(() => ({
+  color: readableNameColor(profile.value?.nameColor, uiStore.isDarkMode) || undefined,
+}));
 
 // 自己的主页不显示举报；未登录也不显示（后端要求登录才能举报）
 const canReportUser = computed(
