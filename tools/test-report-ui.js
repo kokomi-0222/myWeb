@@ -378,18 +378,26 @@ const VIEW = { w: 1000, h: 1200 };
     await shot("report-admin-detail.png");
 
     // 勾选封禁，确认会出现天数选择（不真的提交封禁）
-    // class 从 .reports-select--sm 改成了后台统用的 .admin-select--sm（风格统一用）
+    // 天数选择已换成自绘 SelectBox：原生 <select> 的展开列表是系统画的，改不了样式
     await evaluate(`(() => {
       const boxes = document.querySelectorAll('.check-row input[type=checkbox]');
       boxes[1].click();
     })()`);
     await sleep(250);
-    const banUi = await evaluate(`(() => ({
-      hasDaySelect: !!document.querySelector('.admin-select--sm'),
-      dayOptions: [...document.querySelectorAll('.admin-select--sm option')].map(o => o.textContent.trim()),
-    }))()`);
+    await evaluate(`document.querySelector('.detail-card .select-trigger')?.click()`);
+    await sleep(400);
+    const banUi = await evaluate(`(() => {
+      const wrap = [...document.querySelectorAll('.global-dropdown-wrapper')].find(w => w.offsetHeight > 0);
+      return {
+        hasDaySelect: !!document.querySelector('.detail-card .select-trigger'),
+        dayOptions: wrap ? [...wrap.querySelectorAll('.select-option')].map(o => o.textContent.trim()) : [],
+      };
+    })()`);
     check("勾选封禁后出现天数选择", banUi?.hasDaySelect === true);
     check("天数选项含永久", banUi?.dayOptions?.includes("永久"), show(banUi?.dayOptions));
+    // 收起面板，避免挡住后面的受理按钮
+    await evaluate(`document.querySelector('.detail-card .select-trigger')?.click()`);
+    await sleep(300);
     // 取消封禁，只测删内容
     await evaluate(`document.querySelectorAll('.check-row input[type=checkbox]')[1].click()`);
     await sleep(200);

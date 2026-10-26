@@ -16,15 +16,13 @@
         </button>
       </div>
 
-      <span class="admin-select-wrap">
-        <select v-model="targetType" class="admin-select" @change="reload">
-          <option value="">全部类型</option>
-          <option value="post">帖子</option>
-          <option value="comment">评论</option>
-          <option value="user">用户</option>
-        </select>
-        <IconArrow class="admin-select__arrow" :size="11" />
-      </span>
+      <!-- 必须用自绘下拉：原生 <select> 展开的选项列表由系统绘制，样式改不了 -->
+      <SelectBox
+        v-model="targetType"
+        :options="TYPE_OPTIONS"
+        align="end"
+        @change="reload"
+      />
     </div>
 
     <p class="page-tip">
@@ -188,16 +186,15 @@
               <div class="check-row">
                 <input id="ban-toggle" v-model="form.ban" type="checkbox" />
                 <label for="ban-toggle">处罚作者</label>
-                <span v-if="form.ban" class="admin-select-wrap admin-select-wrap--sm">
-                  <select v-model.number="form.banDays" class="admin-select admin-select--sm">
-                    <option :value="1">1 天</option>
-                    <option :value="3">3 天</option>
-                    <option :value="7">7 天</option>
-                    <option :value="30">30 天</option>
-                    <option :value="-1">永久</option>
-                  </select>
-                  <IconArrow class="admin-select__arrow" :size="10" />
-                </span>
+                <!-- 浮层要盖过详情弹窗（3000），所以抬到 3100 -->
+                <SelectBox
+                  v-if="form.ban"
+                  v-model="form.banDays"
+                  size="sm"
+                  align="start"
+                  :panel-z="3100"
+                  :options="BAN_DAY_OPTIONS"
+                />
               </div>
 
               <!-- 处罚力度：禁言只断发言，封号连登录一起断 -->
@@ -286,8 +283,8 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessageBox } from "element-plus";
 import Avatar from "@/components/modules/Avatar.vue";
 import Button from "@/components/buttons/Button.vue";
-import IconArrow from "@/components/icons/IconArrow.vue";
 import IconClose from "@/components/icons/IconClose.vue";
+import SelectBox from "@/components/inputs/SelectBox.vue";
 import Pagination from "@/components/modules/Pagination.vue";
 import { getReportDetail, getReportList, handleReport } from "@/api/reports";
 import { formatAbsoluteTime, formatFullDateTime } from "@/utils/time";
@@ -302,6 +299,20 @@ const STATUS_TABS = [
 
 const STATUS_LABEL = { 0: "待处理", 1: "已受理", 2: "已驳回" };
 const TYPE_LABEL = { post: "帖子", comment: "评论", user: "用户" };
+const TYPE_OPTIONS = [
+  { value: "", label: "全部类型" },
+  { value: "post", label: "帖子" },
+  { value: "comment", label: "评论" },
+  { value: "user", label: "用户" },
+];
+// 处罚天数：-1 = 永久（后端 HandleReportDTO.days）
+const BAN_DAY_OPTIONS = [
+  { value: 1, label: "1 天" },
+  { value: 3, label: "3 天" },
+  { value: 7, label: "7 天" },
+  { value: 30, label: "30 天" },
+  { value: -1, label: "永久" },
+];
 
 const status = ref(0);
 const targetType = ref("");
@@ -568,11 +579,8 @@ onMounted(() => {
   text-align: center;
 }
 
-/* 下拉框样式统一在 views/admin/Index.vue 的 .admin-select（非 scoped），
-   和 .admin-btn 同高同圆角，这里只补这个页面特有的间距 */
-.admin-select-wrap--sm {
-  margin-left: 4px;
-}
+/* 下拉选择器统一用 components/inputs/SelectBox.vue（自绘浮层），
+   原生 <select> 的展开列表是系统绘制的，样式改不了，别再写回来 */
 
 .page-tip {
   margin: 0;

@@ -439,71 +439,9 @@ const goFront = () => router.push("/");
 }
 
 /* ---------------------------------------------------------------
-   下拉框：原生 <select> 在各系统上长得都不一样（Windows 是方角深色箭头，
-   macOS 是圆角灰箭头），和站内的 32px / 8px 圆角对不上。
-   这里统一关掉原生外观、自绘箭头，尺寸与 .admin-btn 严格一致。
-   用法：<span class="admin-select-wrap"><select class="admin-select">…</select>
-         <IconArrow class="admin-select__arrow" :size="11" /></span>
+   下拉选择器：统一用 components/inputs/SelectBox.vue（自绘浮层）。
+   别再用原生 <select>：它的展开列表由操作系统绘制，CSS 完全管不到，
+   白底 + 方角 + 系统灰高亮条，和站内 32px / 8px 圆角的控件不是一套语言。
    --------------------------------------------------------------- */
-.admin-select-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  flex: none;
-}
-
-.admin-select {
-  height: 32px;
-  padding: 0 30px 0 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 0.8125rem;
-  line-height: 1;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  transition:
-    border-color 0.15s ease,
-    background-color 0.15s ease;
-}
-
-.admin-select:hover {
-  border-color: var(--primary-color);
-}
-
-.admin-select:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px var(--primary-color-soft);
-}
-
-/* 下拉列表里的选项由系统渲染，至少要保证暗色主题下不是白底黑字 */
-.admin-select option {
-  background: var(--bg-primary);
-  color: var(--text-primary);
-}
-
-.admin-select--sm {
-  height: 28px;
-  padding: 0 26px 0 10px;
-  font-size: 0.75rem;
-}
-
-/* 箭头用 IconArrow：它本身是「向左」的 chevron（PostImage 里 rotate(180) 才用来表示向右），
-   逆时针转 90° 得到向下。颜色跟文字走，两套主题都不用改 */
-.admin-select__arrow {
-  position: absolute;
-  right: 10px;
-  color: var(--text-secondary);
-  transform: rotate(-90deg);
-  pointer-events: none;
-}
-
-.admin-select-wrap:hover .admin-select__arrow {
-  color: var(--primary-color);
-}
 
 </style>

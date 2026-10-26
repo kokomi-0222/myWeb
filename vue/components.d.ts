@@ -72,6 +72,7 @@ declare module 'vue' {
     ReportModal: typeof import('./src/components/report/ReportModal.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SelectBox: typeof import('./src/components/inputs/SelectBox.vue')['default']
     ThemeToggle: typeof import('./src/components/buttons/ThemeToggle.vue')['default']
     Tooltip: typeof import('./src/components/modules/Tooltip.vue')['default']
     TopNavbar: typeof import('./src/components/navbar/TopNavbar.vue')['default']

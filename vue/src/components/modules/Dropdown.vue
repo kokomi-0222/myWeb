@@ -21,7 +21,7 @@
         v-show="localVisible"
         ref="menuRef"
         :class="['global-dropdown-wrapper']"
-        :style="floatingStyles"
+        :style="[floatingStyles, { zIndex: props.zIndex }]"
         @mouseenter="onMenuMouseEnter"
         @mouseleave="onMenuMouseLeave"
       >
@@ -78,6 +78,9 @@ const props = defineProps({
   offsetX: { type: Number, default: 0 },
   showArrow: { type: Boolean, default: true },
   disableAnimation: { type: Boolean, default: false },
+  // 浮层层级：默认在顶栏(1002)之上、登录弹窗(2000)之下。
+  // 若菜单要从后台详情弹窗(3000)上面弹出来，由使用方传更大的值。
+  zIndex: { type: Number, default: 1010 },
   arrowColor: { type: String, default: "#ffffff" },
   arrowBorderColor: { type: String, default: "#e5e7eb" },
   arrowSize: { type: Number, default: 8 },
@@ -444,8 +447,9 @@ watch(
 /* 外层容器：确保不裁剪内容 */
 .global-dropdown-wrapper {
   position: absolute !important;
-  /* 高于移动端搜索面板(1003)/顶栏(1002)，低于登录弹窗(2000) */
-  z-index: 1010 !important;
+  /* 默认层级（真实值由 zIndex prop 以内联样式写入，可被使用方抬高）：
+     高于移动端搜索面板(1003)/顶栏(1002)，低于登录弹窗(2000) */
+  z-index: 1010;
   margin: 0 !important;
   padding: 0 !important;
   box-sizing: border-box !important;

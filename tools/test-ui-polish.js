@@ -262,17 +262,19 @@ let tokens = null;
     // ---------------------------------------------------------- 2 举报页控件风格
     console.log("\n[2] 举报处理页：下拉框和按钮同一套尺寸");
     await nav(BASE + "/admin/reports");
-    await until(`!!document.querySelector('.admin-select')`, 15000);
+    await until(`!!document.querySelector('.select-trigger')`, 15000);
 
+    // 类型下拉已改自绘（SelectBox）：原生 <select> 的展开列表是系统画的，改不了样式
     const style = await evaluate(`(() => {
-      const sel = document.querySelector('.reports-toolbar .admin-select');
+      const sel = document.querySelector('.reports-toolbar .select-trigger');
       const btn = document.querySelector('.report-row__btn');
-      const arrow = document.querySelector('.reports-toolbar .admin-select__arrow');
+      const arrow = document.querySelector('.reports-toolbar .select-trigger__arrow');
       if (!sel || !btn) return null;
       const a = getComputedStyle(sel);
       const b = getComputedStyle(btn);
       return {
-        sel: { h: a.height, r: a.borderRadius, bw: a.borderTopWidth, app: a.appearance || a.webkitAppearance },
+        native: document.querySelectorAll('.reports-toolbar select').length,
+        sel: { h: a.height, r: a.borderRadius, bw: a.borderTopWidth },
         btn: { h: b.height, r: b.borderRadius, bw: b.borderTopWidth, bg: b.backgroundColor },
         arrow: !!arrow,
         // IconArrow 画的是「向左」的 chevron，转 -90° 才是向下。
@@ -282,9 +284,9 @@ let tokens = null;
     })()`);
     check("类型下拉框已渲染", !!style);
     if (style) {
+      check("工具栏已无原生 <select>", style.native === 0, `count=${style.native}`);
       check("下拉框与按钮同高", style.sel.h === style.btn.h, `${style.sel.h} vs ${style.btn.h}`);
       check("下拉框与按钮同圆角", style.sel.r === style.btn.r, `${style.sel.r} vs ${style.btn.r}`);
-      check("下拉框关掉了原生外观（自绘箭头）", style.sel.app === "none", style.sel.app);
       check("自绘箭头存在", style.arrow);
       check("箭头朝下（-90° 而不是 90°）",
         style.arrowMatrix === "matrix(0, -1, 1, 0, 0, 0)", style.arrowMatrix);
@@ -295,12 +297,12 @@ let tokens = null;
     }
     await shot("polish-reports-controls.png");
 
-    // 暗色下原生下拉框最容易漏：`option` 的白底是系统画的
+    // 暗色下最容易被系统画出白底的就是下拉，这里盯住触发框
     await evaluate(`localStorage.setItem('kokomi-theme', 'dark')`);
     await nav(BASE + "/admin/reports");
-    await until(`!!document.querySelector('.admin-select')`, 12000);
+    await until(`!!document.querySelector('.select-trigger')`, 12000);
     const darkSel = await evaluate(`(() => {
-      const s = getComputedStyle(document.querySelector('.admin-select'));
+      const s = getComputedStyle(document.querySelector('.reports-toolbar .select-trigger'));
       const b = getComputedStyle(document.querySelector('.report-row__btn'));
       return { bg: s.backgroundColor, color: s.color, btnBg: b.backgroundColor };
     })()`);
@@ -323,19 +325,24 @@ let tokens = null;
 
     // 勾上「处罚作者」，时长下拉才出现
     await evaluate(`document.querySelector('#ban-toggle')?.click()`);
-    const smUp = await until(`!!document.querySelector('.detail-card .admin-select--sm')`, 5000);
+    const smUp = await until(`!!document.querySelector('.detail-card .select-trigger')`, 5000);
     check("勾选处罚后出现时长下拉", smUp);
     const smH = await evaluate(
-      `getComputedStyle(document.querySelector('.detail-card .admin-select--sm')).height`
+      `getComputedStyle(document.querySelector('.detail-card .select-trigger')).height`
     );
     check("时长下拉是 28px 小号规格", smH === "28px", smH);
 
-    // 选「永久」，再点受理 → 应该弹站内确认
-    await evaluate(`(() => {
-      const s = document.querySelector('.detail-card .admin-select--sm');
-      s.value = '-1';
-      s.dispatchEvent(new Event('change', { bubbles: true }));
+    // 选「永久」（自绘面板的第 5 项），再点受理 → 应该弹站内确认
+    await evaluate(`document.querySelector('.detail-card .select-trigger').click()`);
+    await sleep(400);
+    const picked = await evaluate(`(() => {
+      const wrap = [...document.querySelectorAll('.global-dropdown-wrapper')].find(w => w.offsetHeight > 0);
+      const li = wrap && wrap.querySelectorAll('.select-option')[4];
+      if (!li) return false;
+      li.click();
+      return true;
     })()`);
+    check("在自绘面板里选中「永久」", picked);
     await sleep(300);
     await evaluate(`[...document.querySelectorAll('.detail-foot button')]
       .find(b => b.innerText.trim() === '受理')?.click()`);

@@ -165,7 +165,11 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 **组件**
 - `Button.vue` 的 `.my-button` **只有配色，没有任何尺寸**（无 height/padding/radius/font-size）→ 用到处必须喂 class，否则是浏览器默认的贴字小色块。
 - 后台纯 `<button class="admin-btn">` 也只有尺寸没有配色 → 次要操作用 `admin-btn admin-btn--ghost`（1px 描边 + hover 变主题色）。
-- 后台下拉框统一 `<span class="admin-select-wrap">` + `select.admin-select` + `IconArrow.admin-select__arrow`（尺寸对齐 `.admin-btn`），别直接写原生 `<select>`。
+- 后台下拉框统一用 **`components/inputs/SelectBox.vue`**（自绘浮层，尺寸对齐 `.admin-btn`）：
+  `<SelectBox v-model="x" :options="[{value,label}]" size="md|sm" align="end|start" @change="..." />`。
+  **别再写原生 `<select>`** —— 它的展开列表由系统绘制（白底方角 + 系统灰高亮条），CSS 完全管不到，暗色下尤其突兀；旧的 `.admin-select*` 样式已删除。
+  放在后台详情弹窗（z-index 3000）里时要传 `:panel-z="3100"`，否则面板被弹窗盖住。
+- `Dropdown.vue` 的浮层默认 `z-index: 1010`（内联样式，可用 `:z-index` 抬高）；弹层本身由 floating-ui 定位 + Teleport 到 body，不受父级 `overflow` 裁切。
 - ⚠️ `IconArrow` 画的是**向左**的 chevron（`PostImage.vue` 里用 `rotate(180)` 才表示向右）。要向下必须 `rotate(-90deg)`，写成 `90deg` 会变成朝上的 ∧。
 - 发布框的 textarea 是**原生元素，class 直接就是 `.input-content`**（不是容器）→ 选择器写 `.publishing textarea.input-content`。
 - 被禁言时空间页的 `.muted-notice` 是 **grid 三列**（图标 / 文字 / 按钮），手机上收成两列、按钮换到第二行；文案只放「恢复时间 · 原因」，后果那句 `.muted-notice__hint` 只在 ≥768px 显示。
@@ -216,6 +220,7 @@ cd tools && python test-ban-level-api.py
 node tools/test-report-ui.js
 node tools/test-ban-ui.js
 node tools/test-ui-polish.js     # 后台确认框 / 下拉框风格 / 移动端禁言提示卡
+node tools/test-admin-select.js  # 举报页下拉：自绘面板 / 暗色 / 详情弹窗层级 / 手机宽度
 ```
 
 - `tools/_local.py` 是凭据读取工具（**不含明文，已入库**）：优先读环境变量 `DB_PASSWORD` / `JWT_SECRET`，否则读 `springboot/kokomi/config/application-local.yaml`。所以只要 §3.1 那个文件在，测试脚本就能跑。
