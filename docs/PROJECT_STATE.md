@@ -96,7 +96,7 @@ cd vue && npm install && npm run dev
 - **举报**：帖子 / 评论 / 用户三类，后台受理可删内容 + 处罚作者，同目标合并结案
 - **处罚分级**：禁言（能登录不能发言）/ 封号（不能登录），支持临时与永久，可手动解除
 - **邮箱验证 + 注册防刷**：注册只收用户名 + 密码，同 IP / 全站限速；登录后在空间页「绑定邮箱」发 6 位码，验证通过自动升级为普通用户；管理端可手动激活兜底
-- **等级制（游客 / 普通用户 / 会员）**：刚注册是游客，不能发帖也不能评论；绑邮箱后升普通用户，能评论但不能发帖；发帖要管理员授予会员。判定全靠权限码，改规则只改 `role_permission` 表
+- **等级制（游客 / 普通用户 / 会员）**：刚注册是游客，不能发帖也不能评论；绑定邮箱后升普通用户，评论和发帖都开了；会员由管理员授予，目前与普通用户等价。判定全靠权限码，改规则只改 `role_permission` 表
 - **外观**：深色模式（持久化）、名字颜色 / 身份标签颜色、角色标签
 
 ### 没做（有 `user:block` / `comment:report` 这种空壳权限码，别被误导）
@@ -161,7 +161,7 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 | `email_verified` | 能登录 | 浏览 / 点赞 | 评论 / 回复 / 举报 / 发帖 |
 |---|---|---|---|
 | 0 未绑定 | ✅ | ✅ | ❌ 返回 `507` |
-| 1 已绑定 | ✅ | ✅ | 评论可以；发帖还要看 `post:create`（见 5.8） |
+| 1 已绑定 | ✅ | ✅ | 评论、发帖都可以（`member` 两个权限码都有，见 5.8） |
 
 - **注册接口不发信**（`UserServiceImpl.register` 只做限速 + 图形验证码）。要是注册就发信，注册接口等于一台免费发信机，被人拿来轰炸别人邮箱。
 - 注册字段：用户名 2~20 位（中文 / 字母 / 数字 / 下划线，`^[\\u4e00-\\u9fa5A-Za-z0-9_]+$`）+ 密码。`username` / `name` 都写用户名（不再是 `kokomi_00001`），`email` 留 NULL，角色插 `guest`。
@@ -196,26 +196,24 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 
 ### 5.8 等级制：游客 / 普通用户 / 会员
 
-需求原话：「刚注册时为游客，不能发帖也不能评论；绑定邮箱后升级为普通用户，不能发帖但能评论；要升级成 vip 才能发帖，这个权限由管理员修改。」
+需求演变过两次，**当前规则**是：
 
 | 等级 | 角色码 | 谁给的 | 发帖 | 评论 / 回复 / 举报 |
 |---|---|---|---|---|
-| 游客 | `guest` | 注册默认 | ❌ `509` | ❌ `507` |
-| 普通用户 | `member` | 绑邮箱 + 验证码通过后自动升 | ❌ `509` | ✅ |
-| 会员 | `vip` | **管理员在后台授予** | ✅ | ✅ |
+| 游客 | `guest` | 注册默认 | ❌ `507` | ❌ `507` |
+| 普通用户 | `member` | 绑邮箱 + 验证码通过后自动升 | ✅ | ✅ |
+| 会员 | `vip` | 管理员在后台授予 | ✅ | ✅ |
 
-- **不在代码里写死角色名**，三档全靠权限码表达：`post:create` = admin / moderator / editor / vip；`comment:create` = 上面四个 + member；`guest` 一个都不挂。改规则只改 `role_permission` 表，不用改代码、不用发版。
-- 迁移脚本 `sql_tier_permission.sql`（幂等）：插 `comment:create` 权限码、插 `guest` 角色（`is_system=1, sort=6`）、补矩阵、收回 `member` 的 `post:create`、清空 `guest` 的所有权限。
-- **两个业务码别混**：`507`（`EMAIL_UNVERIFIED`）= 还是游客，用户自己点「去绑定」就能解决；`509`（`NEED_VIP`）= 等级不够发帖，用户自己解决不了。
+- **不在代码里写死角色名**，三档全靠权限码表达：`post:create` 和 `comment:create` 都挂在 admin / moderator / editor / vip / member 上，`guest` 一个都没有。改规则只改 `role_permission` 表，不用改代码、不用发版。
+- `vip` 目前和 `member` 等价，留着是给以后的特权（置顶、专属标识、只读档位之类）占位。第一版规则里 `member` 是不能发帖的，`post:create` 只在 vip 及以上；后来按需求改成「普通用户也能发帖」，所以 `sql_tier_permission.sql` 现在**给 member 也补 `post:create`**，并且不再有那段 `DELETE member/post:create`。
+- 迁移脚本 `sql_tier_permission.sql`（幂等）：插 `comment:create` 权限码、插 `guest` 角色（`is_system=1, sort=6`）、补矩阵、清空 `guest` 的所有权限。它同时能**自愈**——老库里如果之前跑过「收回 member 发帖权」的版本，再跑一次就把码补回来。
+- **两个业务码别混**：`507`（`EMAIL_UNVERIFIED`）= 还是游客，用户自己点「去绑定」就能解决；`509`（`NEED_VIP`）= 能评论但不能发帖（后台造出来的只读角色），用户自己解决不了。判定逻辑在 `PostServiceImpl.checkCanPost`：缺 `post:create` 时先看有没有 `comment:create`，没有就是游客 → 507，有就是只读角色 → 509。
   - 前端对 507 弹绑定弹窗（`VerifyEmailModal`），对 509 只给一句 toast + 空间页金色提示卡（不给按钮，因为点了也没用）。
-- **`promoteIfGuest`**（`UserVerifyServiceImpl`）：只有用户角色**全部是 guest**（或压根没角色）时才升 member；已挂任何其它角色一律不动 —— 防的是「管理员手动把某人降成会员以下，他再绑一次邮箱又爬回 member」。升级后 `PermissionCache.remove(userId)`。
-- `updatePost` 里作者本人分支也要判 `post:create`，否则「编辑旧帖」就是绕过发帖限制的后门。
-- 前端等级判定全在 `stores/user.js`，都用权限码：`canPost = hasPermission('post:create')`、`canComment = hasPermission('comment:create')`、`needsBindEmail = !canComment`。空间页三张卡按顺序出现：禁言卡 → 待绑邮箱卡（蓝，带「去绑定」）→ 待升会员卡（金，无按钮）。
-- ⚠️ **上线影响存量账号**：以前注册的人全是 `member`、且 `member` 当时有 `post:create`，跑完 `sql_tier_permission.sql` 会**突然发不了帖**。处理办法二选一：后台「用户管理 → 角色标签」逐个点成会员，或批量跑脚本里注释掉的那两行：
-  ```sql
-  -- INSERT IGNORE INTO user_role (user_id, role_code) SELECT id, 'vip' FROM user WHERE status = 0 AND id NOT IN (SELECT user_id FROM user_role WHERE role_code = 'vip');
-  -- UPDATE user SET primary_role = 'vip' WHERE primary_role = 'member';
-  ```
+  - 默认矩阵下 509 基本不会出现，但**别删那条分支和金色卡**——只要站长造一个「能评论不能发帖」的角色，它们就是正确的。
+- **`promoteIfGuest`**（`UserVerifyServiceImpl`）：只有用户角色**全部是 guest**（或压根没角色）时才升 member；已挂任何其它角色一律不动 —— 防的是「管理员手动把某人降成游客，他再绑一次邮箱又爬回 member」。升级后 `PermissionCache.remove(userId)`。
+- `updatePost` 里作者本人分支也要过 `checkCanPost`，否则「编辑旧帖」就是绕过发帖限制的后门。
+- 前端等级判定全在 `stores/user.js`，都用权限码：`canPost = hasPermission('post:create')`、`canComment = hasPermission('comment:create')`、`needsBindEmail = !canComment`。空间页三张卡按顺序出现：禁言卡 → 待绑邮箱卡（蓝，带「去绑定」）→ 待开通发帖卡（金，无按钮）。
+- ✅ **存量账号零影响**：老用户都是 `member`，`member` 两个码都有，跑完脚本发帖评论和以前一样；老用户的 `email_verified` 被回填成 1，不算待绑定。只有新注册的账号才落到 `guest`。
 
 ## 6. 已知的坑（都是真踩过的）
 
@@ -245,7 +243,7 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 
 **等级制 / 权限码**
 - 别在 Java 里写 `if ("vip".equals(role))`。等级只由权限码表达，`guest` 只是「一个权限都不挂的角色」，加/减档位只改 `role_permission`。
-- ⚠️ **507 和 509 的区别别搞反**：507 = 还是游客，用户可以自己点「去绑定」解决；509 = 等级不够发帖，用户自己解决不了，只能联系站长。给 509 配个「立即升级」按钮会让人白点。
+- ⚠️ **507 和 509 的区别别搞反**：507 = 还是游客（连评论都没有），绑个邮箱就什么都有了，用户可以自己解决；509 = 能评论但不能发帖（后台造的只读角色），用户自己解决不了，只能找站长。给 509 配个「立即升级」按钮会让人白点。
 - `promoteIfGuest` 必须判「**全部**角色都是 guest 才升」，不能判「有 guest 角色就升」—— 后者会让被管理员降档的人绑一次邮箱就爬回来。
 - 前端等级判定不要各页面自己拼 `userStore.user.permissions.includes(...)`，走 `stores/user.js` 的 `canPost / canComment / needsBindEmail`，否则改规则要全仓搜。
 
@@ -278,6 +276,9 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 
 ## 7. 部署（顺序不能换）
 
+> 一次性把「邮箱绑定 + 等级制」搬到线上的逐步清单（含改动文件表、验证方法、回滚）见
+> **`docs/DEPLOY_TIER.md`**，下面只是要点。
+
 ```bash
 # 1. SQL（新库全跑；老库按需补）—— 顺序：先 SQL，再换 jar
 mysql -uroot -p --default-character-set=utf8mb4 kokomi < springboot/sql_email_verify.sql
@@ -292,7 +293,7 @@ systemctl status kokomi
 # 3. 前端：解压 dist 包覆盖站点目录，然后让用户 Ctrl+Shift+R
 ```
 
-- ⚠️ **`sql_tier_permission.sql` 会让存量账号发不了帖**：以前注册的人都是 `member`、且 `member` 当时挂着 `post:create`，脚本把这码收走了。上线后要立刻在后台把该升会员的人改成 `vip`（脚本注释里留了批量 SQL，见 5.8）。**顺序绝不能反**：先换 jar 再跑 SQL，中间那段时间等级还是旧的，用户会看到「能发帖」但点发送报错。
+- ⚠️ **顺序绝不能反**：先换 jar 再跑 SQL，中间那段时间后端按旧矩阵判权限（旧库里 `guest` 角色还不存在、`comment:create` 也没有），用户会看到「能发帖」但点发送报错。存量账号本身**零影响**（见 5.8 最后一条），不用额外升档。
 
 - 环境变量在 `/etc/systemd/system/kokomi.service.d/override.conf`（`Environment="DB_PASSWORD=..."`，systemd 里 `$` 要写 `$$`）。
 - **发信必须配的四个变量**（不配就没人能验证邮箱，等于全站禁言）：
@@ -348,11 +349,10 @@ node tools/test-admin-select.js  # 举报页下拉：自绘面板 / 暗色 / 详
 ## 10. 待办（按优先级）
 
 1. nginx 给 `/index.html` 加 `no-cache`（一劳永逸解决换包强刷）
-2. **存量账号升档**：`sql_tier_permission.sql` 跑完，以前的 `member` 用户全部失去发帖权，需要逐个（或批量）在后台授予 `vip`
-3. 「忘记密码」—— 邮箱绑定已经铺好发信链路，就差重置令牌表 + 两个接口
-4. 后台「用户管理」现在只能一格一格点角色，缺批量操作（配合第 2 条会很需要）
-5. 存量幽灵账号清理（目前只防新增，没做删除）
-6. 评论区渲染身份标签（后端 `CommentAuthorVO` 已返 `roleColor`，前端没用）
-7. 收藏 / 草稿箱（表结构都还没有）
-8. 拉黑（`user:block` 权限码是空壳，缺黑名单表和 handler）
-9. 私信（要会话表 + 未读计数，轮询或 WebSocket）
+2. 「忘记密码」—— 邮箱绑定已经铺好发信链路，就差重置令牌表 + 两个接口
+3. 后台「用户管理」只能一格一格点角色，缺批量操作（用户多了会很难受）
+4. 存量幽灵账号清理（目前只防新增，没做删除）
+5. 评论区渲染身份标签（后端 `CommentAuthorVO` 已返 `roleColor`，前端没用）
+6. 收藏 / 草稿箱（表结构都还没有）
+7. 拉黑（`user:block` 权限码是空壳，缺黑名单表和 handler）
+8. 私信（要会话表 + 未读计数，轮询或 WebSocket）

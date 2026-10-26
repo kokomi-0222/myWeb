@@ -2,22 +2,23 @@
 
 站内规则：
   guest  游客      刚注册 —— 能登录、浏览、点赞，不能发帖也不能评论
-  member 普通用户  绑定邮箱后自动升级 —— 能评论 / 回复 / 举报，不能发帖
-  vip    会员      管理员授予 —— 能发帖
+  member 普通用户  绑定邮箱后自动升级 —— 能评论 / 回复 / 举报 / 发帖
+  vip    会员      管理员授予 —— 权限与普通用户相同，留作以后的档位
 
 对应权限码（见 sql_tier_permission.sql）：
-  post:create    发帖（admin / moderator / editor / vip）
-  comment:create 评论 + 举报（上面四个 + member）
-拒绝码：509 = 等级不够发帖（用户自己解决不了）；507 = 还是游客（绑邮箱即可）。
+  post:create    发帖（admin / moderator / editor / vip / member）
+  comment:create 评论 + 举报（同上）
+拒绝码：507 = 还是游客（绑个邮箱就能解决）；509 = 缺发帖权但能评论（只能找站长）。
 
 覆盖：
   [1] 三个档位的权限矩阵（/user/info 的 permissions）
-  [2] 发帖闸门：guest / member 都是 509，vip 通过
-  [3] 评论闸门：guest 为 507，member 通过
-  [4] 举报闸门：guest 为 507，member 通过
-  [5] 绑定邮箱自动升级：guest → member，升级后能评论、仍然不能发帖
-  [6] 管理员改等级：改成 vip 立刻能发帖，改回 guest 立刻又不能（缓存失效对不对）
-  [7] 边界：邮箱被占用、邮箱格式错、未登录
+  [2] 发帖闸门：游客 507，普通用户 / 会员放行
+  [3] 评论闸门：游客 507，普通用户放行
+  [4] 举报闸门：游客 507，普通用户放行
+  [5] 绑定邮箱自动升级：guest → member，升级后评论和发帖都通了
+  [6] 管理员改等级：改成 guest 立刻不能发帖（缓存失效对不对）
+  [7] 只读角色（能评论不能发帖）走 509 分支，而不是 507
+  [8] 边界：邮箱被占用、邮箱格式错、未登录、角色不能清空
 
 全程用临时账号与临时帖子，测完删干净。依赖本地后端（18080）+ 本地配置里的
 app.mail.dev-echo=true（没配 SMTP 时把验证码明文放进响应）。
@@ -130,7 +131,7 @@ def set_roles(admin_token, uid, roles):
 
 def main():
     admin = token_of(ADMIN_ID)
-    created, posts = [], []
+    created, posts, roles_made = [], [], []
 
     try:
         print("\n[准备] 造一个游客 / 一个普通用户 / 一个会员")
@@ -160,17 +161,21 @@ def main():
         check("游客角色是 guest", g_roles == {"guest"}, str(g_roles))
         check("普通用户能评论（有 comment:create）", "comment:create" in m_perms,
               str(sorted(m_perms)))
-        check("普通用户不能发帖（没有 post:create）", "post:create" not in m_perms)
+        check("普通用户能发帖（有 post:create）", "post:create" in m_perms, str(sorted(m_perms)))
         check("会员能发帖（有 post:create）", "post:create" in v_perms, str(sorted(v_perms)))
         check("会员也能评论", "comment:create" in v_perms)
 
         # ---------------------------------------------------------- 2 发帖闸门
-        print("\n[2] 发帖：游客 / 普通用户都被 509 拦，会员放行")
+        print("\n[2] 发帖：游客被 507 拦，普通用户 / 会员放行")
         code, pid, msg = try_post(guest, "游客不该发出来的帖子")
-        check("游客发帖返回 509", code == 509, f"{code} {msg}")
-        code, pid, msg = try_post(member, "普通用户不该发出来的帖子")
-        check("普通用户发帖返回 509", code == 509, f"{code} {msg}")
-        check("提示文案指向会员权限", "会员" in (msg or ""), msg)
+        # 游客连评论都没有 → 走「去绑邮箱」而不是「找站长」，
+        # 因为绑完邮箱他就是普通用户，发帖权自然就有了。
+        check("游客发帖返回 507（不是 509）", code == 507, f"{code} {msg}")
+        check("提示文案指向绑定邮箱", "邮箱" in (msg or ""), msg)
+        code, pid, msg = try_post(member, "普通用户发的帖子")
+        check("普通用户发帖成功", code == 200 and bool(pid), f"{code} id={pid}")
+        if pid:
+            posts.append(pid)
         code, pid, msg = try_post(vip, "会员发的帖子")
         check("会员发帖成功", code == 200 and bool(pid), f"{code} id={pid}")
         if pid:
@@ -207,38 +212,62 @@ def main():
             check("升级后角色是 member", "member" in g_roles, str(g_roles))
             check("升级后不再是 guest", "guest" not in g_roles, str(g_roles))
             check("升级后有了 comment:create", "comment:create" in g_perms, str(sorted(g_perms)))
-            check("升级后仍然没有 post:create", "post:create" not in g_perms)
+            check("升级后也有了 post:create", "post:create" in g_perms, str(sorted(g_perms)))
             code, msg = try_comment(guest, anchor, "升级后的评论")
             check("升级后能评论了", code == 200, f"{code} {msg}")
-            code, pid, msg = try_post(guest, "升级成普通用户后仍然发不了帖")
-            check("升级后发帖仍是 509", code == 509, f"{code} {msg}")
+            code, pid, msg = try_post(guest, "升级成普通用户后能发帖了")
+            check("升级后能发帖了", code == 200 and bool(pid), f"{code} {msg}")
+            if pid:
+                posts.append(pid)
             code, data, msg = send_code(guest, guest_email)
             check("已绑定邮箱不再发码", code == 200 and data.get("sent") is False,
                   f"{code} {msg}")
 
         # ---------------------------------------------------------- 6 管理员改等级
         print("\n[6] 管理员改等级：立即生效（权限缓存要失效）")
-        code, msg = set_roles(admin, member_id, ["vip"])
-        check("改成会员成功", code == 200, f"{code} {msg}")
-        code, pid, msg = try_post(member, "刚被提成会员就发帖")
-        check("提成会员后立刻能发帖", code == 200 and bool(pid), f"{code} {msg}")
+        code, msg = set_roles(admin, member_id, ["guest"])
+        check("把普通用户降成游客", code == 200, f"{code} {msg}")
+        code, pid, msg = try_post(member, "被降成游客的人发不了帖")
+        check("降级后立刻不能发帖（507）", code == 507, f"{code} {msg}")
+        code, msg = try_comment(member, anchor, "游客也不能评论了")
+        check("降级后连评论也不行", code == 507, f"{code} {msg}")
+
+        code, msg = set_roles(admin, member_id, ["member"])
+        check("改回普通用户", code == 200, f"{code} {msg}")
+        code, pid, msg = try_post(member, "改回普通用户后又能发帖")
+        check("改回来立刻能发帖（不用等缓存过期）", code == 200 and bool(pid),
+              f"{code} {msg}")
         if pid:
             posts.append(pid)
-        code, msg = set_roles(admin, member_id, ["member"])
-        check("改回普通用户成功", code == 200, f"{code} {msg}")
-        code, pid, msg = try_post(member, "又被打回普通用户了")
-        check("改回去后立刻不能发帖（509）", code == 509, f"{code} {msg}")
-        code, msg = try_comment(member, anchor, "普通用户还能评论")
-        check("降级后评论不受影响", code == 200, f"{code} {msg}")
 
-        code, msg = set_roles(admin, vip_id, ["member"])
-        check("把会员降成普通用户", code == 200, f"{code} {msg}")
-        code, pid, msg = try_post(vip, "被降级的人发不了帖")
-        check("降级后发帖被拦", code == 509, f"{code} {msg}")
-        set_roles(admin, vip_id, ["vip"])
+        # ---------------------------------------------------------- 7 只读角色 → 509
+        print("\n[7] 能评论但不能发帖的自定义角色：走 509 分支")
+        # 509 是留给「后台造出来的只读角色」的：他评论是通的，自己解决不了发帖，
+        # 所以不能给 507（弹绑定邮箱会让人白绑一遍）。
+        ro_code = f"tier_ro_{str(int(time.time() * 1000))[-6:]}"
+        ro_name = "只读测试角色"
+        mysql(f"INSERT INTO `role` (role_code, role_name, is_system, sort) "
+              f"VALUES ('{ro_code}', '{ro_name}', 0, 90)")
+        mysql(f"INSERT INTO role_permission (role_code, perm_code) "
+              f"VALUES ('{ro_code}', 'comment:create')")
+        roles_made.append(ro_code)
+        ro_id, _ = make_user("readonly", ro_code)
+        created.append(ro_id)
+        ro = token_of(ro_id)
 
-        # ---------------------------------------------------------- 7 边界
-        print("\n[7] 边界情况")
+        ro_perms, ro_roles = perms_of(ro)
+        check("只读角色只有 comment:create", ro_perms == {"comment:create"},
+              str(sorted(ro_perms)))
+        code, msg = try_comment(ro, anchor, "只读角色能评论")
+        check("只读角色评论成功", code == 200, f"{code} {msg}")
+        code, pid, msg = try_post(ro, "只读角色不该发出来的帖子")
+        check("只读角色发帖返回 509（不是 507）", code == 509, f"{code} {msg}")
+        check("509 文案不再说「会员」，而是「没开通」",
+              "会员" not in (msg or "") and ("开通" in (msg or "") or "站长" in (msg or "")),
+              msg)
+
+        # ---------------------------------------------------------- 8 边界
+        print("\n[8] 边界情况")
         # guest 在上一步已经把 guest_email 绑掉了，这里换个账号去抢这个邮箱
         other_id, _ = make_user("other", "guest")
         created.append(other_id)
@@ -263,7 +292,10 @@ def main():
                 mysql(f"DELETE FROM comment WHERE post_id = {pid}")
                 mysql(f"DELETE FROM post WHERE id = {pid}")
         cleanup(created)
-        print(f"  已清理 {len(created)} 个账号 / {len(posts)} 条帖子")
+        for rc in roles_made:
+            mysql(f"DELETE FROM role_permission WHERE BINARY role_code = BINARY '{rc}'")
+            mysql(f"DELETE FROM `role` WHERE BINARY role_code = BINARY '{rc}'")
+        print(f"  已清理 {len(created)} 个账号 / {len(posts)} 条帖子 / {len(roles_made)} 个临时角色")
 
     print(f"\n通过 {len(PASS)} / 失败 {len(FAIL)}")
     if FAIL:

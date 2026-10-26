@@ -109,12 +109,10 @@ public class PostServiceImpl implements PostService {
         Long userId = LoginUserHolder.getUserId();
         // 被禁言 / 封号的人不能发新帖（前端已经把发布框禁掉了，这里兜底）
         userBanService.checkCanSpeak(userId);
-        // 发帖要会员（vip）及以上：guest 和 member 都没有 post:create。
-        // 这条和「禁言」是两个维度 —— 禁言是临时处罚，这里是等级不够，
-        // 所以用 509 而不是 403：前端要能直接说「找站长开通」。
-        if (!hasPermission(userId, "post:create")) {
-            throw new CustomerException(ResultCode.NEED_VIP, "发帖需要会员权限，请联系站长开通");
-        }
+        // 发帖要 post:create（admin / moderator / editor / vip / member 都有，游客没有）。
+        // 和「禁言」是两个维度 —— 禁言是临时处罚，这里是等级不够，所以用业务码而不是 403：
+        // 前端要能按码区分「找站长开通」和「去绑邮箱」。
+        checkCanPost(userId);
 
         Post post = new Post();
         post.setTitle(dto.getTitle() != null ? dto.getTitle().trim() : "");
@@ -192,11 +190,9 @@ public class PostServiceImpl implements PostService {
             // 禁言的人连自己的旧帖也不能改——不然等于换个地方继续发内容。
             // 版主 / 编辑改别人的帖不受影响。
             userBanService.checkCanSpeak(userId);
-            // 作者本人必须有发帖权：被降回游客/普通用户之后，旧帖也不能再编辑，
+            // 作者本人必须有发帖权：被降回游客之后，旧帖也不能再编辑，
             // 否则「不能发帖」就能靠「编辑旧帖」绕过。有 post:edit 的管理员不受这条约束。
-            if (!hasPermission(userId, "post:create")) {
-                throw new CustomerException(ResultCode.NEED_VIP, "发帖需要会员权限，请联系站长开通");
-            }
+            checkCanPost(userId);
         }
 
         // 只覆盖文案与类型，互动计数一律不动
@@ -453,6 +449,25 @@ public class PostServiceImpl implements PostService {
      */
     private boolean hasPermission(Long userId, String permCode) {
         return permissionService.has(userId, permCode);
+    }
+
+    /**
+     * 发帖闸门。没 {@code post:create} 的人分两种，给的码不一样，因为「怎么解决」不同：
+     * <ul>
+     *   <li>连 {@code comment:create} 都没有 → 还是游客，绑个邮箱就自动升普通用户，回 507；</li>
+     *   <li>能评论但不能发帖 → 没开通发帖权的自定义角色，只能找站长，回 509。</li>
+     * </ul>
+     * 现在的默认矩阵里游客卡在第一种、其它角色都能发帖，所以 509 基本不会出现；
+     * 但只要后台造出一个「能评论不能发帖」的角色，这条分支就是对的。
+     */
+    private void checkCanPost(Long userId) {
+        if (hasPermission(userId, "post:create")) {
+            return;
+        }
+        if (!hasPermission(userId, "comment:create")) {
+            throw new CustomerException(ResultCode.EMAIL_UNVERIFIED, "绑定邮箱后就能发帖了");
+        }
+        throw new CustomerException(ResultCode.NEED_VIP, "发帖权限还没开通，请联系站长");
     }
 
     /**

@@ -80,7 +80,7 @@
         <div v-else autocomplete="off" class="form-body">
           <div class="form-header">
             <h2 class="form-title">创建账号</h2>
-            <p class="form-subtitle">注册后是游客：先绑邮箱才能评论，发帖要站长开会员</p>
+            <p class="form-subtitle">注册后是游客：绑个邮箱就能评论、发帖</p>
           </div>
           <div
             style="width: 0; height: 0; overflow: hidden; position: absolute; z-index: -1"

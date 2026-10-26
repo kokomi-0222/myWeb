@@ -47,11 +47,11 @@ realService.interceptors.response.use(
       return Promise.reject(err)
     }
 
-    // 等级不够发帖：用户自己解决不了（要管理员给会员），所以只给一句说明，
+    // 等级不够发帖：用户自己解决不了（得等站长开通），所以只给一句说明，
     // 不开弹窗 —— 一个点了没用的按钮比不给按钮更让人火。
     if (setting.needVipCode && res.code == setting.needVipCode) {
-      message.info(res.msg || '发帖需要会员权限，请联系站长开通')
-      const err = new Error(res.msg || '发帖需要会员权限')
+      message.info(res.msg || '发帖权限还没开通，请联系站长')
+      const err = new Error(res.msg || '发帖权限还没开通')
       err.needVip = true
       return Promise.reject(err)
     }

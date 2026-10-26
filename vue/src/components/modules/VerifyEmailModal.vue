@@ -75,7 +75,7 @@
           </div>
 
           <p class="verify-tip">
-            绑完自动成为普通用户，能评论和回复；发帖要会员权限，那是站长手动开的。
+            绑完自动成为普通用户，评论、回复、发帖就都开了。
           </p>
         </div>
       </div>
@@ -207,7 +207,7 @@ const submit = async () => {
     // 这里不刷新的话评论框还是「绑定邮箱后就能评论」的提示。
     await userStore.refreshUser();
     if (userStore.canComment) {
-      message.success("邮箱已绑定，现在是普通用户，可以评论和回复了");
+      message.success("邮箱已绑定，现在是普通用户，可以评论和发帖了");
     } else {
       message.success("邮箱已绑定");
     }

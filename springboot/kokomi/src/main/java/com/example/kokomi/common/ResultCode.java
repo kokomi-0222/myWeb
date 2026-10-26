@@ -32,9 +32,11 @@ public class ResultCode {
     // 邮箱验证码错误 / 过期 / 试错次数用完
     public static final int VERIFY_CODE_ERROR = 508;
 
-    // 等级不够发帖：游客和普通用户都没有 post:create，只有会员（vip）及以上有。
+    // 没开通发帖权：账号缺少 post:create，但评论是通的（自定义的只读角色）。
     // 和 507 分开是因为处理动作完全不同 —— 507 用户自己能解决（去绑邮箱），
-    // 509 只能等管理员在后台改成「会员」，前端不该给一个点了没用的按钮。
+    // 509 只能等管理员在后台开通，前端不该给一个点了没用的按钮。
+    // 默认矩阵里会员和普通用户都能发帖，所以这个码平时基本不会出现；
+    // 游客发帖会先被 EMAIL_UNVERIFIED 拦下（见 PostServiceImpl.checkCanPost）。
     public static final int NEED_VIP = 509;
 
     // RSA 加密解密

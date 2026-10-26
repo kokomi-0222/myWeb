@@ -2,9 +2,9 @@
 //   [1] 注册表单只收用户名：带 @ 和过短的用户名都被前端拦下
 //   [2] 游客进空间页：没有发布框，出现「绑定邮箱后就能评论」的蓝色提示卡；评论区同样拦
 //   [3] 绑定邮箱弹窗：新账号要自己填邮箱，空邮箱发不出去，dev-echo 给明文码，错码有提示
-//   [4] 绑完变普通用户：蓝卡换成金色「发帖需要会员权限」卡（这张卡故意不给按钮）
-//   [5] 管理员改成会员：发布框立刻回来，身份标签变「会员」
-//   [6] 降回普通用户：暗色 / 390 宽下提示卡不溢出
+//   [4] 绑完变普通用户：评论框和发布框都回来，两张提示卡都消失
+//   [5] 管理员改成会员：身份标签跟着变，发布框照旧
+//   [6] 现造一个「能评论不能发帖」的只读角色：金色兜底卡出现且不给按钮；暗色 / 390 宽不溢出
 //   [7] 后台用户列表：未验证标签 + 「激活」兜底（激活顺带把游客升成普通用户）
 // 用法：node tools/test-verify-email-ui.js（需 18080 后端 + 5194 预览）
 const { spawn, spawnSync } = require("child_process");
@@ -63,6 +63,8 @@ function signToken(uid, tv) {
 }
 
 const created = [];
+/** 临时角色码（只读角色），cleanup 时删掉 */
+const createdRoles = [];
 /** 管理员 token（refreshTokens 之后才知道），createPostAsAdmin 要用 */
 let ADMIN_TOKEN = "";
 /** 临时锚点帖 id，cleanup 时删掉 */
@@ -109,6 +111,10 @@ function cleanup() {
   for (const id of created) {
     sql(`DELETE FROM user_role WHERE user_id = ${id}`);
     sql(`DELETE FROM user WHERE id = ${id}`);
+  }
+  for (const code of createdRoles) {
+    sql(`DELETE FROM role_permission WHERE role_code = '${code}'`);
+    sql("DELETE FROM `role` WHERE role_code = '" + code + "'");
   }
 }
 
@@ -356,29 +362,24 @@ const get = (p) =>
     check("绑定后评论区变成真输入框",
       await until(`!!document.querySelector('.comment-input-area textarea')`, 12000));
 
-    // ---------------------------------------------------------- 4 普通用户：能评论不能发帖
-    console.log("\n[4] 升级成普通用户：能评论，发帖还是不行");
+    // ---------------------------------------------------------- 4 普通用户：评论 + 发帖都通
+    console.log("\n[4] 升级成普通用户：评论框和发布框都回来了");
     await nav(BASE + "/space/home");
-    check("出现「发帖需要会员权限」提示卡",
-      await until(`!!document.querySelector('.muted-notice--vip')`, 12000));
-    const memberCard = await evaluate(`(() => {
-      const c = document.querySelector('.muted-notice--vip');
-      return {
-        title: c?.querySelector('.muted-notice__title')?.textContent.trim() || '',
-        role: document.querySelector('.user-role')?.textContent.trim() || '',
-        color: c ? getComputedStyle(c).color : '',
-        hasBtn: !!c?.querySelector('.muted-notice__refresh'),
-      };
-    })()`);
-    check("标题是「发帖需要会员权限」", memberCard.title === "发帖需要会员权限", memberCard.title);
-    check("身份标签变成「普通用户」", memberCard.role === "普通用户", memberCard.role);
-    check("卡片是金色的", memberCard.color === "rgb(230, 162, 60)", memberCard.color);
-    check("这张卡不给按钮（用户自己解决不了）", memberCard.hasBtn === false, String(memberCard.hasBtn));
-    check("还是没有发布框", !(await evaluate(`!!document.querySelector('.publishing')`)));
+    check("发布框出现了", await until(`!!document.querySelector('.publishing')`, 12000));
+    check("没有「发帖权未开通」的金卡",
+      !(await evaluate(`!!document.querySelector('.muted-notice--vip')`)));
+    check("也没有「绑定邮箱」的蓝卡",
+      !(await evaluate(`!!document.querySelector('.muted-notice--verify')`)));
+    const memberWho = await evaluate(`(() => ({
+      role: document.querySelector('.user-role')?.textContent.trim() || '',
+      tip: document.querySelector('.user-tips-text')?.textContent.trim() || '',
+    }))()`);
+    check("身份标签变成「普通用户」", memberWho.role === "普通用户", memberWho.role);
+    check("副标题回到「今天想说些什么呢？」", memberWho.tip.includes("今天想说"), memberWho.tip);
     await shot("tier-member-space.png");
 
     // ---------------------------------------------------------- 5 管理员升会员
-    console.log("\n[5] 管理员改成会员后，发布框回来");
+    console.log("\n[5] 管理员改成会员：身份标签跟着变，发布框照旧");
     const roleRes = await evaluate(`(async () => {
       const r = await fetch('/api/admin/user/${guest.id}/roles', {
         method: 'PUT',
@@ -390,25 +391,51 @@ const get = (p) =>
     })()`);
     check("后台改角色成功", roleRes === 200, String(roleRes));
     await nav(BASE + "/space/home");
-    check("发布框回来了", await until(`!!document.querySelector('.publishing')`, 12000));
-    check("提示卡都消失了", !(await evaluate(`!!document.querySelector('.muted-notice--vip')`)));
+    check("发布框还在", await until(`!!document.querySelector('.publishing')`, 12000));
     const roleTag = await evaluate(`document.querySelector('.user-role')?.textContent.trim()`);
     check("身份标签变成「会员」", roleTag === "会员", roleTag);
     await shot("tier-vip-space.png");
 
-    // ---------------------------------------------------------- 6 降回普通用户：暗色 / 手机
-    console.log("\n[6] 降回普通用户：暗色与手机宽度");
+    // ---------------------------------------------------------- 6 只读角色：金卡兜底
+    // 默认矩阵里会员和普通用户都能发帖，金色卡在正常流程里不会出现。
+    // 它留给「后台造一个能评论不能发帖的角色」，这里就现造一个来验。
+    console.log("\n[6] 只读角色：金卡出现且不给按钮（509 分支的界面）");
+    const roCode = "tier_ro_" + String(Date.now()).slice(-6);
+    sql("INSERT INTO `role` (role_code, role_name, is_system, sort) " +
+        `VALUES ('${roCode}', '只读测试角色', 0, 90)`);
+    sql("INSERT INTO role_permission (role_code, perm_code) " +
+        `VALUES ('${roCode}', 'comment:create')`);
+    createdRoles.push(roCode);
     await evaluate(`(async () => {
       await fetch('/api/admin/user/${guest.id}/roles', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ${tokens.admin}' },
-        body: JSON.stringify({ roles: ['member'] }),
+        body: JSON.stringify({ roles: ['${roCode}'] }),
       });
     })()`);
+    await nav(BASE + "/space/home");
+    check("金卡出现了", await until(`!!document.querySelector('.muted-notice--vip')`, 12000));
+    const roCard = await evaluate(`(() => {
+      const c = document.querySelector('.muted-notice--vip');
+      return {
+        title: c?.querySelector('.muted-notice__title')?.textContent.trim() || '',
+        color: c ? getComputedStyle(c).color : '',
+        hasBtn: !!c?.querySelector('.muted-notice__refresh'),
+        hasPublishing: !!document.querySelector('.publishing'),
+      };
+    })()`);
+    check("标题是「你的账号还没有发帖权限」",
+      roCard.title === "你的账号还没有发帖权限", roCard.title);
+    check("卡片是金色的", roCard.color === "rgb(230, 162, 60)", roCard.color);
+    check("这张卡不给按钮（用户自己解决不了）", roCard.hasBtn === false, String(roCard.hasBtn));
+    check("只读角色没有发布框", roCard.hasPublishing === false);
+    await shot("tier-readonly-space.png");
+
+    // 暗色 / 手机就直接拿这张卡来量
     await evaluate(`localStorage.setItem('kokomi-theme', 'dark')`);
     await nav(BASE + "/space/home");
     check("暗色已生效", await evaluate(`document.documentElement.classList.contains('dark')`));
-    check("暗色下会员提示卡还在",
+    check("暗色下金卡还在",
       await until(`!!document.querySelector('.muted-notice--vip')`, 12000));
     const darkColor = await evaluate(
       `getComputedStyle(document.querySelector('.muted-notice--vip')).color`);
@@ -422,7 +449,7 @@ const get = (p) =>
       width: 390, height: 844, deviceScaleFactor: 1, mobile: false,
     });
     await nav(BASE + "/space/home");
-    check("手机宽度下提示卡还在",
+    check("手机宽度下金卡还在",
       await until(`!!document.querySelector('.muted-notice--vip')`, 12000));
     const mob = await evaluate(`(() => {
       const c = document.querySelector('.muted-notice--vip').getBoundingClientRect();

@@ -215,9 +215,9 @@ export const useUserStore = defineStore('user', () => {
   // ---- 等级（游客 / 普通用户 / 会员）----
   // 谁能干什么全看权限码，代码里不写死角色名 —— 这样站长在后台调整
   // 「角色 → 权限」矩阵时，前端会跟着变，不用重新发版。
-  //   post:create    发帖（vip 及以上）
-  //   comment:create 评论 / 回复 / 举报（member 及以上）
-  // 真正的拦截在后端 Service 层（509 / 507），这里只决定界面显示什么。
+  //   post:create    发帖（会员 / 普通用户都有，只有游客没有）
+  //   comment:create 评论 / 回复 / 举报（同上，游客没有）
+  // 真正的拦截在后端 Service 层（507 游客 / 509 没开通发帖权），这里只决定界面显示什么。
   const { hasPermission } = usePermission()
   const canPost = computed(() => isLogin.value && hasPermission('post:create'))
   const canComment = computed(() => isLogin.value && hasPermission('comment:create'))
