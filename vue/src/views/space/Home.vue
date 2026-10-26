@@ -33,10 +33,13 @@
       后端接口同样会拦（绕过前端也没用），这里只是别让人白写一大段。
     -->
     <div v-if="userStore.isMuted" class="muted-notice">
-      <IconAlert size="18" />
+      <IconAlert class="muted-notice__icon" size="18" />
       <div class="muted-notice__body">
         <p class="muted-notice__title">你已被禁言</p>
-        <p class="muted-notice__desc">{{ userStore.muteDetail }}</p>
+        <p class="muted-notice__desc" :title="userStore.muteDetail">
+          {{ userStore.muteDetail }}
+        </p>
+        <p class="muted-notice__hint">禁言期间无法发布内容、评论和回复</p>
       </div>
       <!--
         禁言到期后后端不会再主动推，页面也不会自己变回发布框。
@@ -811,9 +814,12 @@ const handleDelete = (postId) => {
 
 /* 被禁言时顶替发布框的提示卡：和 .publishing 同宽同圆角，位置不跳 */
 .muted-notice {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  /* grid 而不是 flex：图标 / 文字 / 按钮三列，文字列 minmax(0,1fr)，
+     保证长原因会换行而不是把按钮挤出卡片 */
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0 10px;
   width: var(--content-with);
   margin-top: 16px;
   padding: 16px 18px;
@@ -824,8 +830,11 @@ const handleDelete = (postId) => {
   color: #fb7299;
 }
 
+.muted-notice__icon {
+  margin-top: 1px;
+}
+
 .muted-notice__body {
-  flex: 1;
   min-width: 0;
 }
 
@@ -843,9 +852,19 @@ const handleDelete = (postId) => {
   word-break: break-word;
 }
 
+/* 「禁言期间无法发布内容、评论和回复」：桌面有空间，手机隐藏 */
+.muted-notice__hint {
+  margin: 6px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+
 /* 提示卡右侧的「刷新状态」：描边胶囊，和站内其它次要操作同一套尺寸语言 */
 .muted-notice__refresh {
-  flex: none;
+  justify-self: end;
+  margin-top: 1px;
   height: 28px;
   padding: 0 12px;
   border-radius: 999px;
@@ -854,6 +873,7 @@ const handleDelete = (postId) => {
   color: #fb7299;
   font-size: 0.75rem;
   line-height: 26px;
+  white-space: nowrap;
   cursor: pointer;
   transition: background-color 0.2s, border-color 0.2s;
 }
@@ -871,11 +891,34 @@ const handleDelete = (postId) => {
 /* 手机宽度放不下并排：按钮换到第二行，左边距对齐标题文字（图标 18 + gap 10） */
 @media (max-width: 767px) {
   .muted-notice {
-    flex-wrap: wrap;
+    /* 用 grid 而不是 flex-wrap：flex 只要内容够短就会缩在按钮旁边，
+       一旦文案长了就把按钮挤成两行高，卡片高度完全不可控 */
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 14px 16px;
+    gap: 0 8px;
+  }
+
+  /* 手机上省掉「期间无法……」，标题 + 下面那行期限原因已经说清楚了 */
+  .muted-notice__hint {
+    display: none;
+  }
+
+  /* 原因可能很长（管理员随手写的），最多两行，超出省略，长按/悬停看全文 */
+  .muted-notice__desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .muted-notice__refresh {
-    margin-left: 28px;
+    grid-column: 2;
+    justify-self: start;
+    margin-top: 10px;
+    height: 26px;
+    padding: 0 11px;
+    font-size: 0.72rem;
+    line-height: 24px;
   }
 }
 

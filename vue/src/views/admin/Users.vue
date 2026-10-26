@@ -330,6 +330,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from "vue";
+import { ElMessageBox } from "element-plus";
 import IconSearch from "@/components/icons/IconSearch.vue";
 import IconClose from "@/components/icons/IconClose.vue";
 import IconPerson from "@/components/icons/IconPerson.vue";
@@ -501,8 +502,18 @@ function banSuffix(u) {
 async function handleUnban(u) {
   const name = u.name || u.username || `#${u.id}`;
   const what = u.status === 1 ? "禁言" : "封号";
-  if (!window.confirm(`确定解除「${name}」的${what}吗？解除后对方可以立即恢复使用。`)) {
-    return;
+  try {
+    await ElMessageBox.confirm(
+      `解除后「${name}」可以立即恢复发帖和评论。`,
+      `解除${what}`,
+      {
+        type: "info",
+        confirmButtonText: "解除",
+        cancelButtonText: "取消",
+      }
+    );
+  } catch {
+    return; // 用户取消
   }
   try {
     const res = await unbanUser(u.id);
@@ -570,8 +581,29 @@ async function submitPunish() {
   const name = u.name || u.username || `#${u.id}`;
   const what = punishForm.level === 1 ? "禁言" : "封号";
   const howLong = punishForm.days === -1 ? "永久" : `${punishForm.days} 天`;
+  // 说清楚后果，别让人只看到「确定要禁言吗」就点下去
+  const effect = punishForm.level === 1
+    ? howLong === "永久"
+      ? "对方仍能登录和浏览，但将永远发不了帖子、评论和回复。"
+      : `对方仍能登录和浏览，但在 ${howLong}内发不了帖子、评论和回复。`
+    : punishForm.days === -1
+      ? "对方将无法再登录，且不会自动解除。"
+      : `对方将无法登录，${howLong}后自动恢复。`;
 
-  if (!window.confirm(`确定对「${name}」执行${what} ${howLong} 吗？`)) return;
+  try {
+    await ElMessageBox.confirm(
+      `${effect}确定对「${name}」执行${howLong}${what}吗？`,
+      `确认${what}`,
+      {
+        type: "warning",
+        confirmButtonText: what,
+        cancelButtonText: "取消",
+        customClass: "danger-confirm",
+      }
+    );
+  } catch {
+    return; // 用户取消
+  }
 
   punishing.value = true;
   try {

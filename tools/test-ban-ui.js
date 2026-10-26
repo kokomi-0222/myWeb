@@ -242,8 +242,9 @@ let tokens = null;
     );
     check("提示里有「禁言」两个字", noticeText.includes("禁言"), noticeText.slice(0, 60));
     check("提示里带了理由", noticeText.includes(REASON));
-    check("提示里带了期限（解除时间或永久）",
-      noticeText.includes("解除") || noticeText.includes("永久"));
+    // 2026-10 改版：措辞从「xx 解除」改成「xx 恢复」，同时补了「永久」分支
+    check("提示里带了期限（恢复时间或永久）",
+      noticeText.includes("恢复") || noticeText.includes("永久"), noticeText.slice(0, 60));
     // 标题已经是「你已被禁言」，副标题不该再重复一遍
     const repeatCount = (noticeText.match(/你已被禁言/g) || []).length;
     check("卡片上「你已被禁言」只出现一次", repeatCount === 1, `出现 ${repeatCount} 次`);

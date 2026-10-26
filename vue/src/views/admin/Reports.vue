@@ -16,12 +16,15 @@
         </button>
       </div>
 
-      <select v-model="targetType" class="reports-select" @change="reload">
-        <option value="">全部类型</option>
-        <option value="post">帖子</option>
-        <option value="comment">评论</option>
-        <option value="user">用户</option>
-      </select>
+      <span class="admin-select-wrap">
+        <select v-model="targetType" class="admin-select" @change="reload">
+          <option value="">全部类型</option>
+          <option value="post">帖子</option>
+          <option value="comment">评论</option>
+          <option value="user">用户</option>
+        </select>
+        <IconArrow class="admin-select__arrow" :size="11" />
+      </span>
     </div>
 
     <p class="page-tip">
@@ -80,7 +83,11 @@
           </div>
         </div>
 
-        <button type="button" class="admin-btn report-row__btn" @click.stop="openDetail(item)">
+        <button
+          type="button"
+          class="admin-btn admin-btn--ghost report-row__btn"
+          @click.stop="openDetail(item)"
+        >
           {{ item.status === 0 ? "处理" : "查看" }}
         </button>
       </li>
@@ -181,13 +188,16 @@
               <div class="check-row">
                 <input id="ban-toggle" v-model="form.ban" type="checkbox" />
                 <label for="ban-toggle">处罚作者</label>
-                <select v-if="form.ban" v-model.number="form.banDays" class="reports-select reports-select--sm">
-                  <option :value="1">1 天</option>
-                  <option :value="3">3 天</option>
-                  <option :value="7">7 天</option>
-                  <option :value="30">30 天</option>
-                  <option :value="-1">永久</option>
-                </select>
+                <span v-if="form.ban" class="admin-select-wrap admin-select-wrap--sm">
+                  <select v-model.number="form.banDays" class="admin-select admin-select--sm">
+                    <option :value="1">1 天</option>
+                    <option :value="3">3 天</option>
+                    <option :value="7">7 天</option>
+                    <option :value="30">30 天</option>
+                    <option :value="-1">永久</option>
+                  </select>
+                  <IconArrow class="admin-select__arrow" :size="10" />
+                </span>
               </div>
 
               <!-- 处罚力度：禁言只断发言，封号连登录一起断 -->
@@ -273,8 +283,10 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
+import { ElMessageBox } from "element-plus";
 import Avatar from "@/components/modules/Avatar.vue";
 import Button from "@/components/buttons/Button.vue";
+import IconArrow from "@/components/icons/IconArrow.vue";
 import IconClose from "@/components/icons/IconClose.vue";
 import Pagination from "@/components/modules/Pagination.vue";
 import { getReportDetail, getReportList, handleReport } from "@/api/reports";
@@ -456,16 +468,32 @@ async function submitHandle(action) {
   }
 }
 
-// 这里刻意用浏览器原生 confirm 而不是 ElMessageBox：
-// 后台页面已经在处理流程里，多一层项目弹窗反而更重，原生确认够用且不会漏样式
-function confirmPermanentBan() {
+/**
+ * 永久处罚没有到期时间，只能手动撤销，所以再确认一次。
+ * 用站内 ElMessageBox（而不是 window.confirm）：原生确认框在暗色主题下
+ * 是白底黑字的小方块，和后台的圆角卡片完全不是一套东西。
+ * 返回 true 表示确认继续。
+ */
+async function confirmPermanentBan() {
   const what = form.banLevel === 1 ? "禁言" : "封号";
   const effect = form.banLevel === 1
-    ? "对方能登录但永远发不了内容"
+    ? "对方能登录，但永远发不了内容"
     : "对方将无法再登录";
-  return Promise.resolve(
-    window.confirm(`永久${what}只能手动撤销，${effect}。确定继续？`)
-  );
+  try {
+    await ElMessageBox.confirm(
+      `永久${what}只能手动撤销，${effect}。确定继续吗？`,
+      `永久${what}`,
+      {
+        type: "warning",
+        confirmButtonText: `永久${what}`,
+        cancelButtonText: "取消",
+        customClass: "danger-confirm",
+      }
+    );
+    return true;
+  } catch {
+    return false; // 用户取消
+  }
 }
 
 onMounted(() => {
@@ -540,19 +568,9 @@ onMounted(() => {
   text-align: center;
 }
 
-.reports-select {
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 0.83rem;
-  cursor: pointer;
-}
-
-.reports-select--sm {
-  height: 28px;
+/* 下拉框样式统一在 views/admin/Index.vue 的 .admin-select（非 scoped），
+   和 .admin-btn 同高同圆角，这里只补这个页面特有的间距 */
+.admin-select-wrap--sm {
   margin-left: 4px;
 }
 

@@ -378,14 +378,15 @@ const VIEW = { w: 1000, h: 1200 };
     await shot("report-admin-detail.png");
 
     // 勾选封禁，确认会出现天数选择（不真的提交封禁）
+    // class 从 .reports-select--sm 改成了后台统用的 .admin-select--sm（风格统一用）
     await evaluate(`(() => {
       const boxes = document.querySelectorAll('.check-row input[type=checkbox]');
       boxes[1].click();
     })()`);
     await sleep(250);
     const banUi = await evaluate(`(() => ({
-      hasDaySelect: !!document.querySelector('.reports-select--sm'),
-      dayOptions: [...document.querySelectorAll('.reports-select--sm option')].map(o => o.textContent.trim()),
+      hasDaySelect: !!document.querySelector('.admin-select--sm'),
+      dayOptions: [...document.querySelectorAll('.admin-select--sm option')].map(o => o.textContent.trim()),
     }))()`);
     check("勾选封禁后出现天数选择", banUi?.hasDaySelect === true);
     check("天数选项含永久", banUi?.dayOptions?.includes("永久"), show(banUi?.dayOptions));

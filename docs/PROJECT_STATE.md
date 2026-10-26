@@ -159,10 +159,16 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 **Element Plus**
 - 按需注入只管模板组件，`ElMessageBox` 是 JS API，`.el-overlay` 基础样式不会注入 → 弹框掉到视口下（表现为「点删除没反应」）。`main.js` 里显式引入 `el-overlay / el-message-box / el-button / el-input / el-icon` 的 css，且排在 `assets/css/message-box.css` **之前**。
 - `<style scoped>` 覆盖暗色的正确写法是 `:global(:root.dark .xxx)`；写成 `:global(:root.dark) .xxx` 整条会被丢弃。
+- ⚠️ **z-index**：EP 的遮罩是「从 2000 起逐个 +1」动态分配的，而后台详情弹窗 `.detail-overlay` 是 3000、处罚面板 `.style-mask` 是 2000。在后台弹窗里再弹确认框会被压在下面（看起来像「点了没反应」）。`message-box.css` 里统一 `.el-overlay.is-message-box { z-index: 4000 !important }`。
+- **业务代码里不要再出现 `window.confirm`**：原生确认框在暗色主题下是白底黑字的小方块，和站内圆角卡片完全不搭。统一用 `ElMessageBox.confirm(内容, 标题, { type, confirmButtonText, customClass: 'danger-confirm' })`，取消走 `catch`。
 
 **组件**
 - `Button.vue` 的 `.my-button` **只有配色，没有任何尺寸**（无 height/padding/radius/font-size）→ 用到处必须喂 class，否则是浏览器默认的贴字小色块。
+- 后台纯 `<button class="admin-btn">` 也只有尺寸没有配色 → 次要操作用 `admin-btn admin-btn--ghost`（1px 描边 + hover 变主题色）。
+- 后台下拉框统一 `<span class="admin-select-wrap">` + `select.admin-select` + `IconArrow.admin-select__arrow`（尺寸对齐 `.admin-btn`），别直接写原生 `<select>`。
+- ⚠️ `IconArrow` 画的是**向左**的 chevron（`PostImage.vue` 里用 `rotate(180)` 才表示向右）。要向下必须 `rotate(-90deg)`，写成 `90deg` 会变成朝上的 ∧。
 - 发布框的 textarea 是**原生元素，class 直接就是 `.input-content`**（不是容器）→ 选择器写 `.publishing textarea.input-content`。
+- 被禁言时空间页的 `.muted-notice` 是 **grid 三列**（图标 / 文字 / 按钮），手机上收成两列、按钮换到第二行；文案只放「恢复时间 · 原因」，后果那句 `.muted-notice__hint` 只在 ≥768px 显示。
 
 **数据库**
 - `user.create_time`，`post` / `comment` 是 `created_at`，列名不统一。
@@ -209,6 +215,7 @@ cd tools && python test-ban-level-api.py
 # 界面测试（headless Chrome + CDP，真点真截图，截图落 shots/）
 node tools/test-report-ui.js
 node tools/test-ban-ui.js
+node tools/test-ui-polish.js     # 后台确认框 / 下拉框风格 / 移动端禁言提示卡
 ```
 
 - `tools/_local.py` 是凭据读取工具（**不含明文，已入库**）：优先读环境变量 `DB_PASSWORD` / `JWT_SECRET`，否则读 `springboot/kokomi/config/application-local.yaml`。所以只要 §3.1 那个文件在，测试脚本就能跑。

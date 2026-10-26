@@ -10,8 +10,12 @@
      5. 遮罩轻模糊，弹窗弹性上浮
    =========================================================== */
 
-/* ---------- 遮罩 ---------- */
+/* ---------- 遮罩 ----------
+   z-index 用 !important 抬到 4000：Element Plus 的遮罩是「从 2000 起逐个 +1」
+   动态分配的，而后台的详情弹窗（.detail-overlay）用的是 3000、处罚面板 2000。
+   不这么做的话，在后台弹窗里再弹确认框会被压在下面 —— 表现为「点了没反应」。 */
 .el-overlay.is-message-box {
+  z-index: 4000 !important;
   background-color: rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);

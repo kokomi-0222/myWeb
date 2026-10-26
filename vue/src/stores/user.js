@@ -201,14 +201,15 @@ export const useUserStore = defineStore('user', () => {
   })
 
   /**
-   * 提示卡的副标题：标题已经写了「你已被禁言」，这里只补期限和原因，
-   * 不然卡片上会出现两遍「你已被禁言」。
+   * 提示卡的副标题：只放「什么时候恢复 + 原因」。
+   * 不放「期间无法发布内容、评论和回复」那句 —— 手机上卡片只有一屏宽，
+   * 这句话会把文案挤成三行；后果交给标题 + 卡片的补充行表达。
    */
   const muteDetail = computed(() => {
     if (!isMuted.value) return ''
-    const reason = user.value?.banReason ? `，原因：${user.value.banReason}` : ''
-    const when = user.value?.banUntil ? `${banUntilText.value} 解除` : '永久禁言，不会自动解除'
-    return `${when}，期间无法发布内容、评论和回复${reason}`
+    const when = user.value?.banUntil ? `${banUntilText.value} 恢复` : '永久禁言'
+    const reason = user.value?.banReason ? ` · 原因：${user.value.banReason}` : ''
+    return `${when}${reason}`
   })
 
   // 后端回了「你已被禁言」（说明发帖 / 评论被拦了）时，立刻把用户信息拉新一次。
