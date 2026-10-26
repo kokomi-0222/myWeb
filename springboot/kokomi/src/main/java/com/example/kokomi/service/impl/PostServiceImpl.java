@@ -39,7 +39,7 @@ import com.example.kokomi.exception.CustomerException;
 import com.example.kokomi.service.PostService;
 import com.example.kokomi.service.NotificationService;
 import com.example.kokomi.service.UserBanService;
-import com.example.kokomi.service.UserVerifyService;
+import com.example.kokomi.service.PermissionService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.vo.PageVO;
 import com.example.kokomi.vo.PostAuthorVO;
@@ -61,7 +61,7 @@ public class PostServiceImpl implements PostService {
     private final CommentMapper commentMapper;
     private final NotificationService notificationService;
     private final UserBanService userBanService;
-    private final UserVerifyService userVerifyService;
+    private final PermissionService permissionService;
 
     @Value("${app.upload-path}")
     private String uploadPath;
@@ -109,8 +109,12 @@ public class PostServiceImpl implements PostService {
         Long userId = LoginUserHolder.getUserId();
         // 被禁言 / 封号的人不能发新帖（前端已经把发布框禁掉了，这里兜底）
         userBanService.checkCanSpeak(userId);
-        // 邮箱未验证的账号（批量注册出来的幽灵号）也不能发内容
-        userVerifyService.requireVerified(userId);
+        // 发帖要会员（vip）及以上：guest 和 member 都没有 post:create。
+        // 这条和「禁言」是两个维度 —— 禁言是临时处罚，这里是等级不够，
+        // 所以用 509 而不是 403：前端要能直接说「找站长开通」。
+        if (!hasPermission(userId, "post:create")) {
+            throw new CustomerException(ResultCode.NEED_VIP, "发帖需要会员权限，请联系站长开通");
+        }
 
         Post post = new Post();
         post.setTitle(dto.getTitle() != null ? dto.getTitle().trim() : "");
@@ -188,7 +192,11 @@ public class PostServiceImpl implements PostService {
             // 禁言的人连自己的旧帖也不能改——不然等于换个地方继续发内容。
             // 版主 / 编辑改别人的帖不受影响。
             userBanService.checkCanSpeak(userId);
-            userVerifyService.requireVerified(userId);
+            // 作者本人必须有发帖权：被降回游客/普通用户之后，旧帖也不能再编辑，
+            // 否则「不能发帖」就能靠「编辑旧帖」绕过。有 post:edit 的管理员不受这条约束。
+            if (!hasPermission(userId, "post:create")) {
+                throw new CustomerException(ResultCode.NEED_VIP, "发帖需要会员权限，请联系站长开通");
+            }
         }
 
         // 只覆盖文案与类型，互动计数一律不动
@@ -441,19 +449,10 @@ public class PostServiceImpl implements PostService {
     }
 
     /**
-     * 检查用户是否拥有指定权限（优先查缓存，缓存缺失时查 DB 并回填）。
+     * 检查用户是否拥有指定权限码（统一走 {@link PermissionService}，别在这里再写一套回表逻辑）。
      */
     private boolean hasPermission(Long userId, String permCode) {
-        if (PermissionCache.hasPermission(userId, permCode)) {
-            return true;
-        }
-        // 缓存缺失：从 DB 加载 roles + permissions 并回填缓存
-        java.util.Set<String> roles = new java.util.HashSet<>(
-                userRoleMapper.selectRolesByUserId(userId));
-        java.util.Set<String> perms = new java.util.HashSet<>(
-                rolePermissionMapper.selectPermissionsByUserId(userId));
-        PermissionCache.put(userId, roles, perms);
-        return perms.contains(permCode);
+        return permissionService.has(userId, permCode);
     }
 
     /**

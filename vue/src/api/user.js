@@ -54,19 +54,28 @@ export async function register(data, captchaKey, captchaCode) {
 }
 
 /** 给当前登录用户的邮箱发验证码（60 秒一次、每小时 5 封） */
-export function sendVerifyCode() {
+/**
+ * 发邮箱验证码。
+ * @param {string} [email] 要绑定的邮箱；不传就用账号上已有的（老账号）
+ */
+export function sendVerifyCode(email) {
   return request({
     url: '/user/verify/send',
     method: 'post',
+    data: email ? { email } : {},
   })
 }
 
-/** 提交邮箱验证码 */
-export function confirmVerifyCode(code) {
+/**
+ * 提交邮箱验证码：通过后邮箱绑定到账号，游客会顺带升成普通用户（能评论）
+ * @param {string} code 6 位验证码
+ * @param {string} [email] 要绑定的邮箱；不传就用账号上已有的
+ */
+export function confirmVerifyCode(code, email) {
   return request({
     url: '/user/verify/confirm',
     method: 'post',
-    data: { code },
+    data: email ? { email, code } : { code },
   })
 }
 

@@ -25,7 +25,8 @@
     <div class="user-tips">
       <span class="user-tips-text">
         <template v-if="userStore.isMuted">你暂时不能发布新内容</template>
-        <template v-else-if="userStore.needsVerifyEmail">验证邮箱后就能发布啦</template>
+        <template v-else-if="!userStore.canComment">绑定邮箱后就能评论啦</template>
+        <template v-else-if="!userStore.canPost">你可以评论和回复，发帖需要会员权限</template>
         <template v-else>{{ editingPost ? "正在编辑已发布的帖子" : "今天想说些什么呢？" }}</template>
       </span>
     </div>
@@ -56,26 +57,36 @@
       </button>
     </div>
     <!--
-      邮箱未验证：和禁言一样，不给一个点了会报错的编辑框。
-      账号能登录能浏览，只是后端会拦发帖 / 评论 / 举报（507）。
+      等级不到：和禁言一样，不给一个点了会报错的编辑框。
+      分两种，因为「怎么解决」完全不同：
+        游客（还没绑邮箱）→ 自己能解决，给按钮去绑定；
+        普通用户（已绑邮箱）→ 只能等管理员给会员，给按钮等于骗人。
     -->
-    <div v-else-if="userStore.needsVerifyEmail" class="muted-notice muted-notice--verify">
+    <div v-else-if="!userStore.canComment" class="muted-notice muted-notice--verify">
       <IconMail class="muted-notice__icon" size="18" />
       <div class="muted-notice__body">
-        <p class="muted-notice__title">验证邮箱后才能发布</p>
+        <p class="muted-notice__title">绑定邮箱后就能评论</p>
         <p class="muted-notice__desc">
           <template v-if="userStore.user?.email">验证码会发到 {{ userStore.user.email }}</template>
-          <template v-else>点右侧按钮获取验证码</template>
+          <template v-else>点右侧按钮填一个邮箱，收 6 位验证码</template>
         </p>
-        <p class="muted-notice__hint">一次验证长期有效，只是为了挡住批量注册的垃圾账号</p>
+        <p class="muted-notice__hint">绑完自动成为普通用户；发帖还要会员权限，那是站长手动开的</p>
       </div>
       <button
         type="button"
         class="muted-notice__refresh"
         @click="uiStore.openVerifyModal()"
       >
-        去验证
+        去绑定
       </button>
+    </div>
+    <div v-else-if="!userStore.canPost" class="muted-notice muted-notice--vip">
+      <IconCrown class="muted-notice__icon" size="18" />
+      <div class="muted-notice__body">
+        <p class="muted-notice__title">发帖需要会员权限</p>
+        <p class="muted-notice__desc">你现在是普通用户：评论、回复都能用，发帖要等站长开通会员</p>
+        <p class="muted-notice__hint">开通后这里会变回发布框，评论区的功能不受影响</p>
+      </div>
     </div>
     <div v-else ref="publishingRef" class="publishing" :class="{ 'is-editing': editingPost }">
       <!-- 编辑模式提示条：明确当前不是新发布，避免误以为会再发一条 -->
@@ -253,6 +264,7 @@ import { useRoute, useRouter } from "vue-router";
 import IconEdit from "@/components/icons/IconEdit.vue";
 import IconAlert from "@/components/icons/IconAlert.vue";
 import IconMail from "@/components/icons/IconMail.vue";
+import IconCrown from "@/components/icons/IconCrown.vue";
 
 const uiStore = useUIStore();
 const userStore = useUserStore();
@@ -872,6 +884,18 @@ const handleDelete = (postId) => {
 .muted-notice--verify .muted-notice__refresh {
   border-color: var(--primary-color);
   color: var(--primary-color);
+}
+
+/* 等级不够发帖（普通用户）：金色，和「自己能解决的蓝」与「被处罚的粉」都区分开 */
+.muted-notice--vip {
+  border-color: rgba(230, 162, 60, 0.42);
+  background: rgba(230, 162, 60, 0.08);
+  color: #e6a23c;
+}
+
+.muted-notice--vip .muted-notice__desc,
+.muted-notice--vip .muted-notice__hint {
+  color: var(--text-secondary);
 }
 
 .muted-notice__icon {

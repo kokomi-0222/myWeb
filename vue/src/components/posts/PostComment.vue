@@ -23,13 +23,13 @@
           <div v-else-if="userStore.isMuted" class="comment-muted-tip">
             {{ userStore.muteText }}
           </div>
-          <!-- 邮箱未验证：可点，直接把验证弹窗叫出来（和禁言的只读提示区分开） -->
+          <!-- 游客（还没绑邮箱）：可点，直接把绑定弹窗叫出来（和禁言的只读提示区分开） -->
           <div
-            v-else-if="userStore.needsVerifyEmail"
+            v-else-if="!userStore.canComment"
             class="comment-muted-tip comment-muted-tip--verify"
             @click="ui.openVerifyModal()"
           >
-            验证邮箱后才能评论，点这里去验证
+            绑定邮箱后就能评论了，点这里去绑定
           </div>
           <InputTextarea v-else v-model="commentContent" placeholder="天青色等烟雨，而我在等你..." @submit="handleCommentSubmit" :max-image-count="1" />
         </div>
@@ -189,11 +189,11 @@
               <div class="reply-input-area">
                 <div v-if="userStore.isMuted" class="comment-muted-tip">{{ userStore.muteText }}</div>
                 <div
-                  v-else-if="userStore.needsVerifyEmail"
+                  v-else-if="!userStore.canComment"
                   class="comment-muted-tip comment-muted-tip--verify"
                   @click="ui.openVerifyModal()"
                 >
-                  验证邮箱后才能回复，点这里去验证
+                  绑定邮箱后就能回复了，点这里去绑定
                 </div>
                 <InputTextarea  v-else v-model="replyInputs[comment.id]" :placeholder="replyTargets[comment.id]
                 ? `回复 @${replyTargets[comment.id]}`

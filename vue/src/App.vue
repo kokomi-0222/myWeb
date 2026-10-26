@@ -29,19 +29,19 @@ onMounted(() => roleStore.load());
 onMounted(() => window.addEventListener("kokomi:unverified", ui.openVerifyModal));
 onUnmounted(() => window.removeEventListener("kokomi:unverified", ui.openVerifyModal));
 
-// 登录后第一次发现邮箱没验证，提示一句就够（同一个标签页只提示一次，
+// 登录后第一次发现还是游客（没绑邮箱），提示一句就够（同一个标签页只提示一次，
 // 否则每次刷新都弹，等于骚扰）。真正的引导在发布框 / 评论框里。
 watch(
-  () => user.needsVerifyEmail,
+  () => user.needsBindEmail,
   (need) => {
     if (!need) return;
     try {
-      if (sessionStorage.getItem("kokomi-verify-hint")) return;
-      sessionStorage.setItem("kokomi-verify-hint", "1");
+      if (sessionStorage.getItem("kokomi-bind-hint")) return;
+      sessionStorage.setItem("kokomi-bind-hint", "1");
     } catch {
       // 隐私模式下存不了，就当没提示过
     }
-    message.info("验证邮箱后才能发帖和评论，去个人空间点「去验证」即可");
+    message.info("绑定邮箱后就能评论了，去个人空间点「去绑定」即可");
   },
   { immediate: true }
 );

@@ -9,7 +9,7 @@ import {
 } from '@/api/user'
 import setting from '@/config/setting'
 import { getAccessToken, setAccessToken, removeAccessToken } from '@/utils/accessToken'
-import { initPermissions } from '@/utils/usePermission.js'
+import { initPermissions, usePermission } from '@/utils/usePermission.js'
 import { roleLabelOf } from '@/utils/roleTag'
 
 export const useUserStore = defineStore('user', () => {
@@ -165,7 +165,7 @@ export const useUserStore = defineStore('user', () => {
     { role: 'editor', name: '编辑', color: '#e966b2' },
     { role: 'vip', name: '会员', color: '#e966b2' },
     { role: 'member', name: '普通用户', color: '#636161' },
-    { role: 'guest', name: '访客', color: '#c0c4cc' },
+    { role: 'guest', name: '游客', color: '#a0a4ab' },
   ]
   const primaryRole = computed(() => {
     const code = user.value?.primaryRole
@@ -212,11 +212,21 @@ export const useUserStore = defineStore('user', () => {
     return `${when}${reason}`
   })
 
-  // ---- 邮箱验证 ----
-  // 未验证 = 能登录、能浏览，但发帖 / 评论 / 举报会被后端 507 拦下。
-  // emailVerified 只在后端明确给了 false 时才算未验证（老接口没有这个字段，默认放行）。
+  // ---- 等级（游客 / 普通用户 / 会员）----
+  // 谁能干什么全看权限码，代码里不写死角色名 —— 这样站长在后台调整
+  // 「角色 → 权限」矩阵时，前端会跟着变，不用重新发版。
+  //   post:create    发帖（vip 及以上）
+  //   comment:create 评论 / 回复 / 举报（member 及以上）
+  // 真正的拦截在后端 Service 层（509 / 507），这里只决定界面显示什么。
+  const { hasPermission } = usePermission()
+  const canPost = computed(() => isLogin.value && hasPermission('post:create'))
+  const canComment = computed(() => isLogin.value && hasPermission('comment:create'))
+
+  // 游客 = 还没绑邮箱（没有 comment:create）。绑完自动升普通用户。
+  const needsBindEmail = computed(() => isLogin.value && !canComment.value)
+
+  // 邮箱是否已验证：只在后端明确给了 false 时才算没绑（老接口没这个字段，默认放行）
   const emailVerified = computed(() => user.value?.emailVerified !== false)
-  const needsVerifyEmail = computed(() => isLogin.value && !emailVerified.value)
 
   // 后端回了「你已被禁言」（说明发帖 / 评论被拦了）时，立刻把用户信息拉新一次。
   // 发布框和评论框会马上换成提示条，不用重新登录、也不用等用户自己刷新。
@@ -241,7 +251,9 @@ export const useUserStore = defineStore('user', () => {
     muteText,
     muteDetail,
     emailVerified,
-    needsVerifyEmail,
+    canPost,
+    canComment,
+    needsBindEmail,
     login,
     getUserInfo,
     refreshUser,

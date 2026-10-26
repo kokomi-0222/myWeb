@@ -33,7 +33,8 @@ import com.example.kokomi.service.NotificationService;
 import com.example.kokomi.service.PostService;
 import com.example.kokomi.service.ReportService;
 import com.example.kokomi.service.UserBanService;
-import com.example.kokomi.service.UserVerifyService;
+import com.example.kokomi.service.PermissionService;
+import com.example.kokomi.service.ReportService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.vo.PageVO;
 import com.example.kokomi.vo.ReportDetailVO;
@@ -74,7 +75,7 @@ public class ReportServiceImpl implements ReportService {
     private final CommentService commentService;
     private final NotificationService notificationService;
     private final UserBanService userBanService;
-    private final UserVerifyService userVerifyService;
+    private final PermissionService permissionService;
 
     // ---------------------------------------------------------------- 提交
 
@@ -82,8 +83,11 @@ public class ReportServiceImpl implements ReportService {
     @Transactional(rollbackFor = Exception.class)
     public Long create(CreateReportDTO dto) {
         Long reporterId = requireLogin();
-        // 幽灵号批量举报会把后台队列刷爆，先要求验证邮箱
-        userVerifyService.requireVerified(reporterId);
+        // 举报也要求普通用户（member）及以上：游客连内容都发不了，
+        // 却能把后台举报队列刷爆 —— 给它和评论同一个门槛。
+        if (!hasPermission(reporterId, "comment:create")) {
+            throw new CustomerException(ResultCode.EMAIL_UNVERIFIED, "绑定邮箱后才能举报");
+        }
 
         String type = StrUtil.trimToEmpty(dto.getTargetType()).toLowerCase();
         if (!TYPES.contains(type)) {
@@ -551,6 +555,11 @@ public class ReportServiceImpl implements ReportService {
             throw new CustomerException(ResultCode.AUTHOR_ERROR, "请先登录");
         }
         return userId;
+    }
+
+    /** 检查用户是否拥有指定权限码（统一走 {@link PermissionService}） */
+    private boolean hasPermission(Long userId, String permCode) {
+        return permissionService.has(userId, permCode);
     }
 
     private String suffix(String note) {

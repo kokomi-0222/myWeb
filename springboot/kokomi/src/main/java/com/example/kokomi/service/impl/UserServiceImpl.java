@@ -38,7 +38,6 @@ import com.example.kokomi.util.RsaUtil;
 import com.example.kokomi.util.UserTokenVersionCache;
 
 import cn.hutool.core.lang.RegexPool;
-import cn.hutool.core.lang.Validator;
 import cn.hutool.core.util.ReUtil;
 import cn.hutool.core.util.StrUtil;
 import lombok.RequiredArgsConstructor;
@@ -49,17 +48,22 @@ import tools.jackson.databind.ObjectMapper;
 public class UserServiceImpl implements UserService {
 
     /**
-     * 新注册用户的默认角色编码。
+     * 新注册用户的默认角色编码 = 游客。
+     * <p>
+     * 站内是三级：guest（游客）→ member（普通用户）→ vip（会员）。
+     * <ul>
+     *   <li>guest：能登录、浏览、点赞，不能发帖也不能评论；</li>
+     *   <li>绑定并验证邮箱后由 UserVerifyServiceImpl 自动升成 member：能评论，仍不能发帖；</li>
+     *   <li>vip 由管理员在后台授予：能发帖。</li>
+     * </ul>
+     * 发帖 / 评论分别校验 post:create 与 comment:create（见 sql_tier_permission.sql），
+     * 权限码挂在角色上，所以「谁能干什么」全在数据库里，改规则不用改代码。
      * <p>
      * 注册时会同时写入 user 的 primary_role（身份标签）和 user_role（鉴权用）两处：
      * 前者只负责显示，后者才是权限链路的起点。只写前者的话，
      * /user/info 的 permissions 会是空数组、后台用户管理页会显示「无角色」。
-     * <p>
-     * member 目前不携带任何权限码（发帖、评论只校验登录），
-     * 以后想给全体普通用户开放某个能力，只需给 member 授一个权限码即可，
-     * 无需再改代码。
      */
-    private static final String DEFAULT_ROLE = "member";
+    private static final String DEFAULT_ROLE = "guest";
 
     private final UserMapper userMapper;
     private final UserRoleMapper userRoleMapper;
@@ -138,7 +142,7 @@ public class UserServiceImpl implements UserService {
     @Transactional(rollbackFor = Exception.class)
     public Result<Void> register(EncryptDataDTO encryptedDto){
         // 注册频率兜底：正常用户碰不到（同 IP 20 个/小时），脚本刷号才会撞上。
-        // 邮箱验证挡住的是「注册了能发垃圾」，这一层挡的是「把 user 表刷爆」。
+        // 内容质量靠等级挡（游客既不能发帖也不能评论），这一层只挡「把 user 表刷爆」。
         if (!RegisterRateLimit.tryAcquire(IpUtils.getCurrentIP())) {
             throw new CustomerException(ResultCode.REGISTER_ERROR, "注册太频繁，请稍后再试");
         }
@@ -192,31 +196,29 @@ public class UserServiceImpl implements UserService {
             throw new CustomerException(ResultCode.REGISTER_ERROR, "密码只能包含字母、数字、下划线");
         }
 
-        // 只允许邮箱注册。
-        // 手机号以前也能注册，但没有短信服务就验证不了归属，等于留了个「随便填」的口子；
-        // 老手机号账号仍可正常登录（selectByAccount 同时匹配 phone），只是不再新增。
-        boolean isEmail = Validator.isEmail(account);
-        if (!isEmail) {
-            throw new CustomerException(ResultCode.REGISTER_ERROR, "目前只支持邮箱注册");
+        // 用户名规则：2~20 位，字母 / 数字 / 下划线 / 中文。
+        // 不再要求是邮箱 —— 邮箱改成注册之后在空间页「绑定」，绑完才从游客升成普通用户。
+        // 不收 @ 也顺便避免了「用户名长得像邮箱」和账号查找（username/phone/email 三选一）打架。
+        if (account.length() < 2 || account.length() > 20) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "用户名需要 2~20 个字符");
         }
-        if (account.length() > 50) {
-            throw new CustomerException(ResultCode.REGISTER_ERROR, "邮箱过长");
+        if (!ReUtil.isMatch("^[\\u4e00-\\u9fa5A-Za-z0-9_]+$", account)) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "用户名只能包含中文、字母、数字和下划线");
         }
 
-        // 账号是否已注册
+        // 账号是否已注册（selectByAccount 同时匹配 username / phone / email，够用）
         User exist = userMapper.selectByAccount(account);
         if (exist != null) {
-            throw new CustomerException(ResultCode.REGISTER_ERROR, "该账号已被注册");
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "该用户名已被使用");
         }
 
         // 密码加密
         String encodePwd = BCrypt.hashpw(password, BCrypt.gensalt());
 
-        // 入库（email_verified 走数据库默认值 0 = 未验证，
-        // 未验证的账号能登录能浏览，但发帖/评论/举报会被 507 拦住）
+        // 入库。email 留空、email_verified 走默认值 0 —— 此时是纯游客：
+        // 能登录能浏览能点赞，发帖和评论都会被拦（509 / 507）。
         User user = new User();
         user.setPassword(encodePwd);
-        user.setEmail(account);
         user.setPrimaryRole(DEFAULT_ROLE);
         user.setNameColor("#18191c");
         // 插入后自动获取自增 ID
@@ -224,13 +226,10 @@ public class UserServiceImpl implements UserService {
         if(rows != 1){
             throw new CustomerException(ResultCode.REGISTER_ERROR, "用户创建失败");
         }
-        // 生成 kokomi_00001 格式用户名
         Long userId = user.getId();
-        String username = String.format("kokomi_%05d", userId);
-        // 设置用户名 & 昵称
-        user.setUsername(username);
-        user.setName(username);
-        // 更新信息
+        // 用户名即昵称，用户可以之后在「个人信息」里改昵称，用户名保持不变
+        user.setUsername(account);
+        user.setName(account);
         rows = userMapper.updateUsernameAndName(user);
         if (rows != 1) {
             throw new CustomerException(ResultCode.REGISTER_ERROR, "操作失败");

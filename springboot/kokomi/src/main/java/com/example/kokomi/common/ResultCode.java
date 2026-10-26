@@ -25,12 +25,17 @@ public class ResultCode {
     // 前者可能只是角色不够，后者要立刻把发布框换成提示条。
     public static final int MUTED = 506;
 
-    // 邮箱未验证：能登录、能浏览，但不能发帖 / 评论 / 举报。
-    // 和 MUTED 分开是为了让前端提示不同的引导（一个让等解禁，一个让去验证邮箱）。
+    // 邮箱未验证 / 还是游客：能登录、能浏览、能点赞，但不能评论 / 举报。
+    // 和 MUTED 分开是为了让前端提示不同的引导（一个让等解禁，一个让去绑定邮箱）。
     public static final int EMAIL_UNVERIFIED = 507;
 
     // 邮箱验证码错误 / 过期 / 试错次数用完
     public static final int VERIFY_CODE_ERROR = 508;
+
+    // 等级不够发帖：游客和普通用户都没有 post:create，只有会员（vip）及以上有。
+    // 和 507 分开是因为处理动作完全不同 —— 507 用户自己能解决（去绑邮箱），
+    // 509 只能等管理员在后台改成「会员」，前端不该给一个点了没用的按钮。
+    public static final int NEED_VIP = 509;
 
     // RSA 加密解密
     public static final int RSA_ENCRYPT_ERROR = 1001;

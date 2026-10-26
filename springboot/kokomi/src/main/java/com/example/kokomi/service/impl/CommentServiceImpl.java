@@ -33,7 +33,7 @@ import com.example.kokomi.util.PermissionCache;
 import com.example.kokomi.service.CommentService;
 import com.example.kokomi.service.NotificationService;
 import com.example.kokomi.service.UserBanService;
-import com.example.kokomi.service.UserVerifyService;
+import com.example.kokomi.service.PermissionService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.vo.CommentAuthorVO;
 import com.example.kokomi.vo.CommentVO;
@@ -53,7 +53,7 @@ public class CommentServiceImpl implements CommentService {
     private final RolePermissionMapper rolePermissionMapper;
     private final NotificationService notificationService;
     private final UserBanService userBanService;
-    private final UserVerifyService userVerifyService;
+    private final PermissionService permissionService;
 
     @Value("${app.upload-path}")
     private String uploadPath;
@@ -142,8 +142,12 @@ public class CommentServiceImpl implements CommentService {
         Long userId = LoginUserHolder.getUserId();
         // 评论和回复都走这里，禁言 / 封号的人一律拦住
         userBanService.checkCanSpeak(userId);
-        // 邮箱未验证的账号同样不能评论（幽灵号的主要价值就是刷评论）
-        userVerifyService.requireVerified(userId);
+        // 评论要普通用户（member）及以上：游客刚注册还没绑邮箱，没有 comment:create。
+        // 复用 507 而不是新开一个码 —— 前端对 507 的处理正好就是「弹绑定邮箱」，
+        // 而「怎么才能评论」的答案也确实就是绑邮箱。
+        if (!hasPermission(userId, "comment:create")) {
+            throw new CustomerException(ResultCode.EMAIL_UNVERIFIED, "绑定邮箱后才能评论和回复");
+        }
 
         Post post = postMapper.selectById(postId);
         if (post == null) {
@@ -384,18 +388,10 @@ public class CommentServiceImpl implements CommentService {
     }
 
     /**
-     * 检查用户是否拥有指定权限（优先查缓存，缓存缺失时查 DB 并回填）。
+     * 检查用户是否拥有指定权限码（统一走 {@link PermissionService}，别在这里再写一套回表逻辑）。
      */
     private boolean hasPermission(Long userId, String permCode) {
-        if (PermissionCache.hasPermission(userId, permCode)) {
-            return true;
-        }
-        java.util.Set<String> roles = new java.util.HashSet<>(
-                userRoleMapper.selectRolesByUserId(userId));
-        java.util.Set<String> perms = new java.util.HashSet<>(
-                rolePermissionMapper.selectPermissionsByUserId(userId));
-        PermissionCache.put(userId, roles, perms);
-        return perms.contains(permCode);
+        return permissionService.has(userId, permCode);
     }
 
     /**

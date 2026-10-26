@@ -2,7 +2,7 @@
   <Teleport to="body">
     <Transition name="verify-fade">
       <div v-if="uiStore.verifyModalOpen" class="verify-overlay" @click.self="close">
-        <div class="verify-card" role="dialog" aria-modal="true" aria-label="验证邮箱">
+        <div class="verify-card" role="dialog" aria-modal="true" aria-label="绑定邮箱">
           <button type="button" class="verify-close" aria-label="关闭" @click="close">
             <IconClose :size="16" />
           </button>
@@ -10,12 +10,29 @@
           <div class="verify-head">
             <span class="verify-head__icon"><IconMail :size="20" /></span>
             <div class="verify-head__text">
-              <h3 class="verify-head__title">验证邮箱</h3>
-              <p class="verify-head__desc">
+              <h3 class="verify-head__title">绑定邮箱</h3>
+              <p class="verify-head__desc" v-if="hasEmail">
                 验证码会发到 <b>{{ emailText }}</b>
+              </p>
+              <p class="verify-head__desc" v-else>
+                填一个常用邮箱，收 6 位验证码
               </p>
             </div>
           </div>
+
+          <!-- 注册不再收邮箱了，所以第一次绑定要让用户自己填 -->
+          <input
+            v-if="!hasEmail"
+            v-model="emailModel"
+            class="verify-input verify-input--email"
+            type="email"
+            inputmode="email"
+            autocomplete="email"
+            maxlength="50"
+            placeholder="你的邮箱，例如 xxx@qq.com"
+            @input="error = ''"
+            @keyup.enter="send"
+          />
 
           <input
             v-model="code"
@@ -40,7 +57,7 @@
             :disabled="submitting || code.length !== 6"
             @click="submit"
           >
-            {{ submitting ? "验证中…" : "验证并解锁发言" }}
+            {{ submitting ? "绑定中…" : "验证并升级为普通用户" }}
           </button>
 
           <div class="verify-foot">
@@ -52,13 +69,13 @@
             >
               <template v-if="sending">发送中…</template>
               <template v-else-if="countdown > 0">{{ countdown }}s 后可重发</template>
-              <template v-else>重新发送验证码</template>
+              <template v-else>{{ hasEmail ? "重新发送验证码" : "发送验证码" }}</template>
             </button>
             <button type="button" class="verify-later" @click="close">稍后再说</button>
           </div>
 
           <p class="verify-tip">
-            没收到？看一眼垃圾箱；QQ 邮箱有时会把验证码归到「垃圾邮件」里。
+            绑完自动成为普通用户，能评论和回复；发帖要会员权限，那是站长手动开的。
           </p>
         </div>
       </div>
@@ -67,7 +84,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onUnmounted } from "vue";
+import { ref, computed, watch, onUnmounted } from "vue";
 import IconClose from "@/components/icons/IconClose.vue";
 import IconMail from "@/components/icons/IconMail.vue";
 import { confirmVerifyCode, sendVerifyCode } from "@/api/user";
@@ -84,7 +101,22 @@ const sending = ref(false);
 const submitting = ref(false);
 const countdown = ref(0);
 const devCode = ref("");
+/** 后端返回的打码邮箱（已绑过的账号才有） */
 const emailText = ref("你的邮箱");
+/** 用户自己填的邮箱（没绑过时才有这个输入框） */
+const emailModel = ref("");
+
+/** 账号上已经存了邮箱 → 不需要输入框，直接发码 */
+const hasEmail = computed(() => !!userStore.user?.email);
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** 取这次要用的邮箱：已绑定就用账号的，否则用输入框里的 */
+const currentEmail = () => {
+  const typed = emailModel.value.trim();
+  if (hasEmail.value && !typed) return "";
+  return typed;
+};
 
 let timer = null;
 
@@ -110,6 +142,8 @@ const reset = () => {
   code.value = "";
   error.value = "";
   devCode.value = "";
+  emailModel.value = "";
+  emailText.value = userStore.user?.email || "你的邮箱";
   clearTimer();
   countdown.value = 0;
 };
@@ -121,15 +155,26 @@ const onInput = () => {
 };
 
 /**
- * 发验证码。打开弹窗时自动发一次，省得用户再点一下。
- * 被频控挡住（sent=false + retryAfter>0）不是错误，只是显示倒计时。
+ * 发验证码。已绑过邮箱的账号打开弹窗时自动发一次，省得再点一下；
+ * 没绑过的要先填邮箱（不然后端只会回一句「请先填写要绑定的邮箱」）。
  */
 const send = async () => {
   if (sending.value || countdown.value > 0) return;
+  const email = currentEmail();
+  if (!hasEmail.value) {
+    if (!email) {
+      error.value = "请先填写要绑定的邮箱";
+      return;
+    }
+    if (!EMAIL_RE.test(email)) {
+      error.value = "邮箱格式不对，检查一下";
+      return;
+    }
+  }
   sending.value = true;
   error.value = "";
   try {
-    const res = await sendVerifyCode();
+    const res = await sendVerifyCode(email);
     const data = res?.data || {};
     emailText.value = data.email || emailText.value;
     devCode.value = data.devCode || "";
@@ -149,13 +194,23 @@ const send = async () => {
 
 const submit = async () => {
   if (submitting.value || code.value.length !== 6) return;
+  const email = currentEmail();
+  if (!hasEmail.value && !EMAIL_RE.test(email)) {
+    error.value = "请先填写并发送验证码到你的邮箱";
+    return;
+  }
   submitting.value = true;
   error.value = "";
   try {
-    await confirmVerifyCode(code.value);
-    message.success("邮箱已验证，现在可以发帖和评论了");
-    // 刷新用户状态：发布框 / 评论框的「去验证」提示会立刻换回正常输入框
+    await confirmVerifyCode(code.value, email);
+    // 刷新用户状态：后端顺带把游客升成了普通用户，
+    // 这里不刷新的话评论框还是「绑定邮箱后就能评论」的提示。
     await userStore.refreshUser();
+    if (userStore.canComment) {
+      message.success("邮箱已绑定，现在是普通用户，可以评论和回复了");
+    } else {
+      message.success("邮箱已绑定");
+    }
     uiStore.closeVerifyModal();
   } catch (e) {
     error.value = e?.message || "验证失败，请检查验证码";
@@ -174,7 +229,9 @@ watch(
   (open) => {
     if (open) {
       reset();
-      send();
+      // 已绑过邮箱的账号可以直接发码；没绑过的等人填完邮箱再发，
+      // 否则一打开就报「请先填写邮箱」，白弹一个红字。
+      if (hasEmail.value) send();
     } else {
       clearTimer();
     }
@@ -289,6 +346,19 @@ onUnmounted(clearTimer);
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease;
+}
+
+/* 邮箱输入框：正常字号、左对齐、不拉开字距 —— 和 6 位验证码那个大号居中框区分开 */
+.verify-input--email {
+  margin-top: 6px;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-align: left;
+}
+
+.verify-input--email + .verify-input {
+  margin-top: 10px;
 }
 
 .verify-input::placeholder {

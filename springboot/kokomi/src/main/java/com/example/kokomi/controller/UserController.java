@@ -6,6 +6,7 @@ import com.example.kokomi.bo.UserBO;
 import com.example.kokomi.dto.EncryptDataDTO;
 import com.example.kokomi.dto.UserUpdateDTO;
 import com.example.kokomi.dto.VerifyCodeDTO;
+import com.example.kokomi.dto.VerifySendDTO;
 import jakarta.validation.Valid;
 import com.example.kokomi.service.UserService;
 import com.example.kokomi.service.UserVerifyService;
@@ -39,19 +40,23 @@ public class UserController {
     }
 
     /**
-     * 给当前登录用户的邮箱发验证码（60 秒一次、每小时 5 封）。
+     * 给指定邮箱发验证码（60 秒一次、每小时 5 封）。
      * 注意：注册接口本身不发信 —— 否则批量注册就成了发信机。
      * 必须是登录状态下主动点「发送验证码」才会真的发。
+     *
+     * <p>body 里的 email 不带就用账号上已有的；新注册的账号没有邮箱，必须带。
      */
     @PostMapping("/verify/send")
-    public Result<VerifySendVO> sendVerifyCode() {
-        return Result.success(userVerifyService.sendCode(LoginUserHolder.getUserId()));
+    public Result<VerifySendVO> sendVerifyCode(
+            @RequestBody(required = false) VerifySendDTO dto) {
+        String email = dto == null ? null : dto.getEmail();
+        return Result.success(userVerifyService.sendCode(LoginUserHolder.getUserId(), email));
     }
 
-    /** 提交邮箱验证码，成功后账号即可发帖 / 评论 / 举报 */
+    /** 提交邮箱验证码：成功后邮箱绑定到账号，游客会顺带升成普通用户（能评论了） */
     @PostMapping("/verify/confirm")
     public Result<Void> confirmVerify(@Valid @RequestBody VerifyCodeDTO dto) {
-        userVerifyService.confirm(LoginUserHolder.getUserId(), dto.getCode());
+        userVerifyService.confirm(LoginUserHolder.getUserId(), dto.getEmail(), dto.getCode());
         return Result.success();
     }
 

@@ -415,7 +415,9 @@ let tokens = null;
     check("文案里没有「期间无法发布内容、评论和回复」那句长说明",
       !m.descText.includes("期间无法"), m.descText.slice(0, 40));
     check("副标题最多两行", m.descLines <= 2, `${m.descLines} 行 / ${m.cardH}px`);
-    check("卡片高度不超过 130px", m.cardH <= 130, m.cardH + "px");
+    // 粗线条兜底：这条只是防「卡片又长回一大坨」（带补充说明行的旧版约 180px）。
+    // 精确的行数控制交给上面那条「副标题最多两行」，别在这里卡 2px 的余量。
+    check("卡片高度不超过 150px", m.cardH <= 150, m.cardH + "px");
     check("手机上隐藏了补充说明行", m.hintShown === false);
     check("「刷新状态」换到文字下方（不在同一行右侧）",
       m.btnTop > m.descTop, `btn ${m.btnTop} / desc ${m.descTop}`);

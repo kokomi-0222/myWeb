@@ -95,7 +95,8 @@ cd vue && npm install && npm run dev
 - **后台 `/admin`**：Dashboard / 用户管理 / 话题管理 / 角色权限 / 举报处理
 - **举报**：帖子 / 评论 / 用户三类，后台受理可删内容 + 处罚作者，同目标合并结案
 - **处罚分级**：禁言（能登录不能发言）/ 封号（不能登录），支持临时与永久，可手动解除
-- **邮箱验证 + 注册防刷**：只允许邮箱注册，同 IP / 全站限速；登录后发 6 位码验证邮箱，未验证不能发帖评论举报；管理端可手动激活兜底
+- **邮箱验证 + 注册防刷**：注册只收用户名 + 密码，同 IP / 全站限速；登录后在空间页「绑定邮箱」发 6 位码，验证通过自动升级为普通用户；管理端可手动激活兜底
+- **等级制（游客 / 普通用户 / 会员）**：刚注册是游客，不能发帖也不能评论；绑邮箱后升普通用户，能评论但不能发帖；发帖要管理员授予会员。判定全靠权限码，改规则只改 `role_permission` 表
 - **外观**：深色模式（持久化）、名字颜色 / 身份标签颜色、角色标签
 
 ### 没做（有 `user:block` / `comment:report` 这种空壳权限码，别被误导）
@@ -111,10 +112,13 @@ cd vue && npm install && npm run dev
 - 排查先看 `/user/info` 返回的 `permissions` 数组，别只看 `primaryRole`。
 - `PermissionCache` 是静态 Map，登录时预热；拦截器未命中会回表重建（能自愈）。但**改角色 / 改角色权限后必须 `PermissionCache.remove(userId)`，改权限矩阵要 `clear()`**，否则对方不重启不生效。
 
-### 5.2 只有 4 个权限码真正被校验
+### 5.2 真正被校验的权限码（6 个）
 
-`post:delete`（Service 层，删帖 + 删评论）、`post:edit`、`topic:create`、`user:manage`。
-其余都是空壳，后台页面标了「未启用」。新增校验时同步改 `views/admin/Roles.vue` 的 `ENFORCED_PERMS`。
+`post:create`（发帖 + 编辑自己的帖）、`comment:create`（评论 / 回复 / 举报）、`post:delete`（Service 层，删帖 + 删评论）、`post:edit`（改别人的帖）、`topic:create`、`user:manage`。
+
+其余都是空壳，后台页面标了「未启用」。新增校验时同步改 `views/admin/Roles.vue` 的 `ENFORCED_PERMS`，并更新 5.8 的矩阵。
+
+⚠️ 判断用 `service/PermissionService.has(userId, code)`，别在 Service 里再写一份私有 `hasPermission` —— 这个坑犯过三次（帖子、评论、举报各有一份）。
 
 ### 5.3 `token_version` 是全局「踢下线」开关
 
@@ -150,23 +154,25 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 规则有两份，改一份必须同步另一份：前端 `vue/src/utils/contentText.js`、后端 `util/TextUtils.normalizeContent`。
 否则第一行的空格会在保存时被吞掉，用户下次点编辑才发现。
 
-### 5.7 邮箱验证（`user.email_verified`）
+### 5.7 邮箱绑定与注册防刷
 
-**为什么这么做**：注册原本完全免费，一个人能刷出无数「幽灵账号」。选了「邮箱验证码激活」而不是限流 / 邀请码 —— 既挡住批量注册，又顺带给以后「找回密码」留了路。
+**为什么这么做**：注册原本完全免费，一个人能刷出无数「幽灵账号」。先选了「邮箱验证码激活」（挡住批量注册，顺带给「找回密码」留路），后来改成等级制：**注册只收用户名 + 密码，邮箱是登录后主动「绑定」的**，绑完才升级成普通用户。
 
-| `email_verified` | 能登录 | 浏览 / 点赞 | 发帖 / 评论 / 举报 |
+| `email_verified` | 能登录 | 浏览 / 点赞 | 评论 / 回复 / 举报 / 发帖 |
 |---|---|---|---|
-| 0 未验证 | ✅ | ✅ | ❌ 返回 `507` |
-| 1 已验证 | ✅ | ✅ | ✅ |
+| 0 未绑定 | ✅ | ✅ | ❌ 返回 `507` |
+| 1 已绑定 | ✅ | ✅ | 评论可以；发帖还要看 `post:create`（见 5.8） |
 
 - **注册接口不发信**（`UserServiceImpl.register` 只做限速 + 图形验证码）。要是注册就发信，注册接口等于一台免费发信机，被人拿来轰炸别人邮箱。
-- 发信与校验分开，且都要求**已登录**：
-  - `POST /user/verify/send` → 给当前账号的邮箱发 6 位数字码
-  - `POST /user/verify/confirm` → 校验码，通过后 `email_verified = 1`
-- **只允许邮箱注册**：`register` 里 `Validator.isEmail` 不过就报「目前只支持邮箱注册」，账号不再写 `user.phone`。历史上用手机号注册的账号没有邮箱，验证接口返回 400「该账号没有绑定邮箱，请联系管理员激活」，走管理端兜底。
-- 拦在 **Service 层**（`PostServiceImpl.createPost` / `updatePost` 仅作者本人 / `CommentServiceImpl.createComment` / `ReportServiceImpl.create`），和禁言是同一层：`userVerifyService.requireVerified(userId)`。点赞、转发、浏览不拦。
+- 注册字段：用户名 2~20 位（中文 / 字母 / 数字 / 下划线，`^[\\u4e00-\\u9fa5A-Za-z0-9_]+$`）+ 密码。`username` / `name` 都写用户名（不再是 `kokomi_00001`），`email` 留 NULL，角色插 `guest`。
+- 绑定链路，都要求**已登录**：
+  - `POST /user/verify/send`，body `{email}`（不传就退回用账号上已有的邮箱）→ 发 6 位数字码
+  - `POST /user/verify/confirm`，body `{email, code}` → 通过后 `UserMapper.bindEmail` 一条 UPDATE 同时写 `email` + `email_verified = 1`，再 `promoteIfGuest`
+- **`email` 和 `email_verified` 必须同一条 SQL 写**，否则会出现「有邮箱但仍是游客」的怪状态。
+- 邮箱可用性在发码前就查：`Validator.isEmail` + 长度 ≤50 + `selectByAccount` 查占用，撞了就报「该邮箱已被其他账号绑定」（`user` 表 `UNIQUE` 在 `account` 也可能在 `email`，靠应用层兜）。
+- 拦在 **Service 层**（`PostServiceImpl.createPost` / `updatePost` 仅作者本人 / `CommentServiceImpl.createComment` / `ReportServiceImpl.create`），和禁言是同一层。点赞、转发、浏览不拦。
 - 业务码：`ResultCode.EMAIL_UNVERIFIED = 507`、`VERIFY_CODE_ERROR = 508`。前端 `request.js` 收到 507 时 `dispatchEvent('kokomi:unverified')` → `App.vue` 调 `ui.openVerifyModal()`，`stores/user.js` 同时 `refreshUser()`。用事件而不是直接 import，是为了避免 `request.js ←→ store` 循环依赖。
-- 幂等：已验证的账号再调 send 返回「邮箱已验证，无需重复验证」，再调 confirm 直接成功（拿到 old 的验证码也不会报错）。
+- 幂等：已验证的账号再调 send 返回「邮箱已验证，无需重复验证」，再调 confirm 直接成功（拿到旧的验证码也不会报错）。
 
 **限流的三层**
 
@@ -187,6 +193,29 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 - 三个超时都要设（`connectiontimeout/timeout/writetimeout` = 6/8/8 秒），否则 SMTP 挂住会把整个请求线程拖死。
 - `app.mail.dev-echo=true` 时接口把明文验证码放在响应 `devCode` 里，前端弹窗也直接显示 —— **只给本地用，prod 不要配这个键**。SMTP 没配又没开 dev-echo 时验证码只打日志。
 - 兜底：`POST /admin/user/{id}/verify`（`user:manage`），用户管理页每行的「激活」按钮。SMTP 挂了、用户邮箱收不到，都靠它。
+
+### 5.8 等级制：游客 / 普通用户 / 会员
+
+需求原话：「刚注册时为游客，不能发帖也不能评论；绑定邮箱后升级为普通用户，不能发帖但能评论；要升级成 vip 才能发帖，这个权限由管理员修改。」
+
+| 等级 | 角色码 | 谁给的 | 发帖 | 评论 / 回复 / 举报 |
+|---|---|---|---|---|
+| 游客 | `guest` | 注册默认 | ❌ `509` | ❌ `507` |
+| 普通用户 | `member` | 绑邮箱 + 验证码通过后自动升 | ❌ `509` | ✅ |
+| 会员 | `vip` | **管理员在后台授予** | ✅ | ✅ |
+
+- **不在代码里写死角色名**，三档全靠权限码表达：`post:create` = admin / moderator / editor / vip；`comment:create` = 上面四个 + member；`guest` 一个都不挂。改规则只改 `role_permission` 表，不用改代码、不用发版。
+- 迁移脚本 `sql_tier_permission.sql`（幂等）：插 `comment:create` 权限码、插 `guest` 角色（`is_system=1, sort=6`）、补矩阵、收回 `member` 的 `post:create`、清空 `guest` 的所有权限。
+- **两个业务码别混**：`507`（`EMAIL_UNVERIFIED`）= 还是游客，用户自己点「去绑定」就能解决；`509`（`NEED_VIP`）= 等级不够发帖，用户自己解决不了。
+  - 前端对 507 弹绑定弹窗（`VerifyEmailModal`），对 509 只给一句 toast + 空间页金色提示卡（不给按钮，因为点了也没用）。
+- **`promoteIfGuest`**（`UserVerifyServiceImpl`）：只有用户角色**全部是 guest**（或压根没角色）时才升 member；已挂任何其它角色一律不动 —— 防的是「管理员手动把某人降成会员以下，他再绑一次邮箱又爬回 member」。升级后 `PermissionCache.remove(userId)`。
+- `updatePost` 里作者本人分支也要判 `post:create`，否则「编辑旧帖」就是绕过发帖限制的后门。
+- 前端等级判定全在 `stores/user.js`，都用权限码：`canPost = hasPermission('post:create')`、`canComment = hasPermission('comment:create')`、`needsBindEmail = !canComment`。空间页三张卡按顺序出现：禁言卡 → 待绑邮箱卡（蓝，带「去绑定」）→ 待升会员卡（金，无按钮）。
+- ⚠️ **上线影响存量账号**：以前注册的人全是 `member`、且 `member` 当时有 `post:create`，跑完 `sql_tier_permission.sql` 会**突然发不了帖**。处理办法二选一：后台「用户管理 → 角色标签」逐个点成会员，或批量跑脚本里注释掉的那两行：
+  ```sql
+  -- INSERT IGNORE INTO user_role (user_id, role_code) SELECT id, 'vip' FROM user WHERE status = 0 AND id NOT IN (SELECT user_id FROM user_role WHERE role_code = 'vip');
+  -- UPDATE user SET primary_role = 'vip' WHERE primary_role = 'member';
+  ```
 
 ## 6. 已知的坑（都是真踩过的）
 
@@ -213,6 +242,12 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 - ⚠️ `IconArrow` 画的是**向左**的 chevron（`PostImage.vue` 里用 `rotate(180)` 才表示向右）。要向下必须 `rotate(-90deg)`，写成 `90deg` 会变成朝上的 ∧。
 - 发布框的 textarea 是**原生元素，class 直接就是 `.input-content`**（不是容器）→ 选择器写 `.publishing textarea.input-content`。
 - 被禁言时空间页的 `.muted-notice` 是 **grid 三列**（图标 / 文字 / 按钮），手机上收成两列、按钮换到第二行；文案只放「恢复时间 · 原因」，后果那句 `.muted-notice__hint` 只在 ≥768px 显示。
+
+**等级制 / 权限码**
+- 别在 Java 里写 `if ("vip".equals(role))`。等级只由权限码表达，`guest` 只是「一个权限都不挂的角色」，加/减档位只改 `role_permission`。
+- ⚠️ **507 和 509 的区别别搞反**：507 = 还是游客，用户可以自己点「去绑定」解决；509 = 等级不够发帖，用户自己解决不了，只能联系站长。给 509 配个「立即升级」按钮会让人白点。
+- `promoteIfGuest` 必须判「**全部**角色都是 guest 才升」，不能判「有 guest 角色就升」—— 后者会让被管理员降档的人绑一次邮箱就爬回来。
+- 前端等级判定不要各页面自己拼 `userStore.user.permissions.includes(...)`，走 `stores/user.js` 的 `canPost / canComment / needsBindEmail`，否则改规则要全仓搜。
 
 **数据库**
 - `user.create_time`，`post` / `comment` 是 `created_at`，列名不统一。
@@ -246,6 +281,7 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 ```bash
 # 1. SQL（新库全跑；老库按需补）—— 顺序：先 SQL，再换 jar
 mysql -uroot -p --default-character-set=utf8mb4 kokomi < springboot/sql_email_verify.sql
+mysql -uroot -p --default-character-set=utf8mb4 kokomi < springboot/sql_tier_permission.sql   # 等级制（必须在上面那个之后）
 
 # 2. 换 jar —— 必须 stop → 覆盖 → start，只 restart 等于没更新
 systemctl stop kokomi
@@ -255,6 +291,8 @@ systemctl status kokomi
 
 # 3. 前端：解压 dist 包覆盖站点目录，然后让用户 Ctrl+Shift+R
 ```
+
+- ⚠️ **`sql_tier_permission.sql` 会让存量账号发不了帖**：以前注册的人都是 `member`、且 `member` 当时挂着 `post:create`，脚本把这码收走了。上线后要立刻在后台把该升会员的人改成 `vip`（脚本注释里留了批量 SQL，见 5.8）。**顺序绝不能反**：先换 jar 再跑 SQL，中间那段时间等级还是旧的，用户会看到「能发帖」但点发送报错。
 
 - 环境变量在 `/etc/systemd/system/kokomi.service.d/override.conf`（`Environment="DB_PASSWORD=..."`，systemd 里 `$` 要写 `$$`）。
 - **发信必须配的四个变量**（不配就没人能验证邮箱，等于全站禁言）：
@@ -278,17 +316,20 @@ systemctl status kokomi
 PREVIEW_ROOT=vue/dist UPSTREAM=http://127.0.0.1:18080 PORT=5194 node tools/preview.js
 
 # 接口测试（临时数据，跑完自动清理）
+cd tools && python test-tier-permission-api.py   # 等级制主测试：三档 × 发帖/评论/举报 + 绑邮箱升级 + 管理员改档
 cd tools && python test-report-api.py
 cd tools && python test-ban-level-api.py
-cd tools && python test-verify-email-api.py   # 507 拦截 / 限流 / 错码 / 幂等 / 管理端激活
+cd tools && python test-verify-email-api.py   # 绑定链路本身：发码频控 / 错码 508 / 幂等 / 管理端激活
 
 # 界面测试（headless Chrome + CDP，真点真截图，截图落 shots/）
+node tools/test-verify-email-ui.js  # 游客→绑邮箱→普通用户→会员全流程 / 暗色 / 手机 390 / 后台激活
 node tools/test-report-ui.js
 node tools/test-ban-ui.js
-node tools/test-verify-email-ui.js  # 未验证提示卡 / 验证弹窗 / 暗色 / 手机 / 后台激活
 node tools/test-ui-polish.js     # 后台确认框 / 下拉框风格 / 移动端禁言提示卡
 node tools/test-admin-select.js  # 举报页下拉：自绘面板 / 暗色 / 详情弹窗层级 / 手机宽度
 ```
+
+- ⚠️ 本地测试账号 `id=9`（`member`）**额外挂了 `vip` 角色**，否则一批老测试里「普通账号发帖」会被 509 全部拦掉。别在测试里假设 member 能发帖。
 
 - `tools/_local.py` 是凭据读取工具（**不含明文，已入库**）：优先读环境变量 `DB_PASSWORD` / `JWT_SECRET`，否则读 `springboot/kokomi/config/application-local.yaml`。所以只要 §3.1 那个文件在，测试脚本就能跑。
 - `tools/refresh_tokens.py` 重新签发 `shots/tmp/tokens.json`。`exp` 会过期、封号会让 `token_version + 1`，UI 测试 401 时先跑它，别急着怀疑代码。
@@ -307,9 +348,11 @@ node tools/test-admin-select.js  # 举报页下拉：自绘面板 / 暗色 / 详
 ## 10. 待办（按优先级）
 
 1. nginx 给 `/index.html` 加 `no-cache`（一劳永逸解决换包强刷）
-2. 「忘记密码」—— 邮箱验证已经铺好发信链路，就差重置令牌表 + 两个接口
-3. 存量幽灵账号清理（目前只防新增，没做删除）
-4. 评论区渲染身份标签（后端 `CommentAuthorVO` 已返 `roleColor`，前端没用）
-5. 收藏 / 草稿箱（表结构都还没有）
-6. 拉黑（`user:block` 权限码是空壳，缺黑名单表和 handler）
-7. 私信（要会话表 + 未读计数，轮询或 WebSocket）
+2. **存量账号升档**：`sql_tier_permission.sql` 跑完，以前的 `member` 用户全部失去发帖权，需要逐个（或批量）在后台授予 `vip`
+3. 「忘记密码」—— 邮箱绑定已经铺好发信链路，就差重置令牌表 + 两个接口
+4. 后台「用户管理」现在只能一格一格点角色，缺批量操作（配合第 2 条会很需要）
+5. 存量幽灵账号清理（目前只防新增，没做删除）
+6. 评论区渲染身份标签（后端 `CommentAuthorVO` 已返 `roleColor`，前端没用）
+7. 收藏 / 草稿箱（表结构都还没有）
+8. 拉黑（`user:block` 权限码是空壳，缺黑名单表和 handler）
+9. 私信（要会话表 + 未读计数，轮询或 WebSocket）

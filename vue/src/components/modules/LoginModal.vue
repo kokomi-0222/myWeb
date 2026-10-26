@@ -80,7 +80,7 @@
         <div v-else autocomplete="off" class="form-body">
           <div class="form-header">
             <h2 class="form-title">创建账号</h2>
-            <p class="form-subtitle">用邮箱注册，登录后验证一下就能发帖了</p>
+            <p class="form-subtitle">注册后是游客：先绑邮箱才能评论，发帖要站长开会员</p>
           </div>
           <div
             style="width: 0; height: 0; overflow: hidden; position: absolute; z-index: -1"
@@ -92,7 +92,7 @@
             <InputLine
               ref="regAccRef"
               v-model="registerForm.account"
-              label="邮箱"
+              label="用户名（2~20 位）"
               type="text"
               autocomplete="off"
               @focus="regErr.account = ''"
@@ -238,9 +238,6 @@ watch(
   }
 );
 
-// 工具函数（加了类型，无红线）
-const isEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
-
 // ================ 校验 ================
 const validateLogin = (): boolean => {
   let ok = true;
@@ -271,12 +268,15 @@ const validateRegister = (): boolean => {
 
   const acc = registerForm.account.trim();
   if (!acc) {
-    regErr.value.account = "请输入邮箱";
+    regErr.value.account = "请输入用户名";
     ok = false;
-  } else if (!isEmail(acc)) {
-    // 只收邮箱：没有短信服务，手机号注册的账号没法验证归属，
-    // 等于给批量注册留了个随便填的口子
-    regErr.value.account = "请输入正确的邮箱";
+  } else if (acc.length < 2 || acc.length > 20) {
+    regErr.value.account = "用户名需要 2~20 个字符";
+    ok = false;
+  } else if (!/^[\u4e00-\u9fa5A-Za-z0-9_]+$/.test(acc)) {
+    // 和 UserServiceImpl.register 里的规则保持一致：
+    // 不收 @ 也就不会出现「用户名长得像邮箱」，免得和账号查找（username/phone/email 三选一）打架
+    regErr.value.account = "用户名只能包含中文、字母、数字和下划线";
     ok = false;
   }
 
@@ -352,7 +352,7 @@ const handleRegister = async () => {
 
   const res = await userStore.register(registerForm, captchaKey.value, captchaCode.value);
   if (res.success) {
-    message.success("注册成功，登录后验证邮箱即可发言");
+    message.success("注册成功！先去空间页绑定邮箱，就能评论了");
     goToLogin();
   } else {
     message.error(res.message || "注册失败");

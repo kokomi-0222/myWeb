@@ -177,4 +177,13 @@ public interface UserMapper {
     @Update("update user set email_verified = 1 where id = #{userId}")
     int setEmailVerified(@Param("userId") Long userId);
 
+    /**
+     * 绑定邮箱：把验证过的邮箱写回账号，同时置验证位。
+     * <p>
+     * 注册已经不再收邮箱了，用户第一次绑定邮箱走的就是这里。
+     * 两条更新必须一起做 —— 只写 email 不置位，会出现「有邮箱但仍算游客」的怪状态。
+     */
+    @Update("update user set email = #{email}, email_verified = 1 where id = #{userId}")
+    int bindEmail(@Param("userId") Long userId, @Param("email") String email);
+
 }

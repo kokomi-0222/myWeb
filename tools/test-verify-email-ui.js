@@ -1,10 +1,11 @@
-// 邮箱验证（防批量注册幽灵号）界面验收
-//   [1] 注册表单只收邮箱：填手机号直接报「请输入正确的邮箱」
-//   [2] 未验证账号进个人空间：发布框换成「验证邮箱后才能发布」提示卡
-//   [3] 点「去验证」弹出验证弹窗：打码邮箱 + 本地 dev-echo 的明文码
-//   [4] 错码有提示；正确码验证后提示卡消失、发布框回来
-//   [5] 暗色主题下弹窗是深底浅字，手机 390 宽不溢出
-//   [6] 后台用户列表：未验证标签 + 「激活」兜底按钮
+// 等级制（游客 / 普通用户 / 会员）界面验收
+//   [1] 注册表单只收用户名：带 @ 和过短的用户名都被前端拦下
+//   [2] 游客进空间页：没有发布框，出现「绑定邮箱后就能评论」的蓝色提示卡；评论区同样拦
+//   [3] 绑定邮箱弹窗：新账号要自己填邮箱，空邮箱发不出去，dev-echo 给明文码，错码有提示
+//   [4] 绑完变普通用户：蓝卡换成金色「发帖需要会员权限」卡（这张卡故意不给按钮）
+//   [5] 管理员改成会员：发布框立刻回来，身份标签变「会员」
+//   [6] 降回普通用户：暗色 / 390 宽下提示卡不溢出
+//   [7] 后台用户列表：未验证标签 + 「激活」兜底（激活顺带把游客升成普通用户）
 // 用法：node tools/test-verify-email-ui.js（需 18080 后端 + 5194 预览）
 const { spawn, spawnSync } = require("child_process");
 const crypto = require("crypto");
@@ -62,24 +63,49 @@ function signToken(uid, tv) {
 }
 
 const created = [];
+/** 管理员 token（refreshTokens 之后才知道），createPostAsAdmin 要用 */
+let ADMIN_TOKEN = "";
+/** 临时锚点帖 id，cleanup 时删掉 */
+let ANCHOR_POST = 0;
 
-/** 直接建账号（绕开 RSA + 图形验证码），返回 { id, username, token } */
-function makeUser(tag, verified = 0) {
+/**
+ * 直接建账号（绕开 RSA + 图形验证码），返回 { id, username, email, token }。
+ * 默认造「刚注册的游客」：没有邮箱、角色 guest —— 注册不再收邮箱了。
+ */
+function makeUser(tag, { role = "guest", withEmail = false, verified = 0 } = {}) {
   const stamp = String(Date.now()).slice(-8) + Math.floor(Math.random() * 90 + 10);
   const username = `vfy_${tag}_${stamp}`;
+  const email = `${username}@example.com`;
+  const emailSql = withEmail || verified ? `'${email}'` : "NULL";
   sql(
     "INSERT INTO user (username, password, name, email, email_verified, primary_role) " +
-    `VALUES ('${username}', 'x', '${username}', '${username}@example.com', ${verified}, 'member')`
+    `VALUES ('${username}', 'x', '${username}', ${emailSql}, ${verified}, '${role}')`
   );
   const id = Number(sql(`SELECT id FROM user WHERE username = '${username}'`));
   if (!id) throw new Error("造账号失败 " + username);
-  sql(`INSERT INTO user_role (user_id, role_code) VALUES (${id}, 'member')`);
+  sql(`INSERT INTO user_role (user_id, role_code) VALUES (${id}, '${role}')`);
   created.push(id);
   const tv = Number(sql(`SELECT token_version FROM user WHERE id = ${id}`) || 1);
-  return { id, username, token: signToken(id, tv) };
+  return { id, username, email, token: signToken(id, tv) };
 }
 
+/** 借管理员的 token 建一条帖，给评论区的提示当靶子 */
+const createPostAsAdmin = async (title, content) => {
+  const r = await fetch(`${BASE}/api/post/createPost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${ADMIN_TOKEN}` },
+    body: JSON.stringify({ title, content, type: "life", media: [], tags: [] }),
+  });
+  const j = await r.json();
+  if (!j.data) throw new Error("建帖失败: " + JSON.stringify(j));
+  return j.data.id || j.data;
+};
+
 function cleanup() {
+  if (ANCHOR_POST) {
+    sql(`DELETE FROM comment WHERE post_id = ${ANCHOR_POST}`);
+    sql(`DELETE FROM post WHERE id = ${ANCHOR_POST}`);
+  }
   for (const id of created) {
     sql(`DELETE FROM user_role WHERE user_id = ${id}`);
     sql(`DELETE FROM user WHERE id = ${id}`);
@@ -99,6 +125,7 @@ const get = (p) =>
 
 (async () => {
   const tokens = refreshTokens();
+  ADMIN_TOKEN = tokens.admin;
   console.log("  token 已刷新");
 
   const proc = spawn(
@@ -231,8 +258,8 @@ const get = (p) =>
   };
 
   try {
-    // ---------------------------------------------------------- 1 注册只收邮箱
-    console.log("\n[1] 注册表单只收邮箱");
+    // ---------------------------------------------------------- 1 注册表单：用户名
+    console.log("\n[1] 注册表单：用户名 + 密码（不再强制邮箱）");
     await nav(BASE + "/");
     await evaluate(`localStorage.removeItem('token')`);
     await nav(BASE + "/");
@@ -241,171 +268,187 @@ const get = (p) =>
     await clickEl(".footer-link .link-text");
     check("切到注册表单", await until(`!!document.querySelector('.form-subtitle')`));
     const subtitle = await evaluate(`document.querySelector('.form-subtitle')?.textContent.trim()`);
-    check("副标题提示要验证邮箱", (subtitle || "").includes("验证"), subtitle);
+    check("副标题说清楚注册后是游客", (subtitle || "").includes("游客"), subtitle);
 
     // ⚠️ 注册表单最前面有一组隐藏的 autocomplete 填坑 input，
-    // 用 .form-body input 会选中它们，必须限定在 .form-item 里
-    await fill(".form-item input", "13900001111", 0);
+    // 直接 `.form-body input` 会选到它们（值设不进去，断言全是假阳性）→ 用 .form-item
+    await fill(".form-item input", "abc@qq.com", 0);
     await clickEl(".submit-button");
-    await sleep(300);
-    const accErr = await evaluate(`document.querySelector('.err-tip')?.textContent.trim()`);
-    check("填手机号被拦下", accErr === "请输入正确的邮箱", accErr);
+    check("邮箱样式的用户名被前端拦下", await until(`!!document.querySelector('.err-tip')`));
+    const accErr = await evaluate(`document.querySelector('.err-tip')?.textContent.trim() || ''`);
+    check("提示说明只允许中文/字母/数字/下划线",
+      accErr === "用户名只能包含中文、字母、数字和下划线", JSON.stringify(accErr));
 
-    await fill(".form-item input", "someone@example.com", 0);
+    await fill(".form-item input", "a", 0);
     await clickEl(".submit-button");
-    await sleep(300);
-    const errs = await evaluate(
-      `[...document.querySelectorAll('.err-tip')].map(e => e.textContent.trim())`
-    );
-    check("改成邮箱后账号错误消失", !errs.some((e) => e.includes("邮箱")), JSON.stringify(errs));
-    check("这时才开始要图形验证码", errs.some((e) => e.includes("验证码")), JSON.stringify(errs));
+    await sleep(200);
+    const shortErr = await evaluate(`document.querySelector('.err-tip')?.textContent.trim() || ''`);
+    check("太短的用户名也被拦", shortErr === "用户名需要 2~20 个字符", JSON.stringify(shortErr));
 
-    // ---------------------------------------------------------- 2 未验证的发布框
-    console.log("\n[2] 未验证账号的发布框");
-    const userA = makeUser("a", 0);
-    await nav(BASE + "/");
-    await evaluate(`localStorage.setItem('token', ${JSON.stringify(userA.token)})`);
+    // ---------------------------------------------------------- 2 游客：绑定邮箱提示
+    console.log("\n[2] 游客进空间页：发布框换成「绑定邮箱后就能评论」");
+    const guest = makeUser("guest", { role: "guest" });
+    await evaluate(`localStorage.setItem('kokomi-theme', 'light')`);
+    await evaluate(`localStorage.setItem('token', ${JSON.stringify(guest.token)})`);
     await nav(BASE + "/space/home");
-    check("发布提示卡出现", await until(`!!document.querySelector('.muted-notice--verify')`));
-    const notice = await evaluate(`(() => {
-      const n = document.querySelector('.muted-notice--verify');
+    check("出现绑定邮箱提示卡", await until(`!!document.querySelector('.muted-notice--verify')`, 12000));
+    const guestCard = await evaluate(`(() => {
+      const c = document.querySelector('.muted-notice--verify');
       return {
-        title: n?.querySelector('.muted-notice__title')?.textContent.trim() || '',
-        desc: n?.querySelector('.muted-notice__desc')?.textContent.trim() || '',
-        btn: n?.querySelector('.muted-notice__refresh')?.textContent.trim() || '',
-        hasEditor: !!document.querySelector('.publishing'),
-        color: getComputedStyle(n).color,
+        title: c?.querySelector('.muted-notice__title')?.textContent.trim() || '',
+        btn: c?.querySelector('.muted-notice__refresh')?.textContent.trim() || '',
+        role: document.querySelector('.user-role')?.textContent.trim() || '',
       };
     })()`);
-    check("标题是「验证邮箱后才能发布」", notice?.title === "验证邮箱后才能发布", notice?.title);
-    check("提示里写了验证码发到哪个邮箱", (notice?.desc || "").includes("@example.com"), notice?.desc);
-    check("按钮是「去验证」", notice?.btn === "去验证", notice?.btn);
-    check("不给可编辑的发布框", notice?.hasEditor === false);
-    check("用的是主色蓝（不是禁言粉）", notice?.color === "rgb(0, 174, 236)", notice?.color);
-    await shot("verify-notice-space.png");
+    check("标题是「绑定邮箱后就能评论」", guestCard.title === "绑定邮箱后就能评论", guestCard.title);
+    check("按钮是「去绑定」", guestCard.btn === "去绑定", guestCard.btn);
+    check("身份标签显示「游客」", guestCard.role === "游客", guestCard.role);
+    check("没给发布框", !(await evaluate(`!!document.querySelector('.publishing')`)));
+    await shot("tier-guest-space.png");
 
-    // ---------------------------------------------------------- 3 验证弹窗
-    console.log("\n[3] 验证邮箱弹窗");
-    await clickEl(".muted-notice--verify .muted-notice__refresh");
+    // 评论区同样拦：游客进帖子详情看到的是提示而不是输入框
+    const pid = await createPostAsAdmin("等级制界面测试帖", "给评论区当靶子");
+    check("锚点帖已创建", !!pid, `id=${pid}`);
+    ANCHOR_POST = pid;
+    await nav(BASE + "/post/" + pid);
+    check("游客在评论区看到绑定提示",
+      await until(`!!document.querySelector('.comment-muted-tip--verify')`, 12000));
+    const cTip = await evaluate(
+      `document.querySelector('.comment-muted-tip--verify')?.textContent.trim() || ''`);
+    check("评论提示文案提到绑定邮箱", cTip.includes("绑定邮箱"), cTip);
+    check("游客没有评论输入框",
+      !(await evaluate(`!!document.querySelector('.comment-input-area textarea')`)));
+
+    // ---------------------------------------------------------- 3 绑定邮箱弹窗
+    console.log("\n[3] 绑定邮箱弹窗：新账号没有预填邮箱，要自己填");
+    await clickEl(".comment-muted-tip--verify");
     check("弹窗已打开", await until(`!!document.querySelector('.verify-card')`));
-    check("验证码已自动发出（dev-echo 有明文）",
-      await until(`!!document.querySelector('.verify-dev')`, 8000));
-    const modal = await evaluate(`(() => {
-      const card = document.querySelector('.verify-card');
-      const cs = getComputedStyle(card);
+    check("有邮箱输入框", await until(`!!document.querySelector('.verify-input--email')`));
+    const modalTitle = await evaluate(
+      `document.querySelector('.verify-head__title')?.textContent.trim()`);
+    check("标题是「绑定邮箱」", modalTitle === "绑定邮箱", modalTitle);
+
+    await clickEl(".verify-resend");
+    check("没填邮箱就点发送会被拦住",
+      await until(`document.querySelector('.verify-error')?.textContent.includes('先填写')`, 6000));
+    const emptyErr = await evaluate(
+      `document.querySelector('.verify-error')?.textContent.trim() || ''`);
+    check("提示「请先填写要绑定的邮箱」", emptyErr.includes("请先填写要绑定的邮箱"), emptyErr);
+
+    await fill(".verify-input--email", guest.email);
+    await clickEl(".verify-resend");
+    check("填了邮箱后发码成功", await until(`!!document.querySelector('.verify-dev')`, 12000));
+    const devCode = await evaluate(
+      `document.querySelector('.verify-dev b')?.textContent.trim() || ''`);
+    check("拿到本地 dev-echo 的 6 位码", /^\d{6}$/.test(devCode), devCode);
+    check("发送后按钮进倒计时",
+      await until(`document.querySelector('.verify-resend')?.textContent.includes('后可重发')`, 6000));
+    await shot("tier-bind-modal.png");
+
+    const CODE_SEL = ".verify-input:not(.verify-input--email)";
+    await fill(CODE_SEL, devCode === "000000" ? "111111" : "000000");
+    await clickEl(".verify-submit");
+    check("错码有提示", await until(`!!document.querySelector('.verify-error')`, 10000));
+
+    await fill(CODE_SEL, devCode);
+    await clickEl(".verify-submit");
+    check("正确码后弹窗自己关掉", await until(`!document.querySelector('.verify-card')`, 15000));
+    check("绑定后评论区变成真输入框",
+      await until(`!!document.querySelector('.comment-input-area textarea')`, 12000));
+
+    // ---------------------------------------------------------- 4 普通用户：能评论不能发帖
+    console.log("\n[4] 升级成普通用户：能评论，发帖还是不行");
+    await nav(BASE + "/space/home");
+    check("出现「发帖需要会员权限」提示卡",
+      await until(`!!document.querySelector('.muted-notice--vip')`, 12000));
+    const memberCard = await evaluate(`(() => {
+      const c = document.querySelector('.muted-notice--vip');
       return {
-        title: card.querySelector('.verify-head__title')?.textContent.trim() || '',
-        desc: card.querySelector('.verify-head__desc')?.textContent.trim() || '',
-        dev: card.querySelector('.verify-dev b')?.textContent.trim() || '',
-        radius: cs.borderTopLeftRadius,
-        bg: cs.backgroundColor,
-        submitDisabled: card.querySelector('.verify-submit')?.disabled,
-        foot: card.querySelector('.verify-resend')?.textContent.trim() || '',
+        title: c?.querySelector('.muted-notice__title')?.textContent.trim() || '',
+        role: document.querySelector('.user-role')?.textContent.trim() || '',
+        color: c ? getComputedStyle(c).color : '',
+        hasBtn: !!c?.querySelector('.muted-notice__refresh'),
       };
     })()`);
-    check("标题「验证邮箱」", modal?.title === "验证邮箱", modal?.title);
-    check("邮箱打码（带 ***）", (modal?.desc || "").includes("***"), modal?.desc);
-    check("dev-echo 给了 6 位码", /^\d{6}$/.test(modal?.dev || ""), modal?.dev);
-    check("卡片圆角 16px", modal?.radius === "16px", modal?.radius);
-    check("6 位码没填时提交键禁用", modal?.submitDisabled === true);
-    check("有重发倒计时", /\d+s 后可重发/.test(modal?.foot || ""), modal?.foot);
-    await shot("verify-modal.png");
-    const devCode = modal?.dev;
+    check("标题是「发帖需要会员权限」", memberCard.title === "发帖需要会员权限", memberCard.title);
+    check("身份标签变成「普通用户」", memberCard.role === "普通用户", memberCard.role);
+    check("卡片是金色的", memberCard.color === "rgb(230, 162, 60)", memberCard.color);
+    check("这张卡不给按钮（用户自己解决不了）", memberCard.hasBtn === false, String(memberCard.hasBtn));
+    check("还是没有发布框", !(await evaluate(`!!document.querySelector('.publishing')`)));
+    await shot("tier-member-space.png");
 
-    // ---------------------------------------------------------- 4 错码 / 正确码
-    console.log("\n[4] 错码与正确码");
-    await fill(".verify-input", devCode === "000000" ? "111111" : "000000");
-    await clickEl(".verify-submit");
-    check("错码出现提示", await until(`!!document.querySelector('.verify-error')`, 8000));
-    const errText = await evaluate(`document.querySelector('.verify-error')?.textContent.trim()`);
-    check("提示说清还可以再试几次", (errText || "").includes("还可以再试"), errText);
+    // ---------------------------------------------------------- 5 管理员升会员
+    console.log("\n[5] 管理员改成会员后，发布框回来");
+    const roleRes = await evaluate(`(async () => {
+      const r = await fetch('/api/admin/user/${guest.id}/roles', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ${tokens.admin}' },
+        body: JSON.stringify({ roles: ['vip'] }),
+      });
+      const j = await r.json();
+      return j.code;
+    })()`);
+    check("后台改角色成功", roleRes === 200, String(roleRes));
+    await nav(BASE + "/space/home");
+    check("发布框回来了", await until(`!!document.querySelector('.publishing')`, 12000));
+    check("提示卡都消失了", !(await evaluate(`!!document.querySelector('.muted-notice--vip')`)));
+    const roleTag = await evaluate(`document.querySelector('.user-role')?.textContent.trim()`);
+    check("身份标签变成「会员」", roleTag === "会员", roleTag);
+    await shot("tier-vip-space.png");
 
-    await fill(".verify-input", devCode);
-    await clickEl(".verify-submit");
-    check("验证成功后弹窗关闭", await until(`!document.querySelector('.verify-card')`, 10000));
-    check("提示卡消失", await until(`!document.querySelector('.muted-notice--verify')`, 8000));
-    check("发布框回来了", await until(`!!document.querySelector('.publishing')`, 8000));
-    const dbFlag = sql(`SELECT email_verified FROM user WHERE id = ${userA.id}`);
-    check("库里 email_verified 变成 1", dbFlag === "1", dbFlag);
-    await shot("verify-done-space.png");
-
-    // ---------------------------------------------------------- 5 暗色 + 手机
-    console.log("\n[5] 暗色主题与手机宽度");
-    const userB = makeUser("b", 0);
-    await evaluate(`localStorage.setItem('token', ${JSON.stringify(userB.token)})`);
+    // ---------------------------------------------------------- 6 降回普通用户：暗色 / 手机
+    console.log("\n[6] 降回普通用户：暗色与手机宽度");
+    await evaluate(`(async () => {
+      await fetch('/api/admin/user/${guest.id}/roles', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ${tokens.admin}' },
+        body: JSON.stringify({ roles: ['member'] }),
+      });
+    })()`);
     await evaluate(`localStorage.setItem('kokomi-theme', 'dark')`);
     await nav(BASE + "/space/home");
     check("暗色已生效", await evaluate(`document.documentElement.classList.contains('dark')`));
-    await until(`!!document.querySelector('.muted-notice--verify')`);
-    await clickEl(".muted-notice--verify .muted-notice__refresh");
-    check("弹窗已打开", await until(`!!document.querySelector('.verify-card')`));
-    await until(`!!document.querySelector('.verify-dev')`, 8000);
-    const darkCard = await evaluate(`(() => {
-      const card = document.querySelector('.verify-card');
-      const cs = getComputedStyle(card);
-      const title = getComputedStyle(card.querySelector('.verify-head__title'));
-      return { bg: cs.backgroundColor, color: title.color };
-    })()`);
-    check("暗色下卡片是深底", darkCard?.bg === "rgb(30, 30, 30)", darkCard?.bg);
-    check("暗色下标题是浅字", darkCard?.color === "rgb(240, 240, 240)", darkCard?.color);
+    check("暗色下会员提示卡还在",
+      await until(`!!document.querySelector('.muted-notice--vip')`, 12000));
+    const darkColor = await evaluate(
+      `getComputedStyle(document.querySelector('.muted-notice--vip')).color`);
+    check("暗色下卡片主色没被吃掉", darkColor === "rgb(230, 162, 60)", darkColor);
+    await shot("tier-member-dark.png");
 
-    // 手机 390 宽。⚠️ 这里必须用「窄窗口」(mobile:false) 来量，别用 mobile:true 的模拟：
-    // mobile 模拟下 Chrome 会按内容做 shrink-to-fit，`window.innerWidth` 报的是**内容宽度**
-    // （本页 712），而真正可见的只有 390 —— 拿 innerWidth 当视口宽，断言 `546 <= 712` 天然成立
-    // （假阳性），截图也只剩左边一块，看着像卡片跑出屏幕外。真实视口宽取 `documentElement.clientWidth`。
+    // ⚠️ 量手机布局必须用真窄窗口（mobile:false + 390）：
+    // mobile:true 的模拟里 innerWidth 会报成内容宽度（页面溢出时 712），
+    // 拿它断言「不溢出」恒成立 = 假阳性，截图也只是把宽布局压进 390。
     await send("Emulation.setDeviceMetricsOverride", {
       width: 390, height: 844, deviceScaleFactor: 1, mobile: false,
     });
     await nav(BASE + "/space/home");
-    await until(`!!document.querySelector('.muted-notice--verify')`);
-    await clickEl(".muted-notice--verify .muted-notice__refresh");
-    check("手机上弹窗也能打开", await until(`!!document.querySelector('.verify-card')`));
-    const mobile = await evaluate(`(() => {
-      const card = document.querySelector('.verify-card').getBoundingClientRect();
+    check("手机宽度下提示卡还在",
+      await until(`!!document.querySelector('.muted-notice--vip')`, 12000));
+    const mob = await evaluate(`(() => {
+      const c = document.querySelector('.muted-notice--vip').getBoundingClientRect();
       return {
-        w: Math.round(card.width), left: Math.round(card.left), right: Math.round(card.right),
+        left: Math.round(c.left), right: Math.round(c.right),
         vw: document.documentElement.clientWidth,
         scroll: document.documentElement.scrollWidth,
       };
     })()`);
-    check("窄窗口布局视口就是 390", mobile.vw === 390, String(mobile.vw));
-    check("卡片完整落在视口里", mobile.left >= 0 && mobile.right <= mobile.vw, JSON.stringify(mobile));
-    check("卡片左右留白对称（居中）", Math.abs(mobile.left - (mobile.vw - mobile.right)) <= 1,
-      `${mobile.left}/${mobile.vw - mobile.right}`);
-    check("页面没有横向溢出", mobile.scroll <= mobile.vw + 1, `${mobile.scroll}/${mobile.vw}`);
-    await shot("verify-modal-mobile.png");
-    await clickEl(".verify-later");
-
-    // 再用真 mobile 模拟量一次：可见区 = visualViewport，不是 innerWidth
-    await send("Emulation.setDeviceMetricsOverride", {
-      width: 390, height: 844, deviceScaleFactor: 1, mobile: true,
-    });
-    await sleep(400);
-    await clickEl(".muted-notice--verify .muted-notice__refresh");
-    await until(`!!document.querySelector('.verify-card')`);
-    const mobEmu = await evaluate(`(() => {
-      const card = document.querySelector('.verify-card').getBoundingClientRect();
-      const vv = window.visualViewport;
-      return { left: Math.round(card.left), right: Math.round(card.right),
-               vvw: Math.round(vv.width), vvleft: Math.round(vv.offsetLeft) };
-    })()`);
-    check("mobile 模拟下也在可见区内",
-      mobEmu.left >= mobEmu.vvleft && mobEmu.right <= mobEmu.vvleft + mobEmu.vvw,
-      JSON.stringify(mobEmu));
-    await clickEl(".verify-later");
-
-    // ---------------------------------------------------------- 6 后台兜底入口
-    console.log("\n[6] 后台用户列表：未验证标签 + 激活");
+    check("布局视口就是 390", mob.vw === 390, String(mob.vw));
+    check("卡片不超出视口", mob.left >= 0 && mob.right <= mob.vw, JSON.stringify(mob));
+    check("页面没有横向溢出", mob.scroll <= mob.vw + 1, `${mob.scroll}/${mob.vw}`);
+    await shot("tier-member-mobile.png");
     await send("Emulation.setDeviceMetricsOverride", {
       width: 1200, height: 1000, deviceScaleFactor: 1, mobile: false,
     });
+
+    // ---------------------------------------------------------- 7 后台兜底入口
+    console.log("\n[7] 后台用户列表：未验证标签 + 激活");
+    const chipUser = makeUser("chip", { role: "guest" });
     await evaluate(`localStorage.setItem('kokomi-theme', 'light')`);
     await evaluate(`localStorage.setItem('token', ${JSON.stringify(tokens.admin)})`);
     await nav(BASE + "/admin/users");
     await until(`!!document.querySelector('.user-row')`, 15000);
-    await fill(".users-head__input", userB.username);
+    await fill(".users-head__input", chipUser.username);
     // fill 只设值不聚焦，不 focus 的话 Enter 落在 body 上，搜索不会触发
-    // （之前没注意，列表还是全量，断言就变成了假阳性）
     await evaluate(`document.querySelector('.users-head__input')?.focus()`);
     await pressEnter();
     check("搜到未验证的那个用户", await until(`!!document.querySelector('.verify-chip')`, 10000));
@@ -420,7 +463,7 @@ const get = (p) =>
     })()`);
     check("标签文字是「未验证」", row?.chip === "未验证", row?.chip);
     check("多了「激活」按钮", (row?.btns || []).includes("激活"), JSON.stringify(row?.btns));
-    await shot("verify-admin-chip.png");
+    await shot("tier-admin-chip.png");
 
     await clickByText(".user-row__style-btn", "激活");
     check("弹站内确认框", await until(`!!document.querySelector('.el-message-box')`, 8000));
@@ -429,8 +472,11 @@ const get = (p) =>
     // 确认后要等接口 + 列表重新拉一遍，给足时间（偶发过一次 10s 不够）
     check("激活后「未验证」标签消失",
       await until(`!document.querySelector('.verify-chip')`, 15000));
-    const flagB = sql(`SELECT email_verified FROM user WHERE id = ${userB.id}`);
-    check("库里 email_verified 变成 1", flagB === "1", flagB);
+    const flag = sql(`SELECT email_verified FROM user WHERE id = ${chipUser.id}`);
+    check("库里 email_verified 变成 1", flag === "1", flag);
+    const roleAfter = sql(
+      `SELECT IFNULL(GROUP_CONCAT(role_code), '') FROM user_role WHERE user_id = ${chipUser.id}`);
+    check("激活顺带把游客升成普通用户", roleAfter.includes("member"), roleAfter);
   } catch (e) {
     check("执行未抛异常", false, e.message);
   } finally {

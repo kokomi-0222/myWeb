@@ -38,12 +38,21 @@ realService.interceptors.response.use(
       return res
     }
 
-    // 邮箱未验证：这不是「操作失败」，而是「还没解锁发言」。
-    // 不弹红色错误（会盖住验证弹窗），只广播一次让弹窗自己出来。
+    // 邮箱未验证 / 还是游客：这不是「操作失败」，而是「还没解锁评论」。
+    // 不弹红色错误（会盖住绑定弹窗），只广播一次让弹窗自己出来。
     if (setting.unverifiedCode && res.code == setting.unverifiedCode) {
       window.dispatchEvent(new CustomEvent('kokomi:unverified'))
-      const err = new Error(res.msg || '验证邮箱后才能发布内容')
+      const err = new Error(res.msg || '绑定邮箱后才能评论')
       err.unverified = true
+      return Promise.reject(err)
+    }
+
+    // 等级不够发帖：用户自己解决不了（要管理员给会员），所以只给一句说明，
+    // 不开弹窗 —— 一个点了没用的按钮比不给按钮更让人火。
+    if (setting.needVipCode && res.code == setting.needVipCode) {
+      message.info(res.msg || '发帖需要会员权限，请联系站长开通')
+      const err = new Error(res.msg || '发帖需要会员权限')
+      err.needVip = true
       return Promise.reject(err)
     }
 
