@@ -349,8 +349,12 @@ const get = (p) =>
     check("暗色下卡片是深底", darkCard?.bg === "rgb(30, 30, 30)", darkCard?.bg);
     check("暗色下标题是浅字", darkCard?.color === "rgb(240, 240, 240)", darkCard?.color);
 
+    // 手机 390 宽。⚠️ 这里必须用「窄窗口」(mobile:false) 来量，别用 mobile:true 的模拟：
+    // mobile 模拟下 Chrome 会按内容做 shrink-to-fit，`window.innerWidth` 报的是**内容宽度**
+    // （本页 712），而真正可见的只有 390 —— 拿 innerWidth 当视口宽，断言 `546 <= 712` 天然成立
+    // （假阳性），截图也只剩左边一块，看着像卡片跑出屏幕外。真实视口宽取 `documentElement.clientWidth`。
     await send("Emulation.setDeviceMetricsOverride", {
-      width: 390, height: 844, deviceScaleFactor: 1, mobile: true,
+      width: 390, height: 844, deviceScaleFactor: 1, mobile: false,
     });
     await nav(BASE + "/space/home");
     await until(`!!document.querySelector('.muted-notice--verify')`);
@@ -360,12 +364,34 @@ const get = (p) =>
       const card = document.querySelector('.verify-card').getBoundingClientRect();
       return {
         w: Math.round(card.width), left: Math.round(card.left), right: Math.round(card.right),
-        vw: window.innerWidth, scroll: document.documentElement.scrollWidth,
+        vw: document.documentElement.clientWidth,
+        scroll: document.documentElement.scrollWidth,
       };
     })()`);
-    check("卡片收在视口里", mobile.left >= 0 && mobile.right <= mobile.vw, JSON.stringify(mobile));
+    check("窄窗口布局视口就是 390", mobile.vw === 390, String(mobile.vw));
+    check("卡片完整落在视口里", mobile.left >= 0 && mobile.right <= mobile.vw, JSON.stringify(mobile));
+    check("卡片左右留白对称（居中）", Math.abs(mobile.left - (mobile.vw - mobile.right)) <= 1,
+      `${mobile.left}/${mobile.vw - mobile.right}`);
     check("页面没有横向溢出", mobile.scroll <= mobile.vw + 1, `${mobile.scroll}/${mobile.vw}`);
     await shot("verify-modal-mobile.png");
+    await clickEl(".verify-later");
+
+    // 再用真 mobile 模拟量一次：可见区 = visualViewport，不是 innerWidth
+    await send("Emulation.setDeviceMetricsOverride", {
+      width: 390, height: 844, deviceScaleFactor: 1, mobile: true,
+    });
+    await sleep(400);
+    await clickEl(".muted-notice--verify .muted-notice__refresh");
+    await until(`!!document.querySelector('.verify-card')`);
+    const mobEmu = await evaluate(`(() => {
+      const card = document.querySelector('.verify-card').getBoundingClientRect();
+      const vv = window.visualViewport;
+      return { left: Math.round(card.left), right: Math.round(card.right),
+               vvw: Math.round(vv.width), vvleft: Math.round(vv.offsetLeft) };
+    })()`);
+    check("mobile 模拟下也在可见区内",
+      mobEmu.left >= mobEmu.vvleft && mobEmu.right <= mobEmu.vvleft + mobEmu.vvw,
+      JSON.stringify(mobEmu));
     await clickEl(".verify-later");
 
     // ---------------------------------------------------------- 6 后台兜底入口

@@ -845,6 +845,9 @@ const handleDelete = (postId) => {
   align-items: start;
   gap: 0 10px;
   width: var(--content-with);
+  /* 桌面就是 700，但手机上 .home 只有 ~350（见文末媒体查询），
+     光靠 width:100% 兜不住非 768 断点，这里再兜一层 */
+  max-width: 100%;
   margin-top: 16px;
   padding: 16px 18px;
   box-sizing: border-box;
@@ -1244,6 +1247,14 @@ const handleDelete = (postId) => {
   .publishing {
     padding: 12px;
     border-radius: 6px;
+    width: 100%;
+  }
+
+  /* ⚠️ 这张卡和 .publishing 同宽（--content-with 700px），
+     忘在这里改成 100% 就会横向溢出 700px（手机上一半内容在屏幕外），
+     而且因为它宽，body 的 scrollWidth 被撑大、连 fixed 元素的 ICB 都跟着变宽。
+     之前漏了，靠 mobile 模拟截图看不出来（截图是把 712 宽的布局压进 390 的）。 */
+  .muted-notice {
     width: 100%;
   }
 

@@ -232,6 +232,14 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 - `<768px` 时 `TopNavbar` 整块 `display:none !important`，任何新功能都要在 `MobileNavbar` 里放一份。
 - URL 是搜索/分页的唯一数据源，筛选条件必须同步进 query。
 - 控制台被 esbuild `pure:['console.log']` 干掉了，要上线也打印就走 `utils/logger.js` 的 `log()`。
+- ⚠️ 空间页的宽度是**写死的 `--content-with: 700px`**（`.home` 上定义），`.publishing` / `.user-posts` / `.muted-notice` 都用它。新增同类块时**必须同时加进文末 `@media (max-width: 768px)` 的 `width: 100%` 名单**，否则手机上横向溢出 700px（一半内容在屏幕外）。`.muted-notice` 就漏过一次（禁言提示卡，存在了很久没被发现）。
+
+**测试（CDP 移动端模拟）**
+- ⚠️ `Emulation.setDeviceMetricsOverride({ width: 390, mobile: true })` 下，Chrome 会按内容做 shrink-to-fit：`window.innerWidth` 报的是**内容宽度**（本页溢出时是 712），真正可见的只有 390，`visualViewport.width` 也是 390，`documentElement.clientWidth` 是 390。
+  - 拿 `innerWidth` 当视口宽去断言「面板/卡片不溢出」= **假阳性**（`546 <= 712` 天然成立）。
+  - 截图同样会骗人：它把 712 宽的布局压进 390 的图里，看起来"刚好放下"，其实真机上卡片有一半在屏幕外。
+  - 量手机布局请用 **`mobile: false` + `width: 390`**（真窄窗口），断言取 `documentElement.clientWidth`；mobile 模拟只在必须验 `visualViewport` 时才用。
+- 页面存在横向溢出时，`position: fixed` 元素（顶栏、抽屉、遮罩）会一起被拉宽 —— 排查时看到「fixed 元素宽 712」不要以为是组件写死了宽度，先找把 `body.scrollWidth` 撑大的那个块元素。
 
 ## 7. 部署（顺序不能换）
 
