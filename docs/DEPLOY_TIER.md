@@ -76,6 +76,11 @@ SELECT * FROM `role_permission` WHERE BINARY `role_code` = 'guest';
   你要是自己加语句，照这个写。
 - **在 jar 启动之后才跑权限类 SQL，必须重启服务**——权限矩阵有内存缓存（`PermissionCache`），
   不重启不生效。
+- **只跑了 `sql_tier_permission.sql`，漏了 `sql_email_verify.sql`**：这就是「后台用户管理整页
+  服务器繁忙、其它页面都正常」的头号原因，因为新 jar 的用户列表 SQL 写死了
+  `email_verified` 列。加列本身是 DDL，补跑后**立刻生效、不用重启**。详见 [§5.1](#51-报服务器繁忙怎么查)。
+- 两个脚本**互相不依赖**，但都要跑：`sql_email_verify.sql` 管 `user` 表加列，
+  `sql_tier_permission.sql` 管权限矩阵和 `guest` 角色。少跑任何一个症状都不一样。
 
 ---
 
@@ -214,6 +219,44 @@ sudo journalctl -u kokomi -n 60 --no-pager
 
 `MAIL_PASSWORD` 填错时症状很典型：接口回「验证码发送失败，请稍后重试」，
 日志里是 `535 Authentication failed`。QQ 邮箱的密码位置要填**授权码**（邮箱设置 → 账户 → 开启 SMTP 后生成）。
+
+### 5.1 报「服务器繁忙」怎么查
+
+「服务器繁忙」= `GlobalExceptionHandler` 的最后兜底分支，**不代表服务器真的忙**，
+只代表后端抛了一个它没专门接的异常。注意 `BadSqlGrammarException`（列不存在、语法错）
+属于 `RuntimeException`，**不会**被那个 `SQLException` 分支接住，所以永远显示「服务器繁忙」
+而不是「数据库操作失败」—— 这点最容易误导人。
+
+**最典型的一种：后台「用户管理」整页进不去，但其它页面（首页、帖子、后台概览）都正常。**
+
+原因：`user` 表缺 `email_verified` 列。后台用户列表的 SQL 是**写死列名**的
+（`select id, username, ..., email_verified from user`），少一列整条语句就报
+`Unknown column 'email_verified' in 'field list'`。
+为什么别的页面没事：登录、看帖走的是 `select *`，少一列只是字段映射不到，不报错；
+只有「用户列表」和「绑定邮箱」这两个查询是写死列的。
+
+自查一条命令（空结果 = 没跑脚本）：
+
+```sql
+SHOW COLUMNS FROM `user` LIKE 'email_verified';
+```
+
+修复：补跑 `sql_email_verify.sql`。**加列是 DDL，立刻生效，不用停服、不用重启 jar。**
+
+症状对照表，省得每次猜：
+
+| 症状 | 缺的东西 | 补跑 |
+|---|---|---|
+| 后台「用户管理」整页服务器繁忙，其它页面正常 | `user.email_verified` 列 | `sql_email_verify.sql` |
+| 后台「角色权限」页打不开 / 角色名显示成英文 code | `role` 的 `role_name` 等展示字段 | `sql_role_manage.sql` |
+| 发帖、评论一律服务器繁忙 | `comment:create` 权限码 / `guest` 角色 | `sql_tier_permission.sql` |
+| 全站接口都 500 | 换了 jar 但一个 SQL 都没跑 | 按 §1 顺序全部补 |
+
+想看真实错误（兜底异常的真实堆栈只在日志里）：
+
+```bash
+journalctl -u kokomi -n 120 --no-pager | grep -A8 -i "exception"
+```
 
 ---
 

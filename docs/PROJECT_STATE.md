@@ -254,6 +254,11 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 - 列表 SQL 里别加 `SUBSTRING(content,1,1200)` 省带宽，长文会被截断；折叠交给 CSS。
 - ⚠️ 迁移脚本里「老用户回填成已验证」这种 **UPDATE 必须写在「刚加列」的分支里**（`IF(@col_exists = 0, 'UPDATE ...', 'DO 0')`）。写成无条件执行的话，重跑一次就把所有新注册的未验证用户全放过，防刷形同虚设。
 - `UserVO.fromBO` 里 `emailVerified` 为 `null` 当**已验证**处理 —— 防的是「忘了跑迁移」把全站老用户锁死。别改成 `false`。
+- ⚠️ **「服务器繁忙」= 兜底异常，几乎总是缺列 / 缺表**：`GlobalExceptionHandler` 的 `SQLException` 分支只接 `java.sql.SQLException`，而 MyBatis 的 `BadSqlGrammarException`（`Unknown column`、语法错）是 **`RuntimeException`**，接不住 → 落到最后兜底显示「服务器繁忙」，日志里才有真堆栈（`journalctl -u kokomi | grep -A8 Exception`）。
+  - 线上真踩过：只跑了 `sql_tier_permission.sql`、漏了 `sql_email_verify.sql`，症状是**后台「用户管理」整页进不去，首页/帖子/后台概览全正常**。
+  - 为什么只有那一页挂：`UserMapper.selectById` 是 `select *`，少一列只是字段映射不到、不报错；而 `selectAdminPage`（后台用户列表）和 `selectVerifyState`（绑定邮箱）**写死了列名**，少一列整条语句就废。
+  - 排查一条命令：`SHOW COLUMNS FROM \`user\` LIKE 'email_verified';` 空结果 = 没跑脚本。补跑后 **DDL 立即生效，不用重启 jar**（和权限矩阵不同，那个有内存缓存）。
+  - 教训：**新增列后，任何写死列名的 `@Select` 都会变成一个「只在那一页炸」的 500**，而 `select *` 的接口看起来一切正常 —— 别用「其它页面正常」推断「SQL 跑过了」。
 
 **邮件 / SMTP**
 - QQ 邮箱 `MAIL_PASSWORD` 填的是**授权码**，不是登录密码；`From` 必须等于登录账号，否则 501。
