@@ -5,8 +5,12 @@ import { ref, computed } from 'vue'
 export const useUIStore = defineStore('ui', () => {
     
   const loginModalOpen = ref(false)
-  // 「验证邮箱」弹窗：未验证时点发布框提示 / 被 507 拦下都会把它叫出来
-  const verifyModalOpen = ref(false)
+  /**
+   * 打开登录弹窗时落在哪一屏：login / register / forgot。
+   * 「忘记密码」在个人中心的修改密码页也有入口，靠它直接落到找回密码那一屏，
+   * 不用先让用户看一遍登录表单。
+   */
+  const loginModalMode = ref('login')
 
   // ========== 暗色主题 ==========
   // 存在 localStorage 里，否则手机端每次刷新都掉回浅色（以前就是这个毛病）。
@@ -69,20 +73,13 @@ export const useUIStore = defineStore('ui', () => {
   const isDesktop = computed(() => screenSize.value === 'lg')
 
   // ========== 方法 ==========
-  function openLoginModal() {
+  function openLoginModal(mode = 'login') {
+    loginModalMode.value = mode
     loginModalOpen.value = true
   }
 
   function closeLoginModal() {
     loginModalOpen.value = false
-  }
-
-  function openVerifyModal() {
-    verifyModalOpen.value = true
-  }
-
-  function closeVerifyModal() {
-    verifyModalOpen.value = false
   }
 
   function setDarkMode(value) {
@@ -116,14 +113,12 @@ export const useUIStore = defineStore('ui', () => {
     isDesktop,
 
     loginModalOpen,
-    verifyModalOpen,
+    loginModalMode,
     isDarkMode,
 
     // 方法
     openLoginModal,
     closeLoginModal,
-    openVerifyModal,
-    closeVerifyModal,
     setDarkMode,
     toggleTheme,
   }

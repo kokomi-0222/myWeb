@@ -1,7 +1,7 @@
 # 心海的小窝（Kokomi）— 项目现状交接
 
 > 换电脑 / 隔一段时间回来 / 换人接手，先读这一份。
-> 最后更新：2026-10-26（邮箱验证 + 注册防刷上线前）
+> 最后更新：2026-10-27（注册改两步：先验邮箱出 ticket，再设密码；用户名由系统生成 kokomi_xxxxxxxx；邮箱可解绑；发信走阿里云 DirectMail）
 
 ---
 
@@ -95,8 +95,9 @@ cd vue && npm install && npm run dev
 - **后台 `/admin`**：Dashboard / 用户管理 / 话题管理 / 角色权限 / 举报处理
 - **举报**：帖子 / 评论 / 用户三类，后台受理可删内容 + 处罚作者，同目标合并结案
 - **处罚分级**：禁言（能登录不能发言）/ 封号（不能登录），支持临时与永久，可手动解除
-- **邮箱验证 + 注册防刷**：注册只收用户名 + 密码，同 IP / 全站限速；登录后在空间页「绑定邮箱」发 6 位码，验证通过自动升级为普通用户；管理端可手动激活兜底
-- **等级制（游客 / 普通用户 / 会员）**：刚注册是游客，不能发帖也不能评论；绑定邮箱后升普通用户，评论和发帖都开了；会员由管理员授予，目前与普通用户等价。判定全靠权限码，改规则只改 `role_permission` 表
+- **注册两步**：第 1 步填邮箱收 6 位码（换一张 30 分钟的 ticket），第 2 步只设密码建号（**用户名由系统生成 `kokomi_xxxxxxxx`，用户不填**）；**不再要图形验证码**，**建号就是普通用户**并顺手返回 token（前端直接登录）；注册接口本身不发信，发码走独立的公开入口并堆了三层限流
+- **邮箱中心（个人中心 → 账号管理）**：已绑定可在弹窗里**更换**或**解绑**（两者都必须先验当前密码）；解绑只丢「用邮箱找回密码」，会员身份和发帖评论照旧；老账号可在账号页补绑（6 位码）从而升级；**绑过的邮箱能找回密码**（登录弹窗「忘记密码」）；管理端对「有邮箱但未验证」的账号可手动激活兜底
+- **等级制（游客 / 普通用户 / 会员）**：注册即验邮箱，新号落地就是普通用户，发帖评论都通；「游客」只剩历史存量账号（没绑过邮箱的老号）这一种来源，补绑后自动升普通用户。会员由管理员授予，目前与普通用户等价。判定全靠权限码，改规则只改 `role_permission` 表
 - **外观**：深色模式（持久化）、名字颜色 / 身份标签颜色、角色标签
 
 ### 没做（有 `user:block` / `comment:report` 这种空壳权限码，别被误导）
@@ -154,45 +155,132 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 规则有两份，改一份必须同步另一份：前端 `vue/src/utils/contentText.js`、后端 `util/TextUtils.normalizeContent`。
 否则第一行的空格会在保存时被吞掉，用户下次点编辑才发现。
 
-### 5.7 邮箱绑定与注册防刷
+### 5.7 注册两步：先验邮箱，再设密码（用户名系统生成）
 
-**为什么这么做**：注册原本完全免费，一个人能刷出无数「幽灵账号」。先选了「邮箱验证码激活」（挡住批量注册，顺带给「找回密码」留路），后来改成等级制：**注册只收用户名 + 密码，邮箱是登录后主动「绑定」的**，绑完才升级成普通用户。
+**为什么这么做**：最早是「邮箱验证码激活」，后来改成等级制（注册只收用户名 + 密码，邮箱登录后自己绑）。那版有个绕不过去的坑 —— 注册完是个什么都干不了的游客，得先登录、再翻到个人中心、再收码，中途放弃率极高；管理员手滑点「激活」还会造出「`email` 为空但 `email_verified = 1`」的死状态（用户在个人中心看到"未绑定"，去绑却一直提示"已验证"）。
 
-| `email_verified` | 能登录 | 浏览 / 点赞 | 评论 / 回复 / 举报 / 发帖 |
+现在固定成两步：
+
+1. **第 1 步只验邮箱**：填邮箱 → 收 6 位码 → `POST /user/register/verify-email` 校验通过，服务端发一张 **ticket**（30 分钟）；
+2. **第 2 步只设密码**：凭 ticket 建号，邮箱当场落成已验证。
+   UI 上只有「标题 + 密码 + 确认密码 + 按钮」这四样：**不显示步骤进度**（不写「第 1 / 2 步 / 第 2 / 2 步」，两步本来很短，标出来只显得流程冗长）、**不重复显示刚验过的邮箱**（用户刚填完记得住，摆一遍纯占位）、**不提供「换一个邮箱」**（要换就关掉弹窗重来，`closeModal → resetRegisterState` 会清掉 ticket，必须重新验码）、**不显示任何用户名说明文案**（用户名是系统生成的，正文里解释它只会让人以为要自己填）。
+
+为什么中间要 ticket、而不是第 2 步再交一次验证码：第 2 步要是因为密码类错误（两次不一致、太短）失败一次，用户就得重新收一封邮件。ticket 只绑定邮箱、**30 分钟**内可反复重试，建号成功才作废（`util/RegisterTicketCache`，内存 Map，重启失效）。
+
+> **第 1 步的码只验不消费**（`EmailCodeCache.verify`，2026-10-27 起）：早先这里是 `check`（命中即把整条记录删掉），于是出现一个很难解释的场景 —— 用户验过之后没继续（关掉弹窗、先去看看别的），过几分钟重新打开注册框、输入同一封邮件里那个码，被告知「验证码已失效」，而邮件上明明写着 10 分钟内有效。现在同一个码在自己的有效期内可以反复验，每次发一张新 ticket；**建号成功后**由 `UserServiceImpl#register` 调 `EmailCodeCache.clear(email)` 清掉。安全性没变差：码本来就只发给这个邮箱，「证明我是主人」验一次和验三次是同一件事，真正的边界是 `uk_user_email`（一个邮箱只能建一个号）+ 错 5 次作废。
+> 同理，找回密码 `/user/password/forgot/reset`、绑邮箱 `/user/verify/confirm`、换绑 `/user/email/change/confirm` 也都改成「先 verify、动作成功后再 clear」：中间任何一步失败（密码不一致、邮箱已被别的账号绑定）都不该把用户刚收到的码烧掉。`check`（一次一用）保留给将来确实需要一次性语义的地方。
+
+> ticket 为什么是 30 分钟而不是和验证码一样 10 分钟：验证码要「赶紧复制过来」，10 分钟合理；ticket 之后用户要做的是**想一个密码**，还可能被别的窗口打断。之前两者都 10 分钟，用户在第 2 步停久一点就看到「邮箱验证已过期，请重新验证邮箱」，等于前面白验一次。ticket 绑邮箱、一次性、建号即废，放宽到 30 分钟不削弱安全性。
+
+**能不能跳过第一步直接建号？—— 不能**（2026-10-27 用 `tools/check-register-bypass.py` 打接口实测 16/16）：
+
+| 尝试 | 结果 |
+|---|---|
+| 不带 ticket | 400「请先验证邮箱」 |
+| 伪造 ticket（32 位十六进制 / 短串 / 怪串） | 400「邮箱验证已过期，请重新验证邮箱」 |
+| 拿 A 的 ticket，body 里塞 B 的 email | 建号成功但**落库是 A**，B 没被注册（`email` 只从 ticket 取） |
+| 同一张 ticket 再建第二个号 | 拒绝（建号成功时已 `remove`），账号数不变 |
+| 已注册邮箱再走第一步 | 502「该邮箱已被注册」 |
+
+安全边界：ticket 是 `SecureRandom` 16 字节（32 位十六进制）**只存内存**、绑邮箱、30 分钟过期，猜不出来；验证码 6 位但 `MAX_FAIL=5` 命中即作废 + 同邮箱 60 秒 / 每小时 5 封 → 每小时最多试 25 次 / 100 万，暴力破解不可行。
+⚠️ 例外要说清：**同一收件箱的别名邮箱能各自注册**（Gmail 的 `a+1@`、`a.1@` 都进同一个信箱），那不是绕过验证，而是「一个真实邮箱能开多个号」，只能靠 `RegisterRateLimit`（同 IP 20 个/小时）压。
+⚠️ `userMapper.insert` 现在**接住 `DuplicateKeyException`**：`selectByEmail` 挡不住并发（双击注册、两台设备同时提交），第二个 insert 由 `uk_user_email` 拦下。不接住就是「服务器繁忙」，而用户其实第一次已经注册成功了，那句话只会让他以为全失败。
+
+**为什么用户名不让用户填**（2026-10-27 再改）：用户名统一由后端生成 `kokomi_` + 8 位小写字母数字（`kokomi_a3f9c2d1`，`UserServiceImpl.randomUsername`）。理由：
+
+- 「用户名已被占用」是注册流程里最容易让人卡住重填的一步，而它本来就不该由用户操心 —— 站内展示的是 `name`（昵称），`username` 只是登录/归属标识；
+- 顺带消灭「用户名抢注别人邮箱」「用户名写成 `@abc`/`a@@b` 这种怪格式」两类问题；
+- 唯一性靠 **`username` UNIQUE 索引 + 撞名重试 5 次**（`36^8 ≈ 2.8e12`，实际撞不到）；⚠️ 撞名时**不能把 `DuplicateKeyException` 抛给用户**，他根本没填过用户名，看到「已被使用」只会一头雾水；
+- 用户在哪看自己的用户名：**个人中心 → 账号管理**里有一行「用户名」（附「系统生成，不可修改」）。
+- ⚠️ 空间页顶部的用户信息栏**只显示昵称 + 角色标签**，不挂 `@username`（曾经挂过，用户要求换回原来的样式：那一栏是「我是谁」的身份条，塞一个永远不用输入的长串 ID 只是噪音）。账号管理页是唯一展示它的地方。
+- 老账号不动：`admin` 这类自定义 username 保持原样。
+- ⚠️ 前端第 2 步已经没有用户名输入框，`?{ticket, account, encryptedData}` 里的 `account` 后端**直接忽略**（老前端可能还带着它）。
+
+**不再要图形验证码**：邮件已经证明了「是真人 + 邮箱是他的」，再加一道图灵测试只是给真人添麻烦。`/captcha` 仍用于登录。
+
+| 账号状态 | 能登录 | 浏览 / 点赞 | 评论 / 回复 / 举报 / 发帖 |
 |---|---|---|---|
-| 0 未绑定 | ✅ | ✅ | ❌ 返回 `507` |
-| 1 已绑定 | ✅ | ✅ | 评论、发帖都可以（`member` 两个权限码都有，见 5.8） |
+| 注册完成（邮箱已验） | ✅ | ✅ | ✅（`member` 两个权限码都有，见 5.8） |
+| 老账号没绑邮箱 | ✅ | ✅ | ❌ 返回 `507`，去个人中心补绑即可 |
+| 解绑过邮箱 | ✅ | ✅ | ✅（角色不回收，只是不能再靠邮箱找回密码） |
 
-- **注册接口不发信**（`UserServiceImpl.register` 只做限速 + 图形验证码）。要是注册就发信，注册接口等于一台免费发信机，被人拿来轰炸别人邮箱。
-- 注册字段：用户名 2~20 位（中文 / 字母 / 数字 / 下划线，`^[\\u4e00-\\u9fa5A-Za-z0-9_]+$`）+ 密码。`username` / `name` 都写用户名（不再是 `kokomi_00001`），`email` 留 NULL，角色插 `guest`。
-- 绑定链路，都要求**已登录**：
-  - `POST /user/verify/send`，body `{email}`（不传就退回用账号上已有的邮箱）→ 发 6 位数字码
-  - `POST /user/verify/confirm`，body `{email, code}` → 通过后 `UserMapper.bindEmail` 一条 UPDATE 同时写 `email` + `email_verified = 1`，再 `promoteIfGuest`
-- **`email` 和 `email_verified` 必须同一条 SQL 写**，否则会出现「有邮箱但仍是游客」的怪状态。
-- 邮箱可用性在发码前就查：`Validator.isEmail` + 长度 ≤50 + `selectByAccount` 查占用，撞了就报「该邮箱已被其他账号绑定」（`user` 表 `UNIQUE` 在 `account` 也可能在 `email`，靠应用层兜）。
-- 拦在 **Service 层**（`PostServiceImpl.createPost` / `updatePost` 仅作者本人 / `CommentServiceImpl.createComment` / `ReportServiceImpl.create`），和禁言是同一层。点赞、转发、浏览不拦。
-- 业务码：`ResultCode.EMAIL_UNVERIFIED = 507`、`VERIFY_CODE_ERROR = 508`。前端 `request.js` 收到 507 时 `dispatchEvent('kokomi:unverified')` → `App.vue` 调 `ui.openVerifyModal()`，`stores/user.js` 同时 `refreshUser()`。用事件而不是直接 import，是为了避免 `request.js ←→ store` 循环依赖。
-- 幂等：已验证的账号再调 send 返回「邮箱已验证，无需重复验证」，再调 confirm 直接成功（拿到旧的验证码也不会报错）。
+- **第 1 步发码** `POST /user/register/email-code`（**免登录**，全站唯一一个公开的发信入口，三层限流都堆在这儿）。邮箱已被注册时**直接报 502「该邮箱已被注册」** —— 注册场景不能像找回密码那样防枚举，不说实话用户会一直试。
+- **第 1 步验码** `POST /user/register/verify-email`，body `{email, code}` → 返回 `{ticket}`。验证码错 508（带剩余次数），邮箱已被注册 502（先查占用再消费验证码，失败不烧码）。
+- **第 2 步建号** `POST /user/register`，body `{ticket, encryptedData}`。邮箱**只从 ticket 里取**，不看请求体 —— 否则能「验 A 的邮箱、注册成 B 的邮箱」。
+- 用户名格式：`^kokomi_[a-z0-9]{8}$`，由 `randomUsername()` 生成，长度 15（`username` 列 varchar(50)）。
+- ⚠️ **昵称（`name`）由用户名派生**，不能直接抄：昵称规则是「≤12 字符、只允许中文/英文/数字/下划线」（`updateProfile` 里校验）。`defaultNickname()` 对 `kokomi_xxx` 取尾 6 位拼成「用户a3f9c2」—— 既合规又好认；老路径（邮箱形式）仍走「取 @ 前段 + 剔特殊字符 + 截 12」。不改的话新用户一进账号页点「保存」就被后端拒掉（"昵称不能包含特殊字符"），而他什么都没改。
+- ⚠️ **只有密码走 RSA**（`RegisterFormDTO.encryptedData` 里是 `{password, confirmPassword}`）。原因：RSA-1024 用 PKCS#1 v1.5 一块最多 117 字节，前端 JSEncrypt 按字节加密，塞多了直接失败；中文还会被截成乱码。登录那套「整个表单塞进 encryptedData」只有两个字段，不受影响。
+- **注册即登录**：`register` 返回 `Result<LoginVO>`（和 login 一样带 token + user）；`stores/user.js` 的 `register` 落地 token，前端不用再输一遍密码。
+- **换绑**（`mode="change"`）：换绑 = 换掉「找回密码」的凭据，所以必须验当前密码。两步走：
+  - `POST /user/email/change/send`，body `{email, encryptedData}`，`encryptedData` 解密后是 `{oldPassword}` → 后端 `BCrypt.checkpw` 通过才给新邮箱发码
+  - `POST /user/email/change/confirm`，body `{email, code}` → 只换 `email`，**角色和验证位都不动**
+  - 不验密码的那版等于「拿到登录态就能把邮箱换成自己的再重置密码」，是账号接管。
+- **解绑**（`mode="unbind"`）：`POST /user/email/unbind`，body `{encryptedData}`（`{oldPassword}`），同样 BCrypt 验密码（错密码 504）。
+  - 一条 UPDATE：`email = null, email_verified = 0`；**角色一个都不动**（`primary_role` 仍是 member，`user_role` 也不删）。
+  - 所以解绑只是「放弃用邮箱找回密码」，发帖 / 评论 / 举报全都不受影响 —— 发言闸门看的是权限码（`PostServiceImpl#checkCanPost`），和 `email_verified` 无关。
+  - 幂等：本来没绑邮箱时直接当成功，连密码都不验（前端连点两下不该报错）。
+  - 解绑后 `selectByVerifiedEmail` 找不到人，所以旧邮箱既不能登录找回，也不会因为「这个邮箱注册过」而拦住别人再注册（`user.email` 已置空）。
+  - 想再绑回来：走普通补绑流程即可（`promoteIfGuest` 只对纯游客生效，member 不动）。
+- 补绑（老账号、没邮箱）仍走 `POST /user/verify/send` + `/verify/confirm`，验过 `promoteIfGuest` 把游客升成 member。
+- **入口只有「个人中心 → 账号管理」一处**（`views/space/Account.vue` 的邮箱行 + `components/modules/EmailBindPanel.vue`，`mode="bind" | "change" | "unbind"`）。全局弹窗 `VerifyEmailModal` 已删除。
+- 邮箱行的样子：`邮箱: xxx@qq.com` + **两个胶囊描边按钮「更换」「解绑」**（`.email-link`：1px `--border-color` 描边 + 13px 圆角，hover 时描边转主题色；解绑是红色 `--danger`，hover 转红描边）。无边框版本看着像纯文字、点不准，已被用户否掉。行内**不放任何说明小字** —— 那行长解释搬到弹窗底部，点按钮时看到比天天挂在页面上有用。
+- `EmailBindPanel` 是**弹窗**（`Teleport to body`，`.bind-overlay` z-index **2000**，同登录弹窗）：标题随动作变（绑定 / 更换 / 解绑邮箱），底部 `.bind-tip` 小字说明对应后果（解绑：**不能再用这个邮箱登录**、也不能再找回密码，会员身份/发帖评论/已发布内容不受影响、之后可重绑；更换：换完旧邮箱不能找回密码）。弹窗顶部 `.bind-panel__desc` 也同步写「解绑后不能再用它登录或找回密码」。⚠️ **点蒙层不关闭**（同登录弹窗，防误触丢输入），只能点右上 × 或「取消」。
+- ⚠️ 弹窗由 `v-if="bindOpen"` 挂载，挂载瞬间 `active` 就是 `true`，`watch(active)` 永远等不到变化 → 聚焦/自动发码必须同时写在 `onMounted` 里（`applyOpen()` 两处共用）。
+- 发布框提示卡、评论区/回复框的「去绑定」都调 `utils/bindEmail.js` 的 `goBindEmail()` → 跳 `/space/account?bind=1`；已在账号页时改发 `kokomi:open-bind` 事件。
+- **507 不再直接弹窗**：`request.js` 广播 `kokomi:unverified`，`App.vue` 收到后调 `askBindEmail()` 先弹站内确认框。为什么不直接跳 —— 507 多半发生在「写完评论点发布」的瞬间，换页会把内容一起丢掉。
+- 邮箱可用性在发码前查：`Validator.isEmail` + 长度 ≤50 + 查占用。文案分场景：**注册**说「该邮箱已被注册」（要不要换账号由他决定），**绑定/换绑**说「该邮箱已被其他账号绑定」。`user.email` 有 UNIQUE 索引（脚本 `springboot/sql_user_email_unique.sql`，幂等）。
+- 拦在 **Service 层**（`createPost` / `updatePost` 仅作者本人 / `createComment`），和禁言同层。点赞、转发、浏览不拦。
+- 业务码：`EMAIL_UNVERIFIED = 507`、`VERIFY_CODE_ERROR = 508`、`REGISTER_ERROR = 502`、`CAPTCHA_ERROR = 505`、`UPDATE_PASSWORD_ERROR = 504`（换绑 / 解绑时密码不对）。
+- ⚠️ **验码仍要放在其它校验之后**（`/user/register/verify-email` 先查邮箱占用、再验码），虽然现在用的是「只验不消费」的 `EmailCodeCache.verify`，但「邮箱已被注册」这种话应该先说清楚，不该让用户输完码才知道；注册第 2 步不再碰验证码，所以「密码两次不一致 / 太短」失败一次也不会让用户重收邮件 —— 这正是 ticket 存在的理由。
+- ⚠️ `verify` 命中的同时会把试错计数清零（`fails = 0`），否则前面输错几次后，每次正常验证都顶着「还剩 1 次」，迟早被莫名作废。
+- 后台「激活」兜底（`POST /admin/user/{id}/verify`）**只在 `email` 非空时可用**，没邮箱的账号不给这个按钮 —— 否则又是那个死状态。
+- 幂等：已验证的账号再调 send 返回「这个账号已经绑过邮箱了，要更换请用「换绑」」。
 
 **限流的三层**
 
 | 层 | 实现 | 规则 |
 |---|---|---|
-| 注册（IP） | `util/RegisterRateLimit` | 同 IP 20 个/小时，全站 100 个/小时 |
+| 注册（IP） | `util/RegisterRateLimit` | 同 IP 20 个/小时，全站 100 个/小时（可用 `app.register.rate-limit-per-ip` 覆盖，本地联调调大） |
 | 发码（邮箱） | `util/EmailCodeCache.issue` | 同邮箱 60 秒重发间隔，5 封/小时 |
-| 发码（全站） | `EmailCodeCache` | 8 封/分钟、60 封/小时 |
+| 发码（全站） | `EmailCodeCache` | 20 封/分钟、120 封/小时（配额最后扣，见下条） |
 
 - ⚠️ **全站配额必须在「其它检查都通过之后」才扣**。放在频控之前的话，狂点「重发」会把正常用户的名额吃光，等于自己 DoS 自己。
-- 验证码本身：6 位数字，10 分钟有效，同码最多错 5 次即作废，重新获取会覆盖旧码。
+- 验证码本身：6 位数字，10 分钟有效（从**发信那一刻**起算，不是收到邮件那一刻），同码最多错 5 次即作废。
+- **重发即废旧码**（2026-10-27 用户定的规则）：只有「最近一次发送」的码能通过，之前几封邮件里的码立刻作废。原因是让码和邮件一一对应 —— 用户点了重发就该用最新那封，在两个码之间来回猜只会更乱。
+  - 但输旧码**不报「验证码不正确」**：`EmailCodeCache` 还给最近 `MAX_RETIRED=2` 个旧码留着做识别，命中就返回 `CheckResult.SUPERSEDED` → 文案「验证码已更新，请使用最新收到的那封邮件里的验证码」，而且**不计入试错次数**（他不是在猜，是拿了上一封邮件）。前端在重发成功后会把验证码输入框清空，正常路径下碰不到这句。
+  - 同一封邮件里的码在有效期内仍然可以**反复验证**（`verify` 只验不消费），这两条不冲突：不重发就一直有效，一重发旧的立刻作废。
 - `EmailCodeCache` 是静态 `ConcurrentHashMap`（仿 `CaptchaCache`），**重启即全部失效 / 限流清零**。单机部署够用，要上多实例得换 Redis。
 - 取 IP 走 `util/IpUtils`，优先 `X-Forwarded-For`（线上走 nginx 反代，`getRemoteAddr()` 只会拿到 127.0.0.1，限速会变成全站共用）。
 
-**发信**
-- `spring-boot-starter-mail` + `service/MailServiceImpl`，默认 `smtp.qq.com:465` + SSL。**QQ 邮箱的 `password` 是授权码不是登录密码**，在 QQ 邮箱设置 → 账户里开 SMTP 后生成。
-- `helper.setFrom(new InternetAddress(username, fromName, "UTF-8"))` —— QQ 强制 From 必须等于登录账号，否则 501。
+**两个内存缓存会不会满（`MAX_SIZE = 5000`）**
+
+结论：**正常运营填不满，差两个数量级**。算一遍就知道：
+
+| 缓存 | 一条记录代表 | 存活多久 | 稳态条数 |
+|---|---|---|---|
+| `EmailCodeCache` | 一个发过码的邮箱 | 码过期（10 分钟）即被 `cleanExpired` 回收 | ≈ 最近 10 分钟发码的邮箱数 ≤ 20~40 |
+| `RegisterTicketCache` | 一个验过邮箱的**人** | 30 分钟 | ≈ 30 分钟内验过邮箱的人数 ≤ 60 |
+
+两个都受「全站 120 封/小时」的发码配额约束 —— 没有新码，就没有新记录。5000 是 100 倍余量。
+
+- `EmailCodeCache` 满了会**拒绝所有发码**（包括老用户点重发），返回「请求人数较多，请稍后再试」+ `retryAfter=30` 让前端倒计时。所以「满了」的表现是全站注册停摆，不是部分失败 —— 真遇到要立刻查是不是配额被调大了。
+- ⚠️ **`RegisterTicketCache` 同一邮箱只保留一张票**（`TICKET_OF_EMAIL` 反查索引）。必须这样：第一步的码是「只验不消费」，同一个码能无限次换票，没有这个索引的话一个人刷 `/user/register/verify-email` 就能把票缓存灌到 OOM（每条约 100 字节，30 分钟有效期，几百万条几百 MB）。现在无论验多少次都是同一张票，缓存条数 ≈ 人**数**而不是请求**数**。回归：`python tools/check-ticket-dedup.py`（连验 40 次 → 只 1 张票）。
+- 票缓存满且清完过期项仍满时，`issue()` 返回 `null`，上层回 502「当前注册人数较多，请稍后再试」—— **宁可拒绝，也不无界增长**。
+- 两个缓存的清理都是**惰性**的：`EmailCodeCache` 在每次 `issue` 时扫一遍，`RegisterTicketCache` 只在过期校验或撞上限时扫。没有定时任务，重启即空。
+
+**发信（阿里云邮件推送 DirectMail）**
+- `spring-boot-starter-mail` + `service/MailServiceImpl`，通道 `smtpdm.aliyun.com:465` + SSL（`MAIL_HOST` / `MAIL_PORT` / `MAIL_SSL` 可覆盖）。
+- **阿里云没有「Java SDK」这回事**：官方那篇《SMTP 之 Java 调用示例》给的就是标准 JavaMail（`Session` + `Transport.send`）。所以不要按文档引 `com.sun.mail:javax.mail:1.6.2` —— 那是 `javax.mail` 包名，Spring Boot 4 用的是 `jakarta.mail`，引进来只会冲突。现有 `JavaMailSender` 就是同一套协议。
+- 阿里云比 QQ 多两条硬要求，已在代码里处理：
+  - **信封发件人（MAIL FROM）必须等于控制台创建的发信地址** → 配置 `mail.smtp.from`，缺省跟随 `spring.mail.username`（要单独指定就设 `MAIL_FROM`）。
+  - **Message-ID 要用自家发信域**：JavaMail 默认是 `<uuid.JavaMail.user@hostname>`，ECS 的 hostname 是 `iZbp1xxxZ` 这种没有点的机器名，QQ/163 容易判垃圾 → `MailServiceImpl.DomainMimeMessage` 覆盖 `updateMessageID()` 生成 `<uuid@发信域>`。⚠️ 必须在 `saveChanges()` 之前由子类覆盖，**事后 `message.setHeader("Message-ID", ...)` 会被父类盖掉**。
+- 控制台三步缺一不可（少一步就是 535/554）：① 发信域名 + DNS 验证（SPF/MX/DKIM）；② 该域名下建发信地址；③ 给发信地址设 **SMTP 密码**（不是登录密码、也不是 AccessKey）。`MAIL_USERNAME` 填发信地址本身。
+- ⚠️ **阿里云 ECS 出方向 25 端口默认封禁**，别用 25；465(SSL) 最稳，80(明文) 需把 `MAIL_SSL=false`。
+- `helper.setFrom(new InternetAddress(username, fromName, "UTF-8"))` —— 昵称随便写，但地址必须是那个发信地址。
 - 三个超时都要设（`connectiontimeout/timeout/writetimeout` = 6/8/8 秒），否则 SMTP 挂住会把整个请求线程拖死。
-- `app.mail.dev-echo=true` 时接口把明文验证码放在响应 `devCode` 里，前端弹窗也直接显示 —— **只给本地用，prod 不要配这个键**。SMTP 没配又没开 dev-echo 时验证码只打日志。
-- 兜底：`POST /admin/user/{id}/verify`（`user:manage`），用户管理页每行的「激活」按钮。SMTP 挂了、用户邮箱收不到，都靠它。
+- `app.mail.dev-echo=true` 时接口把明文验证码放在响应 `devCode` 里，前端也直接显示 —— **只给本地用，prod 不要配这个键**。SMTP 没配又没开 dev-echo 时验证码只打日志。
+- `app.captcha.dev-echo=true` 时 `/captcha` 多返回一个 `captchaCode`（明文），脚本才能自动跑通登录。⚠️ 注册已经不用图形验证码了，这个开关现在只服务登录与历史脚本；开着等于图形验证码形同虚设，**只允许出现在本地配置里**。
+- 兜底：`POST /admin/user/{id}/verify`（`user:manage`），用户管理页每行的「激活」按钮。SMTP 挂了、用户邮箱收不到，都靠它（但账号必须有邮箱）。
 
 ### 5.8 等级制：游客 / 普通用户 / 会员
 
@@ -240,6 +328,22 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 - **`SILENT_ROLES` 只静默 `member`**：普通用户占绝大多数，每帖挂个「普通用户」是噪音；游客要显示，「还没验证」是需要让看帖人知道的状态（而且游客现在发不了帖，只有历史帖会出现）。
 - 后台「外观」弹窗的预览也走同一套（`roleBlockColor` 传 `styleTarget.primaryRole`），清空标签底色时预览显示角色默认色，不是名字色。
 
+### 5.10 找回密码（邮箱验证码，免登录）
+
+入口在**登录弹窗的脚注**（「还没有账号? 立即注册 · 忘记密码」）和**个人中心的修改密码页**（「忘记密码? 用绑定邮箱重置」，`uiStore.openLoginModal('forgot')` 直接落在那一屏）。
+
+| 接口 | 授权 | 说明 |
+|---|---|---|
+| `POST /user/password/forgot/send` | 免登录 | body `{email}`，给**已验证的邮箱**发重置码 |
+| `POST /user/password/forgot/reset` | 免登录 | body `{email, code, encryptedData}`，`encryptedData` 解密后是 `{newPassword, confirmPassword}`（和 `/user/password` 同一套 RSA） |
+
+- 两个路径都要进 `auth.excludePaths`（`/user/password/forgot/**`）和前端 `setting.routesWhiteList` —— 登录不了才来这儿，带上过期 token 反而更乱。
+- **防枚举**：不管邮箱有没有注册、验没验证，`send` 都返回同一句「如果该邮箱绑定过账号，重置验证码已经发出」。没匹配到账号时**照样占一次发码配额**，否则「有邮箱才有限流」本身就是可探测的信号。
+- **顺序很重要**：`resetPassword` 里先解密码、校验长度/一致性，**再** `EmailCodeCache.check`。反过来的话「两次密码不一致」这种纯前端问题也会把验证码烧掉，用户得重发一封邮件（第一版就是这么写的，测试当场抓到）。
+- 成功后 `updatePasswordAndVersion` → 密码换新哈希 + `token_version + 1`（其它设备立即掉线）+ `UserTokenVersionCache.removeVersion`。找回密码的典型场景就是「号被别人登着」，不踢下线等于没找回。
+- 邮件标题/正文和绑定邮箱分开（`MailService.sendResetCode`）：用户同时收到两封时靠标题才知道该填哪个码。
+- ⚠️ **换绑后旧邮箱不能再找回密码**：`selectByVerifiedEmail` 带 `email_verified = 1` 条件且按当前 `email` 匹配，换完旧邮箱就不属于任何账号了（对它发码仍走防枚举文案，不暴露这层关系）。
+
 ## 6. 已知的坑（都是真踩过的）
 
 **构建 / 部署**
@@ -271,6 +375,12 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 - ⚠️ **507 和 509 的区别别搞反**：507 = 还是游客（连评论都没有），绑个邮箱就什么都有了，用户可以自己解决；509 = 能评论但不能发帖（后台造的只读角色），用户自己解决不了，只能找站长。给 509 配个「立即升级」按钮会让人白点。
 - `promoteIfGuest` 必须判「**全部**角色都是 guest 才升」，不能判「有 guest 角色就升」—— 后者会让被管理员降档的人绑一次邮箱就爬回来。
 - 前端等级判定不要各页面自己拼 `userStore.user.permissions.includes(...)`，走 `stores/user.js` 的 `canPost / canComment / needsBindEmail`，否则改规则要全仓搜。
+- ⚠️ **验证码「验完不消费」**（`EmailCodeCache.verify`）：同一封邮件里的码在 10 分钟内可以反复验证，注册第一步 / 找回密码 / 绑邮箱 / 换绑都用它，动作真正成功后才 `clear(email)`。所以「验证码之后还有别的校验」的流程（找回密码要先校验新密码）依然要把验码放在**最后**——不是怕烧掉码，而是「密码不合法」这种话应该先说，别让用户以为码有问题。一次性语义的 `check` 还在（命中即删除整条记录），只是注册链路不用它。
+  回归脚本：`python tools/check-code-reuse.py`（11 项：同码连验 6 次、错码后仍可续验、错 5 次作废的防爆破边界）。
+- ⚠️ **邮箱绑定不再是弹窗**：`VerifyEmailModal.vue` 已删，`uiStore` 里也没有 `verifyModalOpen/openVerifyModal/closeVerifyModal` 了。新增入口一律走 `utils/bindEmail.js` 的 `goBindEmail()` / `askBindEmail()`，别再手写 `router.push('/space/account')`（少带 `?bind=1` 面板不会展开）。
+- `space/Index.vue` 现在也挂了 `<LoginModal />`：之前未登录进 `/space/**` 点「立即登录」没反应（弹窗只挂在首页和详情页）。
+- ⚠️ **登录/注册弹窗点蒙层不关闭**（`LoginModal.vue` 的 `.modal-overlay` 上没有 `@click.self`，只有右上角 × 能关）。原因是误触代价太高：注册第二步握着一张 30 分钟的 ticket、登录框里可能已经填了半屏内容，鼠标一抖点漏就全丢。**新加弹窗别顺手加 `@click.self`**；如果确实要「点外面关」，先想清楚里面的未保存内容。
+  回归脚本：`node tools/check-modal-outside.js`（不需要后端，只需 5194 预览）。
 
 **数据库**
 - ⚠️ **`UserMapper.insert` 只写了 `(password, email, phone)`**（老版本留下的），注册时 `user.setPrimaryRole("guest")` / `setNameColor(...)` 设了也白设 —— Service 层的值根本没进 SQL。后果：新注册账号的 `user.primary_role` 落成 DDL 默认的 `'member'`，而 `user_role` 里挂的是 `guest`。**权限是对的（确实发不了帖），但个人中心显示「普通用户」**，用户看到「我是普通用户却不能发帖」，极难解释。
@@ -290,10 +400,12 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
   - 排查一条命令：`SHOW COLUMNS FROM \`user\` LIKE 'email_verified';` 空结果 = 没跑脚本。补跑后 **DDL 立即生效，不用重启 jar**（和权限矩阵不同，那个有内存缓存）。
   - 教训：**新增列后，任何写死列名的 `@Select` 都会变成一个「只在那一页炸」的 500**，而 `select *` 的接口看起来一切正常 —— 别用「其它页面正常」推断「SQL 跑过了」。
 
-**邮件 / SMTP**
-- QQ 邮箱 `MAIL_PASSWORD` 填的是**授权码**，不是登录密码；`From` 必须等于登录账号，否则 501。
+**邮件 / SMTP（阿里云 DirectMail）**
+- `MAIL_USERNAME` = 控制台里的**发信地址**（`noreply@mail.xxx.com`），不是阿里云账号；`MAIL_PASSWORD` = 该发信地址的 **SMTP 密码**（不是登录密码、不是 AccessKey）。
+- 报错对照：**535** = 账号/SMTP 密码错（或发信地址没创建）；**553/554** = 发信域名没验证 / From 与发信地址不一致 / 触发频率限制。
+- 端口只能 465(SSL) 或 80：**阿里云 ECS 出方向 25 默认封禁**，用 25 会连接超时。
 - 三个超时（connect / read / write）都要设，SMTP 卡住会把 Tomcat 线程一起拖死。
-- 发信失败统一包成 `CustomerException(SERVER_ERROR, "验证码发送失败，请稍后重试")`，别把 `MailException` 原文透给用户（里面带账号信息）。
+- 发信失败统一包成 `CustomerException(SERVER_ERROR, "验证码发送失败，请稍后重试")`，别把 `MailException` 原文透给用户（里面带账号信息）；排查看日志里那四条 hint。
 - 本地调试不发真信：`MAIL_DEV_ECHO=true`（或 `app.mail.dev-echo: true`），验证码从响应里拿。**这个开关绝不能出现在 prod 配置里**。
 
 **前端交互**
@@ -301,6 +413,7 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 - URL 是搜索/分页的唯一数据源，筛选条件必须同步进 query。
 - 控制台被 esbuild `pure:['console.log']` 干掉了，要上线也打印就走 `utils/logger.js` 的 `log()`。
 - ⚠️ 空间页的宽度是**写死的 `--content-with: 700px`**（`.home` 上定义），`.publishing` / `.user-posts` / `.muted-notice` 都用它。新增同类块时**必须同时加进文末 `@media (max-width: 768px)` 的 `width: 100%` 名单**，否则手机上横向溢出 700px（一半内容在屏幕外）。`.muted-notice` 就漏过一次（禁言提示卡，存在了很久没被发现）。
+- ⚠️ 空间页头部（`.user-info`）里**昵称必须可收缩可断行**：昵称是用户自定义的，`中文`没断行点、`vfy_guest_9107722065` 这种带下划线的串浏览器也不断，只写 `min-width: 0` 不够 —— 要给 `.user-name` 加 `flex: 1 1 auto`，给昵称那个 `span` 加 `overflow-wrap: anywhere`，并给 `.user-role` 加 `flex: none; white-space: nowrap`。否则窄屏下角色标签被直接顶出视口（390 宽时 `scrollWidth` 变成 434，出现横向滚动条）。这一条是被 `test-verify-email-ui.js` 的「页面没有横向溢出」抓出来的。
 
 **测试（CDP 移动端模拟）**
 - ⚠️ `Emulation.setDeviceMetricsOverride({ width: 390, mobile: true })` 下，Chrome 会按内容做 shrink-to-fit：`window.innerWidth` 报的是**内容宽度**（本页溢出时是 712），真正可见的只有 390，`visualViewport.width` 也是 390，`documentElement.clientWidth` 是 390。
@@ -330,13 +443,20 @@ systemctl status kokomi
 
 - ⚠️ **顺序绝不能反**：先换 jar 再跑 SQL，中间那段时间后端按旧矩阵判权限（旧库里 `guest` 角色还不存在、`comment:create` 也没有），用户会看到「能发帖」但点发送报错。存量账号本身**零影响**（见 5.8 最后一条），不用额外升档。
 
+> 「注册两步 + 邮箱可解绑」（5.7）这一版要换 jar + 前端包，外加**一条幂等 SQL**：
+> - jar 里带 `auth.excludePaths` 的新白名单（`/user/register/email-code`、`/user/register/verify-email`、`/user/password/forgot/**`），**不用动服务器上的配置文件**；
+> - `springboot/sql_user_email_unique.sql`：给 `user.email` 加 UNIQUE 索引（脚本先查重，有重复会停下列出来）。加了之后「两个人抢同一个邮箱」在数据库层也拦得住，应用层早一步报错，双保险；
+> - ⚠️ 线上**不要**设 `app.mail.dev-echo` / `app.captcha.dev-echo` / `app.register.rate-limit-per-ip`（这三个键 prod 里根本不该出现：前两个等于把验证码明文发出去，最后一个等于取消注册限速）；
+> - 找回密码要真能收信，线上必须配 `MAIL_USERNAME` / `MAIL_PASSWORD`（同 5.7 的发信部分），没配时用户点了也「看起来发了」，实际只在日志里 —— **现在注册也强依赖发信**，没配 SMTP 新用户根本注册不了。
+
 - 环境变量在 `/etc/systemd/system/kokomi.service.d/override.conf`（`Environment="DB_PASSWORD=..."`，systemd 里 `$` 要写 `$$`）。
-- **发信必须配的四个变量**（不配就没人能验证邮箱，等于全站禁言）：
+- **发信必须配的变量**（不配就没人能验证邮箱，等于新用户注册不了、也找不回密码）：
   ```
-  Environment="MAIL_USERNAME=xxxx@qq.com"
-  Environment="MAIL_PASSWORD=<QQ 邮箱授权码，不是登录密码>"
-  Environment="MAIL_HOST=smtp.qq.com"      # 默认就是它，可不写
-  Environment="MAIL_PORT=465"              # 默认就是它，可不写
+  Environment="MAIL_USERNAME=noreply@mail.example.com"   # 阿里云控制台里的「发信地址」
+  Environment="MAIL_PASSWORD=<该发信地址的 SMTP 密码，不是登录密码也不是 AccessKey>"
+  Environment="MAIL_HOST=smtpdm.aliyun.com"             # 默认就是它，可不写
+  Environment="MAIL_PORT=465"                            # 默认就是它，可不写（ECS 别用 25，被封锁）
+  Environment="MAIL_SSL=true"                            # 465 时必须 true；用 80 明文才设 false
   ```
   改完 `systemctl daemon-reload` 再 `restart`。
 - 上线后先自查一遍：随便登一个账号点「发送验证码」，看 `journalctl -u kokomi -n 50` 有没有 SMTP 报错。发不出去时用管理端「激活」按钮临时放行。
@@ -352,13 +472,24 @@ systemctl status kokomi
 PREVIEW_ROOT=vue/dist UPSTREAM=http://127.0.0.1:18080 PORT=5194 node tools/preview.js
 
 # 接口测试（临时数据，跑完自动清理）
+cd tools && python test-email-center-api.py   # 补绑 / 换绑 / 解绑（都验密码）/ 找回密码：57 项（RSA + 防枚举 + 旧 token 失效）
+cd tools && python test-register-email-api.py  # 两步注册：发码 / 换 ticket / ticket 重试与作废 / 注册即登录 / 用户名自动生成 kokomi_xxxxxxxx / 昵称派生 / 重发即废旧码：40 项（含 61 秒冷却等待）
+cd tools && python check-code-ttl.py           # 验证码实际有效多久：1 分 / 9 分仍可用、10 分 40 秒已失效（跑一次 11 分钟）
+cd tools && python check-resend-invalidates-old.py  # 重发后旧码立刻失效 + 文案是「已更新」+ 旧码不计试错（约 75 秒）
+cd tools && python check-code-reuse.py         # 验过不注册、回头再输同一个码：连验 6 次都通过 + 错 5 次作废的边界：11 项（秒级）
+cd tools && python check-ticket-dedup.py       # 同一个码连验 40 次只产生 1 张票（票缓存不会被刷爆）：3 项（秒级）
+cd tools && python check-register-bypass.py    # 安全向：不带/伪造/复用 ticket、body 塞别人邮箱、已注册邮箱再发码：16 项
 cd tools && python test-tier-permission-api.py   # 等级制主测试：三档 × 发帖/评论/举报 + 绑邮箱升级 + 管理员改档
 cd tools && python test-report-api.py
 cd tools && python test-ban-level-api.py
 cd tools && python test-verify-email-api.py   # 绑定链路本身：发码频控 / 错码 508 / 幂等 / 管理端激活
 
 # 界面测试（headless Chrome + CDP，真点真截图，截图落 shots/）
-node tools/test-verify-email-ui.js  # 游客→绑邮箱→普通用户→会员全流程 / 暗色 / 手机 390 / 后台激活
+node tools/test-email-center-ui.js  # 忘记密码全流程 / 账号页邮箱行（暗色 + 390 宽）/ 修改密码页入口
+node tools/test-email-modal-ui.js # 账号页「更换 / 解绑」：1px 描边胶囊按钮、无行内小字、弹窗标题与底部后果小字（含「不能再用邮箱登录」）、点蒙层不关闭、390 宽不溢出：19 项
+node tools/shot-space-userinfo.js # 空间页用户信息栏：不显示 @用户名、角色标签紧跟昵称、长昵称不溢出（出 2 张截图）：8 项
+node tools/test-register-email-ui.js  # 两步注册（第 1 步只验邮箱）→ 自动登录 → 账号页解绑（验密码）/ 390 宽：29 项
+node tools/test-verify-email-ui.js  # 两步注册首屏 / 游客补绑→普通用户→解绑→会员 / 暗色 / 手机 390 / 后台激活：75 项
 node tools/test-report-ui.js
 node tools/test-ban-ui.js
 node tools/test-ui-polish.js     # 后台确认框 / 下拉框风格 / 移动端禁言提示卡
@@ -371,6 +502,9 @@ node tools/test-role-tag-color.js # 身份牌配色：游客深灰 / 普通用�
 - `tools/_local.py` 是凭据读取工具（**不含明文，已入库**）：优先读环境变量 `DB_PASSWORD` / `JWT_SECRET`，否则读 `springboot/kokomi/config/application-local.yaml`。所以只要 §3.1 那个文件在，测试脚本就能跑。
 - `tools/refresh_tokens.py` 重新签发 `shots/tmp/tokens.json`。`exp` 会过期、封号会让 `token_version + 1`，UI 测试 401 时先跑它，别急着怀疑代码。
 - ⚠️ **看输出用 `tail`，别用 `| head`** —— SIGPIPE 会杀掉 node 进程，测试跑一半留下脏状态（比如「成员还在禁言」）。
+- ⚠️ **`--window-size` 在 `--headless=new` 下不一定生效**：视口一旦 <768px，`TopNavbar` 整块 `display:none`，`.login-button` 的 rect 是 0×0，点击落在 (0,0) 的移动端导航上 —— 表现为「点了没反应」，很容易误判成弹窗坏了。CDP 脚本连上后先 `Emulation.setDeviceMetricsOverride({width:1200,height:1000,mobile:false})`。
+- ⚠️ **`nav()` 不能只等 `document.readyState === 'complete'`**：`about:blank` 一开始就是 complete，会立刻返回，后面读 `localStorage` 直接 `SecurityError`。要等 `location.origin` 真的换成目标站点。
+- 每个 UI 测试用**独立的 `--user-data-dir`**（带上 `process.pid`）：固定目录时上一轮残留的 Edge 进程会占着它，新进程直接退出，CDP 连上的是上一次那个空白页。
 - 界面测试轮询等 DOM，不要固定 `sleep`（首页横幅首屏 3.5s）。
 
 ## 9. 换台电脑怎么继续
@@ -385,10 +519,9 @@ node tools/test-role-tag-color.js # 身份牌配色：游客深灰 / 普通用�
 ## 10. 待办（按优先级）
 
 1. nginx 给 `/index.html` 加 `no-cache`（一劳永逸解决换包强刷）
-2. 「忘记密码」—— 邮箱绑定已经铺好发信链路，就差重置令牌表 + 两个接口
-3. 后台「用户管理」只能一格一格点角色，缺批量操作（用户多了会很难受）
-4. 存量幽灵账号清理（目前只防新增，没做删除）
-5. 评论区渲染身份标签（后端 `CommentAuthorVO` 已返 `roleColor`，前端没用）
-6. 收藏 / 草稿箱（表结构都还没有）
-7. 拉黑（`user:block` 权限码是空壳，缺黑名单表和 handler）
-8. 私信（要会话表 + 未读计数，轮询或 WebSocket）
+2. 后台「用户管理」只能一格一格点角色，缺批量操作（用户多了会很难受）
+3. 存量幽灵账号清理（目前只防新增，没做删除）
+4. 评论区渲染身份标签（后端 `CommentAuthorVO` 已返 `roleColor`，前端没用）
+5. 收藏 / 草稿箱（表结构都还没有）
+6. 拉黑（`user:block` 权限码是空壳，缺黑名单表和 handler）
+7. 私信（要会话表 + 未读计数，轮询或 WebSocket）

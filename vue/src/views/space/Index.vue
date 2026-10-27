@@ -36,6 +36,12 @@
         <RouterView />
       </main>
     </div>
+
+    <!--
+      个人中心也要挂登录弹窗：未登录进到 /space/home 时那个「立即登录」按钮
+      以前点了没反应（弹窗只挂在首页和详情页）。
+    -->
+    <LoginModal />
   </div>
 </template>
 
@@ -46,6 +52,7 @@ import IconUser from "@/components/icons/IconUser.vue";
 import IconMessage from "@/components/icons/IconMessage.vue";
 import router from "@/router";
 import IconLock from "@/components/icons/IconLock.vue";
+import LoginModal from "@/components/modules/LoginModal.vue";
 import { useNotificationStore } from "@/stores/notification";
 
 const notifyStore = useNotificationStore();

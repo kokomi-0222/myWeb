@@ -29,27 +29,45 @@ export async function login(data, captchaKey, captchaCode) {
   })
 }
 
-export async function register(data, captchaKey, captchaCode) {
-  if (setting.loginRSA) {
-    data = await encryptedData(data)
-    return request({
-      url: '/user/register',
-      method: 'post',
-      data: {
-        encryptedData: data,
-        captchaKey: captchaKey || '',
-        captchaCode: captchaCode || '',
-      },
-    })
+/**
+ * 注册第二步：用户名 + 密码，凭 ticket 建号。
+ *
+ * ⚠️ 只把**密码**塞进 RSA：用户名默认就是邮箱地址（最长 50 字符），
+ * 整包塞进去必然超过 RSA-1024 单块 117 字节的上限 —— JSEncrypt 会直接
+ * encrypt 失败，用户只看到「密码加密失败，请刷新页面后重试」。
+ * 而且它是按字节加密的，中文用户名 charCode>255 会被截成乱码。
+ * 用户名走明文（HTTPS 已经兜住），只加密密码两项（~90 字节，安全）。
+ *
+ * @param {{ticket:string, password:string, confirmPassword:string}} data
+ */
+export async function register(data) {
+  const secret = {
+    password: data.password,
+    confirmPassword: data.confirmPassword,
   }
+  const encrypted = setting.loginRSA
+    ? await encryptedData(secret)
+    : JSON.stringify(secret)
   return request({
     url: '/user/register',
     method: 'post',
     data: {
-      encryptedData: JSON.stringify(data),
-      captchaKey: captchaKey || '',
-      captchaCode: captchaCode || '',
+      ticket: data.ticket,
+      encryptedData: encrypted,
     },
+  })
+}
+
+/**
+ * 注册第一步：校验邮箱验证码 → 换一张 ticket（10 分钟有效）。
+ * 这一步过后才算「邮箱是本人的」，第二步建号凭 ticket，不再带验证码。
+ * @returns {Promise<{data:{ticket:string}}>}
+ */
+export function verifyRegisterEmail(email, code) {
+  return request({
+    url: '/user/register/verify-email',
+    method: 'post',
+    data: { email, code },
   })
 }
 
@@ -83,6 +101,83 @@ export function logout() {
   return request({
     url: '/user/logout',
     method: 'post',
+  })
+}
+
+/**
+ * 换绑邮箱第一步：验当前密码 → 给新邮箱发验证码。
+ * 密码和「修改密码」一样走 RSA（解出来是 {oldPassword}）；
+ * 后端会先 BCrypt 校验密码，不对就直接拒。
+ * @param {string} email 要换绑到的新邮箱
+ * @param {string} encryptedData RSA 加密后的 {oldPassword}
+ */
+export function sendChangeEmailCode(email, encryptedData) {
+  return request({
+    url: '/user/email/change/send',
+    method: 'post',
+    data: { email, encryptedData },
+  })
+}
+
+/** 换绑邮箱第二步：新邮箱 + 验证码。角色不动，只换联系方式 */
+export function confirmChangeEmail(email, code) {
+  return request({
+    url: '/user/email/change/confirm',
+    method: 'post',
+    data: { email, code },
+  })
+}
+
+/**
+ * 解绑邮箱：清空邮箱 + 验证位归零，**角色不动**（发帖评论照旧）。
+ * 必须带当前密码（RSA 加密的 {oldPassword}）—— 它能改写「忘记密码」的凭据，
+ * 不验密码的话，拿到登录态的人就能解绑再绑自己的邮箱接管账号。
+ * @param {string} encryptedData RSA 加密后的 {oldPassword}
+ */
+export function unbindEmail(encryptedData) {
+  return request({
+    url: '/user/email/unbind',
+    method: 'post',
+    data: { encryptedData },
+  })
+}
+
+/**
+ * 注册前给邮箱发验证码（**免登录**）。
+ * 和「找回密码」不同，邮箱被占用时这里会直接报错 —— 注册场景瞒着用户没意义。
+ */
+export function sendRegisterCode(email) {
+  return request({
+    url: '/user/register/email-code',
+    method: 'post',
+    data: { email },
+  })
+}
+
+/** 找回密码第一步：给已绑定的邮箱发验证码（免登录） */
+export function sendResetCode(email) {
+  return request({
+    url: '/user/password/forgot/send',
+    method: 'post',
+    data: { email },
+  })
+}
+
+/**
+ * 找回密码第二步：验证码 + 新密码（免登录）。
+ * 密码和 /user/password 一样走 RSA，后端解出来还是 {newPassword, confirmPassword}。
+ * @param {string} email
+ * @param {string} code
+ * @param {{newPassword:string, confirmPassword:string}} data
+ */
+export async function resetPassword(email, code, data) {
+  const encrypted = setting.loginRSA
+    ? await encryptedData(data)
+    : JSON.stringify(data)
+  return request({
+    url: '/user/password/forgot/reset',
+    method: 'post',
+    data: { email, code, encryptedData: encrypted },
   })
 }
 

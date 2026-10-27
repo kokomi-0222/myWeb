@@ -27,9 +27,9 @@
           <div
             v-else-if="!userStore.canComment"
             class="comment-muted-tip comment-muted-tip--verify"
-            @click="ui.openVerifyModal()"
+            @click="goBindEmail()"
           >
-            绑定邮箱后就能评论了，点这里去绑定
+            绑定邮箱后就能评论了，点这里去个人中心绑定
           </div>
           <InputTextarea v-else v-model="commentContent" placeholder="天青色等烟雨，而我在等你..." @submit="handleCommentSubmit" :max-image-count="1" />
         </div>
@@ -191,9 +191,9 @@
                 <div
                   v-else-if="!userStore.canComment"
                   class="comment-muted-tip comment-muted-tip--verify"
-                  @click="ui.openVerifyModal()"
+                  @click="goBindEmail()"
                 >
-                  绑定邮箱后就能回复了，点这里去绑定
+                  绑定邮箱后就能回复了，点这里去个人中心绑定
                 </div>
                 <InputTextarea  v-else v-model="replyInputs[comment.id]" :placeholder="replyTargets[comment.id]
                 ? `回复 @${replyTargets[comment.id]}`
@@ -228,6 +228,7 @@
 import { ref, onMounted, onUnmounted, computed, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { useUIStore } from "@/stores/ui";
+import { goBindEmail } from "@/utils/bindEmail";
 import { useUserStore } from "@/stores/user";
 import { useReportStore } from "@/stores/report";
 import { formatRelativeTime, formatAbsoluteTime } from "@/utils/time";

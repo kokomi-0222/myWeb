@@ -2,6 +2,40 @@
 
 > 线上现在跑的版本**没有**这两套东西：注册还是老逻辑、`user` 表没有 `email_verified` 列、
 > 发帖只要求登录。照这份清单从上到下做一遍就上线了，顺序不要打乱。
+>
+> **后续增量 1（同一份 jar / 前端包已包含，不需要额外 SQL）**：
+> 邮箱绑定从弹窗搬进「个人中心 → 账号管理」、绑过的邮箱可以找回密码。
+> 白名单 `/user/password/forgot/**` 写在 jar 的 `application.yaml` 里，不用改服务器配置。
+>
+> **后续增量 3 —— 注册改两步 + 邮箱可解绑**：
+> 注册拆成「①邮箱+验证码 → 换 ticket」「②用户名（默认用邮箱）+ 密码 → 建号」，
+> **不再要图形验证码**；`POST /user/register` 的 body 从 `{account,email,emailCode,...}`
+> 变成 `{ticket, account, encryptedData}`，另加免登录的 `POST /user/register/verify-email`。
+> 邮箱恢复**解绑**（`POST /user/email/unbind`，必须验当前密码，角色不回收）。
+> **不需要新 SQL**，只换 jar + 前端包；白名单新增 `/user/register/verify-email`（写在 jar 的 `application.yaml`）。
+> ⚠️ 前后端必须一起上：旧前端带 `email/emailCode` 调新后端会一直报「请先验证邮箱」，反之亦然。
+> ⚠️ 线上不要出现 `app.mail.dev-echo` / `app.captcha.dev-echo` / `app.register.rate-limit-per-ip`
+> 这三个键（只属于本地配置）。
+>
+> **后续增量 4 —— 用户名由系统生成（本次）**：
+> 用户名不再让用户填，后端统一生成 `kokomi_` + 8 位小写字母数字（`kokomi_a3f9c2d1`），
+> 昵称派生为「用户+尾 6 位」。第 2 步只剩「密码 + 确认密码」；
+> **`POST /user/register` 的 body 精简成 `{ticket, encryptedData}`**，请求里带 `account` 也会被忽略。
+> **不需要新 SQL**（`username` 列本来就有 UNIQUE 索引），只换 jar + 前端包。
+> ⚠️ 前后端要一起上：旧前端第 2 步还有用户名输入框，虽然能注册成功（后端忽略），
+> 但用户会以为自己设的名字生效了，实际上被丢弃。
+> ⚠️ 存量账号的 username（`admin` 之类）不动；它们含 `@` 的话空间页不会显示 `@用户名`。
+> **发信通道同期换成阿里云 DirectMail**：`MAIL_HOST=smtpdm.aliyun.com`、`MAIL_PORT=465`、
+> `MAIL_USERNAME` 填控制台「发信地址」、`MAIL_PASSWORD` 填该地址的 SMTP 密码；
+> ⚠️ 如果旧 `override.conf` 里还留着 `MAIL_HOST=smtp.qq.com`，**必须改掉** —— 环境变量优先级高于 jar 内默认值。
+
+> **后续增量 5 —— 验证码有效期修复（本次）**：
+> **只换 jar，前端不用动，也不需要 SQL。**
+> ① `EmailCodeCache`：验证码**验过不消费** —— 用户验完不注册、回头再输同一个码仍然能过（之前一命中就删记录，他会被告知「已失效」，而邮件写着 10 分钟有效）。
+> ② `EmailCodeCache`：**重发即废旧码** —— 只认最近一次发送的码，之前几封邮件里的立刻作废；用户输旧码时回「验证码已更新，请使用最新收到的那封邮件里的验证码」（不算猜错，不扣试错次数）。
+> ③ `RegisterTicketCache`：ticket 有效期 10 → **30 分钟**（第 2 步想密码/被打断不至于白验一次邮箱）。
+> ⚠️ 两个缓存都在**进程内存**里，`systemctl restart` 会让所有未用的验证码和 ticket 立刻失效。
+> 如果用户刚收到码、你正好在发版，让他重新点一次「发送验证码」即可。
 
 ## 0. 一句话看完
 
@@ -9,7 +43,7 @@
 |---|---|---|
 | SQL 脚本 | **3 个** | 前两个先跑、必须在新 jar 启动之前；第三个是数据纠正，随时能跑 |
 | 后端 jar | **1 个** | 重新 `mvn package` 打出来的那个 |
-| 前端构建包 | **1 个** | `vue/dist_1026_tier.zip`，解压覆盖站点目录 |
+| 前端构建包 | **1 个** | `vue/dist_1027_username.zip`（增量 4 起用这个），解压覆盖站点目录 |
 | 环境变量 | **2 个必填** | `MAIL_USERNAME` / `MAIL_PASSWORD`，不配没人能绑邮箱 |
 
 `pom.xml`（多了 `spring-boot-starter-mail`）和 `application.yaml`（多了 `app.mail.*`、`spring.mail.*`）
@@ -146,6 +180,24 @@ mvn -B clean package -DskipTests
 ⚠️ 别信 `mvn compile` 的 SUCCESS —— IDE 可能在 `target/classes` 留下
 `Unresolved compilation problem` 的存根，一律 `clean package`。
 
+### 2.1 换包后必须重启，并用一条命令确认新 jar 真的起来了
+
+**只覆盖 jar 不 restart = 还是旧代码**（`systemctl restart` 才会重新加载）。
+更坑的是：**前端已经换新了，后端还是旧 jar**，用户点「发送邮箱验证码」会看到
+**「系统繁忙 / 服务器繁忙」** —— 那是 `GlobalExceptionHandler` 的兜底文案，
+真实原因多半是「新前端调了旧 jar 里不存在的接口/字段」，堆栈只写进 journalctl。
+
+换完包在服务器上跑这三条，30 秒判断新旧：
+
+```bash
+systemctl stop kokomi && cp kokomi-0.0.1-SNAPSHOT.jar /kokomi/server/ && systemctl start kokomi
+systemctl is-active kokomi                      # 要 active
+curl -s -X POST localhost:8080/user/register/verify-email -H 'Content-Type: application/json' -d '{}'
+# 新 jar → {"code":400,"msg":"code: 请输入验证码"}  旧 jar → 404 / 405
+curl -s -X POST localhost:8080/user/register/email-code -H 'Content-Type: application/json' -d '{"email":"not-an-email"}'
+# 两个版本都回 400「请输入正确的邮箱」，但**它证明接口通到业务层**（不会发信：格式错在发信之前 return）
+```
+
 ---
 
 ## 3. 前端（换包）
@@ -181,7 +233,7 @@ mvn -B clean package -DskipTests
 
 ```bash
 # 站点目录一般是 /kokomi/web 或 nginx root，按你实际的来
-unzip -o dist_1026_tier.zip -d /path/to/site/
+unzip -o dist_1027_reg2step.zip -d /path/to/site/
 ```
 
 ⚠️ 换完一定让用户 **Ctrl+Shift+R**，并顺手比对一下 hash 对不对：
@@ -214,7 +266,7 @@ sudo systemctl start kokomi
 sudo systemctl status kokomi
 
 # 4) 换前端包
-unzip -o dist_1026_tier.zip -d /path/to/site/
+unzip -o dist_1027_reg2step.zip -d /path/to/site/
 
 # 5) 看日志有没有起错
 sudo journalctl -u kokomi -n 60 --no-pager

@@ -2,11 +2,14 @@ package com.example.kokomi.service.impl;
 
 import java.util.List;
 
+import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.kokomi.common.ResultCode;
+import com.example.kokomi.dto.PasswordDTO;
 import com.example.kokomi.entity.User;
 import com.example.kokomi.exception.CustomerException;
 import com.example.kokomi.mapper.UserMapper;
@@ -15,6 +18,9 @@ import com.example.kokomi.service.MailService;
 import com.example.kokomi.service.UserVerifyService;
 import com.example.kokomi.util.EmailCodeCache;
 import com.example.kokomi.util.PermissionCache;
+import com.example.kokomi.util.RegisterTicketCache;
+import com.example.kokomi.util.RsaUtil;
+import com.example.kokomi.util.UserTokenVersionCache;
 import com.example.kokomi.vo.VerifySendVO;
 
 import cn.hutool.core.util.StrUtil;
@@ -22,6 +28,7 @@ import cn.hutool.core.lang.Validator;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @Service
@@ -30,7 +37,12 @@ public class UserVerifyServiceImpl implements UserVerifyService {
 
     /** 验证码有效期，要和 EmailCodeCache 里的 EXPIRE_MS 一致，只用于邮件正文 */
     private static final int CODE_MINUTES = 10;
-    private static final String CODE_SENT_TEXT = "验证码已发送，请查收邮件（没收到就看一眼垃圾箱）";
+    private static final String CODE_SENT_TEXT = "验证码已发送，请查收邮件";
+    /**
+     * 找回密码的发送文案：故意写成「如果该邮箱绑定过账号」。
+     * 这个接口免登录，文案必须对「没注册过的邮箱」也成立，否则就成了账号探测器。
+     */
+    private static final String RESET_SENT_TEXT = "如果该邮箱绑定过账号，重置验证码已经发出，请查收邮件";
 
     /** 绑定邮箱后升级到的角色；游客之外的任何角色都不动 */
     private static final String GUEST_ROLE = "guest";
@@ -39,6 +51,8 @@ public class UserVerifyServiceImpl implements UserVerifyService {
     private final UserMapper userMapper;
     private final UserRoleMapper userRoleMapper;
     private final MailService mailService;
+    private final RsaUtil rsaUtil;
+    private final ObjectMapper objectMapper;
 
     /** 本地开发用：SMTP 没配时，把明文验证码放进接口响应，省得去翻日志 */
     @Value("${app.mail.dev-echo:false}")
@@ -53,14 +67,117 @@ public class UserVerifyServiceImpl implements UserVerifyService {
         }
     }
 
+    // ------------------------------------------------------------------
+    // 注册发码（免登录）
+    // ------------------------------------------------------------------
+
+    /**
+     * 注册前给邮箱发码。
+     * <p>
+     * 和「找回密码」反过来：那个接口怕被拿来探测账号，所以对谁都回「已发送」；
+     * 这个接口必须诚实 —— 邮箱被占了就直接告诉用户，否则他填完码提交又失败，
+     * 白等一次邮件和 60 秒倒计时。
+     * <p>
+     * 防刷靠两层：调用方（UserController 的 /register/email-code）在
+     * EmailCodeCache 的同邮箱 60 秒 / 每小时 5 封 + 全站每分钟 8 封配额之内，
+     * 注册接口本身还有同 IP 20 次/小时的 RegisterRateLimit。
+     */
+    @Override
+    public VerifySendVO sendRegisterCode(String email) {
+        String target = StrUtil.trimToNull(email);
+        if (target == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请填写邮箱");
+        }
+        if (!Validator.isEmail(target) || target.length() > 50) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请输入正确的邮箱");
+        }
+        User owner = userMapper.selectByEmail(target);
+        if (owner != null) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "该邮箱已被注册");
+        }
+
+        EmailCodeCache.Issue issue = EmailCodeCache.issue(target);
+        if (!issue.isOk()) {
+            return result(false, maskEmail(target), issue.reason, issue.retryAfter, null);
+        }
+
+        boolean configured = mailService.isConfigured();
+        try {
+            mailService.sendVerifyCode(target, issue.code, CODE_MINUTES);
+        } catch (CustomerException e) {
+            return result(false, maskEmail(target), e.getMessage(), 30, null);
+        }
+        if (!configured) {
+            log.warn("[verify] SMTP 未配置，注册验证码：{} → {}", maskEmail(target), issue.code);
+        }
+        return result(true, maskEmail(target), CODE_SENT_TEXT, 60,
+                (!configured && devEcho) ? issue.code : null);
+    }
+
+    /**
+     * 注册第一步的后半：校验邮箱验证码，通过后发 ticket。
+     * <p>
+     * 用 {@link EmailCodeCache#verify} 而不是 check：这里**只验不消费**。
+     * 用户验完可能压根不走第二步（关掉弹窗、先去看看别的、过几分钟再来），
+     * 再打开注册框时手上只有那封邮件；如果这里把码烧了，他会看到「验证码已失效」，
+     * 而邮件上明明写着 10 分钟内有效。码在有效期内随便验几次都不增加风险，
+     * 建号成功时由 {@code UserServiceImpl#register} 统一清掉。
+     * <p>
+     * 顺序仍然把验码放在最后：邮箱已被注册时直接把话说明白（注册场景不需要防枚举），
+     * 失败也不烧掉他刚收到的码。
+     */
+    @Override
+    public String verifyRegisterEmail(String email, String code) {
+        String target = StrUtil.trimToNull(email);
+        if (target == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请填写邮箱");
+        }
+        if (!Validator.isEmail(target) || target.length() > 50) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请输入正确的邮箱");
+        }
+        if (StrUtil.isBlank(code)) {
+            throw new CustomerException(ResultCode.VERIFY_CODE_ERROR, "请输入验证码");
+        }
+
+        User owner = userMapper.selectByEmail(target);
+        if (owner != null) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "该邮箱已被注册");
+        }
+
+        EmailCodeCache.Check check = EmailCodeCache.verify(target, code);
+        switch (check.result) {
+            case OK -> {
+            }
+            case WRONG -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "验证码不正确，还可以再试 " + check.remaining + " 次");
+            case TOO_MANY -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "错误次数过多，验证码已作废，请重新获取");
+            case SUPERSEDED -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "验证码已更新，请使用最新收到的那封邮件里的验证码");
+            default -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "验证码已失效，请重新获取");
+        }
+        // 同一邮箱验多少次都只拿同一张票（见 RegisterTicketCache#issue）：
+        // 验证码现在是「只验不消费」，不提防的话一个人能靠一个码把这个接口刷成内存炸弹
+        String ticket = RegisterTicketCache.issue(target);
+        if (ticket == null) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "当前注册人数较多，请稍后再试");
+        }
+        log.info("[register] 邮箱 {} 验证通过，已发注册凭证", maskEmail(target));
+        return ticket;
+    }
+
     @Override
     public VerifySendVO sendCode(Long userId, String email) {
         User user = userMapper.selectById(userId);
         if (user == null) {
             throw new CustomerException(ResultCode.AUTHOR_ERROR, "登录状态已失效，请重新登录");
         }
+        // 已经有验证过的邮箱了：这个接口是「补绑」用的，不要拿它当换绑（换绑要验密码）。
+        // 文案要指路，否则用户只会看到一句「无需重复绑定」然后不知道去哪换。
         if (isVerifiedValue(user.getEmailVerified())) {
-            return result(false, maskEmail(user.getEmail()), "邮箱已验证，无需重复绑定", 0, null);
+            return result(false, maskEmail(user.getEmail()),
+                    "这个账号已经绑过邮箱了，要更换请用「换绑」", 0, null);
         }
 
         String target = resolveEmail(user, email);
@@ -107,13 +224,22 @@ public class UserVerifyServiceImpl implements UserVerifyService {
         }
         ensureEmailUsable(userId, target);
 
-        EmailCodeCache.Check check = EmailCodeCache.check(target, code);
+        EmailCodeCache.Check check = EmailCodeCache.verify(target, code);
         switch (check.result) {
             case OK -> {
-                int rows = userMapper.bindEmail(userId, target);
+                int rows;
+                try {
+                    rows = userMapper.bindEmail(userId, target);
+                } catch (DuplicateKeyException e) {
+                    // uk_user_email 兜底，理由同 confirmChange：并发抢同一邮箱时唯一索引会抛，
+                    // 不接住就是「服务器繁忙」
+                    throw new CustomerException(ResultCode.PARAM_ERROR, "该邮箱已被其他账号绑定");
+                }
                 if (rows != 1) {
                     throw new CustomerException(ResultCode.SERVER_ERROR, "绑定失败，请稍后重试");
                 }
+                // 绑成功了才作废验证码（verify 不消费，见它的注释）
+                EmailCodeCache.clear(target);
                 log.info("[verify] 用户 {} 绑定邮箱成功 {}", userId, maskEmail(target));
                 promoteIfGuest(userId);
             }
@@ -121,14 +247,32 @@ public class UserVerifyServiceImpl implements UserVerifyService {
                     "验证码不正确，还可以再试 " + check.remaining + " 次");
             case TOO_MANY -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
                     "错误次数过多，验证码已作废，请重新获取");
+            case SUPERSEDED -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "验证码已更新，请使用最新收到的那封邮件里的验证码");
             default -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
                     "验证码已失效，请重新获取");
         }
     }
 
+    /**
+     * 后台「激活」：手动把邮箱标记为已验证（SMTP 抽风时的兜底）。
+     * <p>
+     * ⚠️ 必须先有邮箱。历史版本的坑：这个方法只写 email_verified=1、不碰 email，
+     * 而它的使用场景恰恰是「这个用户没有邮箱」——结果造出 `email = NULL, email_verified = 1`
+     * 的死状态：个人中心显示「未绑定」，用户点「去绑定」，服务端却回「邮箱已验证，无需重复绑定」，
+     * 用户彻底没有出口，只能改库。现在邮箱为空时直接拒绝，并告诉管理员该怎么做。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void markVerified(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "用户不存在");
+        }
+        if (StrUtil.isBlank(user.getEmail())) {
+            throw new CustomerException(ResultCode.PARAM_ERROR,
+                    "该用户还没有邮箱，没法标记为已验证 —— 让对方在「个人中心 → 账号管理」先绑定一个");
+        }
         int rows = userMapper.setEmailVerified(userId);
         if (rows != 1) {
             throw new CustomerException(ResultCode.PARAM_ERROR, "用户不存在");
@@ -145,6 +289,295 @@ public class UserVerifyServiceImpl implements UserVerifyService {
         }
         User state = userMapper.selectVerifyState(userId);
         return state == null || isVerifiedValue(state.getEmailVerified());
+    }
+
+    // ------------------------------------------------------------------
+    // 换绑（替代原来的「解绑」）
+    // ------------------------------------------------------------------
+
+    /**
+     * 换绑第一步：验当前密码 → 给新邮箱发码。
+     * <p>
+     * 密码是这条链路上唯一的身份复核点。没有它，任何拿到登录态的人都能把邮箱
+     * 换成自己的，再走「忘记密码」接管账号 —— 所以这一步不能省。
+     */
+    @Override
+    public VerifySendVO sendChangeCode(Long userId, String email, String encryptedData) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new CustomerException(ResultCode.AUTHOR_ERROR, "登录状态已失效，请重新登录");
+        }
+        checkPassword(user, encryptedData, "换绑邮箱");
+
+        String target = StrUtil.trimToNull(email);
+        if (target == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请填写新邮箱");
+        }
+        if (!Validator.isEmail(target) || target.length() > 50) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请输入正确的邮箱");
+        }
+        // 换成一个一模一样的邮箱没有意义，还会白白消耗发信配额
+        if (target.equalsIgnoreCase(StrUtil.nullToEmpty(user.getEmail()))) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "新邮箱和现在绑定的一样");
+        }
+        ensureEmailUsable(userId, target);
+
+        EmailCodeCache.Issue issue = EmailCodeCache.issue(target);
+        if (!issue.isOk()) {
+            return result(false, maskEmail(target), issue.reason, issue.retryAfter, null);
+        }
+
+        boolean configured = mailService.isConfigured();
+        try {
+            mailService.sendVerifyCode(target, issue.code, CODE_MINUTES);
+        } catch (CustomerException e) {
+            return result(false, maskEmail(target), e.getMessage(), 30, null);
+        }
+        if (!configured) {
+            log.warn("[verify] SMTP 未配置，换绑验证码：{} → {}", maskEmail(target), issue.code);
+        }
+        return result(true, maskEmail(target), CODE_SENT_TEXT, 60,
+                (!configured && devEcho) ? issue.code : null);
+    }
+
+    /**
+     * 换绑第二步：新邮箱 + 验证码。
+     * <p>
+     * 这里不再验密码 —— 第一步已经验过，而且验证码本身就是「这个邮箱归他」的证明。
+     * 角色一概不动：换邮箱是换联系方式，不是换身份。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void confirmChange(Long userId, String email, String code) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new CustomerException(ResultCode.AUTHOR_ERROR, "登录状态已失效，请重新登录");
+        }
+        String target = StrUtil.trimToNull(email);
+        if (target == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请填写新邮箱");
+        }
+        ensureEmailUsable(userId, target);
+
+        EmailCodeCache.Check check = EmailCodeCache.verify(target, code);
+        switch (check.result) {
+            case OK -> {
+                String old = user.getEmail();
+                int rows;
+                try {
+                    rows = userMapper.bindEmail(userId, target);
+                } catch (DuplicateKeyException e) {
+                    // uk_user_email 兜底：ensureEmailUsable 查过一遍，但两个人同时
+                    // 提交同一个邮箱时应用层拦不住，唯一索引会在这里抛。
+                    // 不接住的话就是 RuntimeException → 用户只看到「服务器繁忙」。
+                    throw new CustomerException(ResultCode.PARAM_ERROR, "该邮箱已被其他账号绑定");
+                }
+                if (rows != 1) {
+                    throw new CustomerException(ResultCode.SERVER_ERROR, "换绑失败，请稍后重试");
+                }
+                EmailCodeCache.clear(target);
+                log.info("[verify] 用户 {} 换绑邮箱 {} → {}", userId, maskEmail(old), maskEmail(target));
+            }
+            case WRONG -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "验证码不正确，还可以再试 " + check.remaining + " 次");
+            case TOO_MANY -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "错误次数过多，验证码已作废，请重新获取");
+            case SUPERSEDED -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "验证码已更新，请使用最新收到的那封邮件里的验证码");
+            default -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "验证码已失效，请重新获取");
+        }
+    }
+
+    /**
+     * 解绑邮箱。
+     * <p>
+     * 只做两件事：email 清空、验证位归零。**角色一个都不动** ——
+     * 已经通过邮箱注册的用户是 member，解绑只是放弃「忘记密码」这条路，
+     * 不该连发帖评论一起收走（发言闸门看的是权限码，跟 email_verified 无关）。
+     * <p>
+     * 为什么要密码：解绑 + 重新绑自己的邮箱 = 接管账号。密码是这条链路上
+     * 唯一能证明「是本人在操作」的东西，不能省。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void unbind(Long userId, String encryptedData) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new CustomerException(ResultCode.AUTHOR_ERROR, "登录状态已失效，请重新登录");
+        }
+        // 幂等：本来就没绑，直接当成功（前端连点两下不该报错）
+        if (StrUtil.isBlank(user.getEmail())) {
+            return;
+        }
+        checkPassword(user, encryptedData, "解绑邮箱");
+
+        String old = user.getEmail();
+        int rows = userMapper.unbindEmail(userId);
+        if (rows != 1) {
+            throw new CustomerException(ResultCode.SERVER_ERROR, "解绑失败，请稍后重试");
+        }
+        log.info("[verify] 用户 {} 解绑了邮箱 {}", userId, maskEmail(old));
+    }
+
+    /**
+     * 用当前密码复核身份（换绑邮箱的前置）。
+     * <p>
+     * 前端走的是和「修改密码」同一套 RSA：encryptedData 解出来是
+     * {@code {"oldPassword": "..."}}，所以后端直接复用 PasswordDTO。
+     */
+    private void checkPassword(User user, String encryptedData, String action) {
+        if (StrUtil.isBlank(encryptedData)) {
+            // 没传密码是「请求不完整」，用参数错误(400)；
+            // 传了但不对是「密码错误」(504)，前端可以据此把它落到密码输入框上
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请输入当前密码");
+        }
+        String json = rsaUtil.decrypt(encryptedData);
+        if (json == null) {
+            throw new CustomerException(ResultCode.RSA_DECRYPT_ERROR, "解密失败");
+        }
+        PasswordDTO dto;
+        try {
+            dto = objectMapper.readValue(json, PasswordDTO.class);
+        } catch (Exception e) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "参数格式错误");
+        }
+        String password = StrUtil.trimToNull(dto.getOldPassword());
+        if (password == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请输入当前密码");
+        }
+        if (!BCrypt.checkpw(password, user.getPassword())) {
+            // 文案里带上动作名，用户才知道自己是在哪一步被拦下的
+            throw new CustomerException(ResultCode.UPDATE_PASSWORD_ERROR,
+                    "当前密码不正确，" + action + "需要验证密码");
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 找回密码
+    // ------------------------------------------------------------------
+
+    @Override
+    public VerifySendVO sendResetCode(String email) {
+        String target = StrUtil.trimToNull(email);
+        if (target == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请输入要找回的邮箱");
+        }
+        if (!Validator.isEmail(target) || target.length() > 50) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请输入正确的邮箱");
+        }
+
+        // 防枚举：无论这个邮箱有没有注册、是不是验证过，都走「已发送」这条文案。
+        // 真发信只发给已验证的邮箱，其余静默跳过（日志里也不打「不存在」，
+        // 免得运维把日志贴出去又把枚举答案抖出来）。
+        User owner = userMapper.selectByVerifiedEmail(target);
+        if (owner == null) {
+            // 也占用一次发信配额，否则「有邮箱才有限流」本身就是一个可探测的信号
+            EmailCodeCache.issue(target);
+            log.info("[reset] {} 没有匹配的已验证账号，按「已发送」返回", maskEmail(target));
+            return result(true, maskEmail(target), RESET_SENT_TEXT, 60, null);
+        }
+
+        EmailCodeCache.Issue issue = EmailCodeCache.issue(target);
+        if (!issue.isOk()) {
+            return result(false, maskEmail(target), issue.reason, issue.retryAfter, null);
+        }
+
+        boolean configured = mailService.isConfigured();
+        try {
+            mailService.sendResetCode(target, issue.code, CODE_MINUTES);
+        } catch (CustomerException e) {
+            return result(false, maskEmail(target), e.getMessage(), 30, null);
+        }
+        log.info("[reset] 用户 {} 申请重置密码，验证码已发往 {}",
+                owner.getId(), maskEmail(target));
+        return result(true, maskEmail(target), RESET_SENT_TEXT, 60,
+                (!configured && devEcho) ? issue.code : null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void resetPassword(String email, String code, String encryptedData) {
+        String target = StrUtil.trimToNull(email);
+        if (target == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请输入要找回的邮箱");
+        }
+        if (StrUtil.isBlank(code)) {
+            throw new CustomerException(ResultCode.VERIFY_CODE_ERROR, "请输入验证码");
+        }
+
+        // ① 先把新密码解出来、校验完，再动验证码。
+        //    「两次密码不一致」这种纯前端问题不该把码烧掉，用户得重发一封邮件。
+        //    密码校验不涉及账号是否存在，所以放前面不会泄露信息。
+        String newPassword = decodeNewPassword(encryptedData);
+
+        // ② 校验验证码（错 5 次作废，见 EmailCodeCache）。
+        //    用 verify：这里只验不消费 —— 校验通过但后面「这个邮箱没有账号」
+        //    之类的失败还得让他能再试一次，真改成功了在末尾 clear。
+        EmailCodeCache.Check check = EmailCodeCache.verify(target, code);
+        switch (check.result) {
+            case OK -> {
+            }
+            case WRONG -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "验证码不正确，还可以再试 " + check.remaining + " 次");
+            case TOO_MANY -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "错误次数过多，验证码已作废，请重新获取");
+            case SUPERSEDED -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "验证码已更新，请使用最新收到的那封邮件里的验证码");
+            default -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "验证码已失效，请重新获取");
+        }
+
+        // ③ 验证码过了才查账号 —— 反过来写的话，没验证码的人也能靠报错文案试探。
+        User owner = userMapper.selectByVerifiedEmail(target);
+        if (owner == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "该邮箱没有绑定账号");
+        }
+
+        String encoded = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+        int rows = userMapper.updatePasswordAndVersion(owner.getId(), encoded);
+        if (rows != 1) {
+            throw new CustomerException(ResultCode.SERVER_ERROR, "重置失败，请稍后重试");
+        }
+        // 密码改了 = 旧 token 全部作废（SQL 里 token_version + 1），
+        // 内存里缓存的版本号也得清掉，否则拦截器还会拿旧版本放行
+        UserTokenVersionCache.removeVersion(owner.getId());
+        // 改完了才真正把码作废：verify 只是「验」，不作废是为了让中间任何一步
+        // 失败都能原地重试，成功之后立刻清干净，避免 10 分钟内再被用一次
+        EmailCodeCache.clear(target);
+        log.info("[reset] 用户 {} 通过邮箱验证码重置了密码", owner.getId());
+    }
+
+    /**
+     * 解出并校验新密码，返回明文（调用方负责 BCrypt）。
+     * 与 /user/password 用同一套 RSA，前端不用为它另写一份加密逻辑。
+     */
+    private String decodeNewPassword(String encryptedData) {
+        String json = rsaUtil.decrypt(encryptedData);
+        if (json == null) {
+            throw new CustomerException(ResultCode.RSA_DECRYPT_ERROR, "解密失败");
+        }
+        PasswordDTO dto;
+        try {
+            dto = objectMapper.readValue(json, PasswordDTO.class);
+        } catch (Exception e) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "参数格式错误");
+        }
+        String newPassword = StrUtil.trimToNull(dto.getNewPassword());
+        String confirm = StrUtil.trimToNull(dto.getConfirmPassword());
+        if (newPassword == null) {
+            throw new CustomerException(ResultCode.UPDATE_PASSWORD_ERROR, "请输入新密码");
+        }
+        if (newPassword.length() < 6) {
+            throw new CustomerException(ResultCode.UPDATE_PASSWORD_ERROR, "新密码至少 6 位");
+        }
+        if (newPassword.length() > 32) {
+            throw new CustomerException(ResultCode.UPDATE_PASSWORD_ERROR, "新密码不超过 32 位");
+        }
+        if (!newPassword.equals(confirm)) {
+            throw new CustomerException(ResultCode.UPDATE_PASSWORD_ERROR, "两次输入的新密码不一致");
+        }
+        return newPassword;
     }
 
     // ------------------------------------------------------------------
@@ -171,7 +604,8 @@ public class UserVerifyServiceImpl implements UserVerifyService {
         if (email.length() > 50) {
             throw new CustomerException(ResultCode.PARAM_ERROR, "邮箱过长");
         }
-        User owner = userMapper.selectByAccount(email);
+        // 只看 email 列，不看验证位：只要有人填过就该拦，别让两个人抢同一个邮箱
+        User owner = userMapper.selectByEmail(email);
         if (owner != null && !owner.getId().equals(userId)) {
             throw new CustomerException(ResultCode.PARAM_ERROR, "该邮箱已被其他账号绑定");
         }

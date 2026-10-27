@@ -42,8 +42,71 @@
       <div class="form-item">
         <label>用户名:</label>
         <div class="username">{{ userInfo.username }}</div>
-        <!--         <div class="tip">用户名不可修改</div> -->
+       <!--  <div class="tip">不可修改</div> -->
       </div>
+
+      <!--
+        邮箱：全站唯一的绑定 / 解绑入口。
+        发布框和评论区的「去绑定」都跳到这里（/space/account?bind=1），
+        页面里只留一行「邮箱 + 待验证 + 更换 / 解绑」，具体操作走弹窗（见 EmailBindPanel）。
+      -->
+      <div class="form-item">
+        <label>邮箱:</label>
+        <div class="email-box">
+          <div class="email-line">
+            <template v-if="boundEmail">
+              <span class="email-text">{{ boundEmail }}</span>
+              <span v-if="!emailVerified" class="email-badge">待验证</span>
+              <button
+                v-if="!emailVerified"
+                type="button"
+                class="email-link"
+                @click="toggleBind('bind')"
+              >
+                去验证
+              </button>
+              <!--
+                更换 / 解绑都要验当前密码（都会改写「找回密码」的凭据）。
+                解绑不回收角色：账号照常发帖评论，只是不能再靠邮箱找回密码。
+              -->
+              <template v-else>
+                <button
+                  type="button"
+                  class="email-link"
+                  @click="toggleBind('change')"
+                >
+                  更换
+                </button>
+                <button
+                  type="button"
+                  class="email-link email-link--danger"
+                  @click="toggleBind('unbind')"
+                >
+                  解绑
+                </button>
+              </template>
+            </template>
+            <template v-else>
+              <span class="email-text email-text--empty">未绑定</span>
+              <button
+                type="button"
+                class="email-link"
+                @click="toggleBind('bind')"
+              >
+                去绑定
+              </button>
+            </template>
+          </div>
+        </div>
+      </div>
+      <!-- 弹窗（Teleport 到 body，DOM 位置不影响渲染），三种模式共用：绑定 / 更换 / 解绑 -->
+      <EmailBindPanel
+        v-if="bindOpen"
+        :active="bindOpen"
+        :mode="bindMode"
+        @done="closeBind"
+        @cancel="closeBind"
+      />
 
       <!-- 签名 -->
       <div class="form-item">
@@ -110,13 +173,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
+import { useRoute } from "vue-router";
 import { useUserStore } from "@/stores/user";
 import { message } from "@/utils/message";
 import setting from "@/config/setting";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import { uploadAvatar } from "@/api/file";
 import { compressImages } from "@/utils/imageCompress";
+import EmailBindPanel from "@/components/modules/EmailBindPanel.vue";
 // 个人信息数据
 const userInfo = reactive({
   avatar: "",
@@ -128,6 +193,7 @@ const userInfo = reactive({
 });
 
 const userStore = useUserStore();
+const route = useRoute();
 const loadUserInfo = async () => {
   if (!userStore.user) {
     await userStore.getUserInfo();
@@ -141,6 +207,25 @@ const loadUserInfo = async () => {
     gender: userStore.user.gender,
     birthday: userStore.user.birthday,
   });
+};
+
+// ==================== 邮箱（绑定 / 更换 / 解绑） ====================
+/** 弹窗开关；真正的表单在 EmailBindPanel 里（Teleport 到 body，点蒙层不关闭） */
+const bindOpen = ref(false);
+/** bind = 绑定（没邮箱 / 有但没验证）；change = 更换；unbind = 解绑（后两个都要验当前密码） */
+const bindMode = ref("bind");
+
+const boundEmail = computed(() => userStore.user?.email || "");
+/** 后端没给这个字段的老接口一律当已验证，避免已绑定的人被要求再验一次 */
+const emailVerified = computed(() => userStore.user?.emailVerified !== false);
+
+const toggleBind = (mode = "bind") => {
+  bindMode.value = mode;
+  bindOpen.value = true;
+};
+
+const closeBind = () => {
+  bindOpen.value = false;
 };
 
 //禁止选择未来日期
@@ -234,9 +319,31 @@ const handleSave = async () => {
   } 
 }
 
-onMounted(() => {
-  loadUserInfo();
+onMounted(async () => {
+  await loadUserInfo();
+  // 从发布框 / 评论区的「去绑定」跳过来会带 ?bind=1，直接弹出绑定弹窗
+  if (route.query.bind === "1") {
+    if (emailVerified.value) {
+      message.info("这个账号已经绑好邮箱了");
+    } else {
+      toggleBind("bind");
+    }
+  }
+  // 已经在这一页时点「去绑定」不会重新挂载，靠事件再展开一次
+  window.addEventListener("kokomi:open-bind", openBindFromEvent);
 });
+
+onUnmounted(() => {
+  window.removeEventListener("kokomi:open-bind", openBindFromEvent);
+});
+
+function openBindFromEvent() {
+  if (emailVerified.value && boundEmail.value) {
+    message.info("这个账号已经绑好邮箱了");
+    return;
+  }
+  toggleBind("bind");
+}
 </script>
 
 <style scoped>
@@ -327,6 +434,82 @@ onMounted(() => {
   font-size: 15px;
   color: var(--text-secondary);
   line-height: 36px;
+}
+
+/* ---- 邮箱行 ---- */
+.email-box {
+  flex: 1;
+  min-width: 0;
+}
+
+.email-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  flex-wrap: wrap;
+}
+
+.email-text {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.email-text--empty {
+  color: var(--text-secondary);
+}
+
+/* 「待验证」小标：和后台的胶囊标签同一个形状，不用另造一套 */
+.email-badge {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--bg-nomarl);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  line-height: 18px;
+}
+
+/* 无边框文字按钮：邮箱这一行要「邮箱 + 两个动作」排得下又不抢眼，
+   胶囊边框会让它看起来像待填的表单控件。hover 用底色反馈可点。 */
+.email-link {
+  flex: none;
+  height: 26px;
+  padding: 0 12px;
+  /* 胶囊描边按钮：和站内其它「次要操作」一致，无边框看起来像纯文字链接、点不到 */
+  border: 1px solid var(--border-color);
+  border-radius: 13px;
+  background: transparent;
+  color: var(--primary-color);
+  font-family: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.email-link:hover:not(:disabled) {
+  border-color: var(--primary-color);
+  background: var(--bg-hover);
+}
+
+/* 解绑是减法动作，用警示色区分，别和「更换」看起来一样 */
+.email-link--danger {
+  color: #ef4444;
+}
+
+.email-link--danger:hover:not(:disabled) {
+  border-color: #ef4444;
+  background: var(--bg-hover);
+}
+
+.email-link:disabled {
+  color: var(--text-secondary);
+  cursor: not-allowed;
 }
 
 /* 性别：胶囊选择 */
@@ -437,6 +620,10 @@ onMounted(() => {
   }
 
   .form-item textarea {
+    width: 100%;
+  }
+
+  .email-box {
     width: 100%;
   }
 

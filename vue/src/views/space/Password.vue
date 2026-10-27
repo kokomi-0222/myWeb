@@ -41,6 +41,14 @@
       <div class="form-item btn-row">
         <Button type="bilibili" class="save-btn" @click="handleSubmit"> 确认修改 </Button>
       </div>
+
+      <!-- 知道不了原密码的人平时进不来（要登录），但在公共电脑上记着登录态时会撞上 -->
+      <p class="forgot-hint">
+        忘记当前密码?
+        <button type="button" class="forgot-link" @click="openForgot">
+          用绑定邮箱重置
+        </button>
+      </p>
     </div>
   </div>
 </template>
@@ -48,11 +56,18 @@
 <script setup>
 import { reactive } from "vue";
 import { useUserStore } from "@/stores/user";
+import { useUIStore } from "@/stores/ui";
 import { message } from "@/utils/message";
 import router from "@/router";
 // import { updatePassword } from "@/api/user"; // 后面你再开接口
 
 const userStore = useUserStore();
+const uiStore = useUIStore();
+
+/** 忘记原密码：直接打开登录弹窗的「找回密码」那一屏 */
+const openForgot = () => {
+  uiStore.openLoginModal("forgot");
+};
 
 // 表单数据
 const form = reactive({
@@ -158,6 +173,28 @@ const handleSubmit = async () => {
   border: none;
   border-radius: 8px;
   cursor: pointer;
+}
+
+/* 忘记密码：一行小字 + 一个文字按钮，不抢「确认修改」的位置 */
+.forgot-hint {
+  margin: 14px 0 0;
+  text-align: right;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.forgot-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--primary-color);
+  font-family: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.forgot-link:hover {
+  opacity: 0.75;
 }
 
 /* 移动端响应式 */

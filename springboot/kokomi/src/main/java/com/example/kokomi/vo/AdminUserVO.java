@@ -31,6 +31,15 @@ public class AdminUserVO {
     private LocalDateTime banUntil;
     private String banReason;
 
-    /** 邮箱是否已验证（未验证的账号发不了内容，管理员可手动激活兜底） */
+    /**
+     * 邮箱是否已验证。
+     * <p>
+     * 注意要和 {@link #email} 一起看：`emailVerified = false` 且 `email` 为空，
+     * 说明这个账号**还没绑过邮箱**（升级前注册的存量游客），这时候「激活」按钮没有意义 ——
+     * 后端会拒绝（没有邮箱可标记），应该引导他去个人中心绑定。
+     */
     private Boolean emailVerified;
+
+    /** 绑定的邮箱，没绑过是 null */
+    private String email;
 }

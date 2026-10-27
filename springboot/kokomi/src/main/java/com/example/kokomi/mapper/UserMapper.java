@@ -50,16 +50,19 @@ public interface UserMapper {
      * 【注册专用】插入用户，自动返回自增 id。
      * <p>
      * ⚠️ `primary_role` **必须显式写**，不能靠列默认值。
-     * 库里这列的 DDL 默认值是老版本留下的 `'member'`（那时候注册出来就是普通用户），
-     * 而现在注册出来是游客。少写这一列的话：`user_role` 挂的是 `guest`
-     * （权限判定正确、确实发不了帖），但 `user.primary_role` 落成默认的 `member`，
-     * 个人中心就会显示成「普通用户」——用户看到「我是普通用户却不能发帖」，非常难解释。
+     * 库里这列的 DDL 默认值是老版本留下的 `'member'`，一旦哪天默认值又变，
+     * 就会出现「`user_role` 挂 member（权限对）但 `primary_role` 落成 guest（显示错）」
+     * 这种两边打架的状态，用户在个人中心看到「游客」却发现自己能发帖，非常难解释。
+     * <p>
+     * ⚠️ `email_verified` 也**必须显式写**。注册链路要求邮箱当场验证通过，
+     * 所以这里传 1；漏写就走 DDL 默认的 0，注册完的号会被当成「有邮箱但没验证」，
+     * 前端显示「待验证」，而用户手上根本没有可再收的码 —— 又是个卡死状态。
      * <p>
      * `name_color` 故意**不写**，走 DDL 默认的 `#636161`。
      * 名字色是个固定值、不随主题变，写死成 `#18191c` 之类在暗色下会直接看不见。
      */
-    @Insert("insert into user(password, email, phone, primary_role) " +
-            "values(#{password}, #{email}, #{phone}, #{primaryRole})")
+    @Insert("insert into user(password, email, email_verified, phone, primary_role) " +
+            "values(#{password}, #{email}, #{emailVerified}, #{phone}, #{primaryRole})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(User user);
 
@@ -84,7 +87,7 @@ public interface UserMapper {
     @Select("""
             <script>
             select id, username, name, name_color, role_color, avatar, primary_role,
-                   status, ban_until, ban_reason, create_time, email_verified
+                   status, ban_until, ban_reason, create_time, email, email_verified
             from user
             <where>
                 <if test="keyword != null and keyword != ''">
@@ -189,12 +192,45 @@ public interface UserMapper {
     int setEmailVerified(@Param("userId") Long userId);
 
     /**
-     * 绑定邮箱：把验证过的邮箱写回账号，同时置验证位。
+     * 绑定 / 换绑邮箱：把**刚验证过**的邮箱写回账号，同时置验证位。
      * <p>
-     * 注册已经不再收邮箱了，用户第一次绑定邮箱走的就是这里。
+     * 两个动作共用一条 SQL，因为它们要写的列完全一样（email + email_verified=1）。
      * 两条更新必须一起做 —— 只写 email 不置位，会出现「有邮箱但仍算游客」的怪状态。
      */
     @Update("update user set email = #{email}, email_verified = 1 where id = #{userId}")
     int bindEmail(@Param("userId") Long userId, @Param("email") String email);
+
+    /**
+     * 解绑：清空邮箱 + 验证位归零。
+     * <p>
+     * 两列必须一起写，理由和 {@link #bindEmail} 一样 —— 只清 email 不归零，
+     * 会留下「email=NULL 但 email_verified=1」的死状态，用户点绑定会被
+     * 「已验证，无需重复绑定」堵死。
+     * <p>
+     * <b>不碰 primary_role / user_role</b>：解绑只是放弃「用邮箱找回密码」，
+     * 不是降级。发言闸门看权限码（见 PostServiceImpl#checkCanPost），
+     * 收走角色等于顺手把人禁言了，那是另一个动作。
+     */
+    @Update("update user set email = null, email_verified = 0 where id = #{userId}")
+    int unbindEmail(@Param("userId") Long userId);
+
+    /**
+     * 按邮箱找人，**不看验证位** —— 注册查重用。
+     * <p>
+     * 为什么不用 {@link #selectByAccount}：那个方法还会匹配 username / phone，
+     * 语义太宽。注册和换绑要判的是「这个邮箱有没有落在别人账号上」，
+     * 只要有人填过就该拦（哪怕他还没验证），不能让两个人抢同一个邮箱。
+     */
+    @Select("select * from user where email = #{email} limit 1")
+    User selectByEmail(@Param("email") String email);
+
+    /**
+     * 按「已验证的邮箱」找人 —— 找回密码用。
+     * <p>
+     * 必须带上 email_verified = 1：没验证过的邮箱只说明「用户填过」，
+     * 不代表这邮箱是他的，拿它当找回凭据等于谁先填谁说了算。
+     */
+    @Select("select * from user where email = #{email} and email_verified = 1 limit 1")
+    User selectByVerifiedEmail(@Param("email") String email);
 
 }

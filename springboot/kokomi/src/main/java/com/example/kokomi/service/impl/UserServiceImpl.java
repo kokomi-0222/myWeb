@@ -4,9 +4,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 
 import org.mindrot.jbcrypt.BCrypt;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,7 @@ import com.example.kokomi.dto.EncryptDataDTO;
 import com.example.kokomi.dto.LoginDTO;
 import com.example.kokomi.dto.PasswordDTO;
 import com.example.kokomi.dto.RegisterDTO;
+import com.example.kokomi.dto.RegisterFormDTO;
 import com.example.kokomi.dto.UserUpdateDTO;
 import com.example.kokomi.entity.User;
 import com.example.kokomi.exception.CustomerException;
@@ -28,10 +31,13 @@ import com.example.kokomi.mapper.PostMapper;
 import com.example.kokomi.mapper.UserMapper;
 import com.example.kokomi.mapper.UserRoleMapper;
 import com.example.kokomi.service.UserService;
+import com.example.kokomi.vo.LoginVO;
 import com.example.kokomi.vo.UserProfileVO;
 import com.example.kokomi.util.CaptchaCache;
+import com.example.kokomi.util.EmailCodeCache;
 import com.example.kokomi.util.IpUtils;
 import com.example.kokomi.util.RegisterRateLimit;
+import com.example.kokomi.util.RegisterTicketCache;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.util.PermissionCache;
 import com.example.kokomi.util.RsaUtil;
@@ -41,29 +47,46 @@ import cn.hutool.core.lang.RegexPool;
 import cn.hutool.core.util.ReUtil;
 import cn.hutool.core.util.StrUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserServiceImpl implements UserService {
 
     /**
-     * 新注册用户的默认角色编码 = 游客。
+     * 新注册用户的角色编码 = 普通用户（member）。
      * <p>
      * 站内是三级：guest（游客）→ member（普通用户）→ vip（会员）。
-     * <ul>
-     *   <li>guest：能登录、浏览、点赞，不能发帖也不能评论；</li>
-     *   <li>绑定并验证邮箱后由 UserVerifyServiceImpl 自动升成 member：能评论，仍不能发帖；</li>
-     *   <li>vip 由管理员在后台授予：能发帖。</li>
-     * </ul>
-     * 发帖 / 评论分别校验 post:create 与 comment:create（见 sql_tier_permission.sql），
-     * 权限码挂在角色上，所以「谁能干什么」全在数据库里，改规则不用改代码。
+     * 但**注册不再产生游客**：邮箱在注册时就必须验证通过，验证过的人直接就是普通用户
+     * （能发帖能评论），所以新号一进来就能用，不存在「注册完什么都干不了」的空窗期。
+     * <p>
+     * guest 现在只剩两种来源：① 升级前注册、至今没绑邮箱的存量账号；
+     * ② 管理员在后台手动降级。它的权限码是空的，发帖评论都会被 Service 层拦住。
      * <p>
      * 注册时会同时写入 user 的 primary_role（身份标签）和 user_role（鉴权用）两处：
      * 前者只负责显示，后者才是权限链路的起点。只写前者的话，
      * /user/info 的 permissions 会是空数组、后台用户管理页会显示「无角色」。
      */
-    private static final String DEFAULT_ROLE = "guest";
+    private static final String DEFAULT_ROLE = "member";
+
+    /**
+     * 系统生成的用户名前缀。
+     * <p>
+     * 用户名不再由用户填写，统一是 {@code kokomi_} + 8 位小写字母数字，
+     * 例如 {@code kokomi_a3f9c2d1}，长度 15，落在 {@code username varchar(50)} 里很宽松。
+     * <p>
+     * 为什么用随机串而不是"用户123"这类自增：自增能被人一眼看出注册顺序和总量，
+     * 随机串不会；而且随机串不会和存量账号（admin / test_member）撞名。
+     * 唯一性靠「先查一次 + username 唯一索引冲突重试」双保险。
+     */
+    private static final String USERNAME_PREFIX = "kokomi_";
+    private static final int USERNAME_RANDOM_LEN = 8;
+    private static final char[] USERNAME_ALPHABET =
+            "abcdefghijklmnopqrstuvwxyz0123456789".toCharArray();
+    /** SecureRandom 而不是 Random：用户名会暴露在 URL/接口里，不该被预测 */
+    private static final SecureRandom USERNAME_RANDOM = new SecureRandom();
 
     private final UserMapper userMapper;
     private final UserRoleMapper userRoleMapper;
@@ -77,6 +100,23 @@ public class UserServiceImpl implements UserService {
 
     @Value("${app.base-url}")
     private String baseUrl;
+
+    /**
+     * 注册限流阈值（可选）。本地联调 / 自动化验收会反复注册临时账号，
+     * 默认的 20 个/小时根本不够，所以在 local 配置里放宽；线上不设这两个键，走默认。
+     */
+    @Value("${app.register.rate-limit-per-ip:}")
+    private String rateLimitPerIp;
+
+    @Value("${app.register.rate-limit-global:}")
+    private String rateLimitGlobal;
+
+    @jakarta.annotation.PostConstruct
+    public void initRateLimit() {
+        RegisterRateLimit.configure(
+                StrUtil.isBlank(rateLimitPerIp) ? null : Integer.valueOf(rateLimitPerIp.trim()),
+                StrUtil.isBlank(rateLimitGlobal) ? null : Integer.valueOf(rateLimitGlobal.trim()));
+    }
 
 
     @Override
@@ -140,40 +180,59 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Result<Void> register(EncryptDataDTO encryptedDto){
+    public Result<LoginVO> register(RegisterFormDTO form) {
         // 注册频率兜底：正常用户碰不到（同 IP 20 个/小时），脚本刷号才会撞上。
-        // 内容质量靠等级挡（游客既不能发帖也不能评论），这一层只挡「把 user 表刷爆」。
+        // 内容质量靠等级挡，这一层只挡「把 user 表刷爆」。
         if (!RegisterRateLimit.tryAcquire(IpUtils.getCurrentIP())) {
             throw new CustomerException(ResultCode.REGISTER_ERROR, "注册太频繁，请稍后再试");
         }
 
-        // 验证码校验
-        if (StrUtil.isBlank(encryptedDto.getCaptchaKey())
-                || StrUtil.isBlank(encryptedDto.getCaptchaCode())) {
-            throw new CustomerException(ResultCode.CAPTCHA_ERROR, "请输入验证码");
+        // ---------------- 第一步的凭证：邮箱以 ticket 为准 ----------------
+        // 注册拆成两步（见 UserController#verifyRegisterEmail）：
+        //   ① 邮箱 + 验证码 → 服务端发一张 ticket（第一步只验不消费，见 EmailCodeCache#verify）；
+        //   ② 凭 ticket + 密码建号。
+        // 邮箱**只从 ticket 里取**，不看请求体里的 email —— 否则能「验 A 的邮箱、
+        // 注册成 B 的邮箱」，那第一步就白做了。
+        String ticket = StrUtil.trimToNull(form.getTicket());
+        if (ticket == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请先验证邮箱");
         }
-        if (!CaptchaCache.verifyAndRemove(
-                encryptedDto.getCaptchaKey(), encryptedDto.getCaptchaCode())) {
-            throw new CustomerException(ResultCode.CAPTCHA_ERROR, "验证码错误或已过期");
+        String email = RegisterTicketCache.peek(ticket);
+        if (email == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "邮箱验证已过期，请重新验证邮箱");
         }
-        //解密
-        String json = rsaUtil.decrypt(encryptedDto.getEncryptedData());
+
+        // ---------------- 用户名：系统生成，不让用户填 ----------------
+        // 用户名统一是 kokomi_xxxxxxxx（见 randomUsername）。
+        // 这么定有两个理由：
+        //   ① 注册路径越短越好 ——「用户名已被占用」是最容易让人卡住重填的一步；
+        //   ② 用户名不是展示名，站内显示的是 name（昵称），它只是登录/归属标识，
+        //      用户点自己头像进个人中心就能看到。
+        // 老前端可能还会带 form.account 上来，这里直接忽略。
+        String account;
+
+        // 邮箱是否已被注册。第一步发码时查过一次，这里再查一次 ——
+        // 两次之间可能已经有人用同一个邮箱注册成功了（并发），唯一索引也会兜底。
+        User emailOwner = userMapper.selectByEmail(email);
+        if (emailOwner != null) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "该邮箱已被注册");
+        }
+
+        // ---------------- 密码：只加密这两项，RSA 装得下 ----------------
+        String json = rsaUtil.decrypt(form.getEncryptedData());
         if (json == null) {
             throw new CustomerException(ResultCode.RSA_DECRYPT_ERROR, "解密失败");
         }
-        //DTO
         RegisterDTO dto;
         try {
             dto = objectMapper.readValue(json, RegisterDTO.class);
         } catch (Exception e) {
             throw new CustomerException(ResultCode.PARAM_ERROR, "参数格式错误");
         }
-
-        if (StrUtil.hasBlank(dto.getAccount(), dto.getPassword(), dto.getConfirmPassword())) {
-            throw new CustomerException(ResultCode.PARAM_ERROR, "账号、密码、确认密码不能为空");
+        if (StrUtil.hasBlank(dto.getPassword(), dto.getConfirmPassword())) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "密码、确认密码不能为空");
         }
 
-        String account = StrUtil.trim(dto.getAccount());
         String password = StrUtil.trim(dto.getPassword());
         String confirmPwd = StrUtil.trim(dto.getConfirmPassword());
 
@@ -196,52 +255,118 @@ public class UserServiceImpl implements UserService {
             throw new CustomerException(ResultCode.REGISTER_ERROR, "密码只能包含字母、数字、下划线");
         }
 
-        // 用户名规则：2~20 位，字母 / 数字 / 下划线 / 中文。
-        // 不再要求是邮箱 —— 邮箱改成注册之后在空间页「绑定」，绑完才从游客升成普通用户。
-        // 不收 @ 也顺便避免了「用户名长得像邮箱」和账号查找（username/phone/email 三选一）打架。
-        if (account.length() < 2 || account.length() > 20) {
-            throw new CustomerException(ResultCode.REGISTER_ERROR, "用户名需要 2~20 个字符");
-        }
-        if (!ReUtil.isMatch("^[\\u4e00-\\u9fa5A-Za-z0-9_]+$", account)) {
-            throw new CustomerException(ResultCode.REGISTER_ERROR, "用户名只能包含中文、字母、数字和下划线");
-        }
-
-        // 账号是否已注册（selectByAccount 同时匹配 username / phone / email，够用）
-        User exist = userMapper.selectByAccount(account);
-        if (exist != null) {
-            throw new CustomerException(ResultCode.REGISTER_ERROR, "该用户名已被使用");
-        }
-
         // 密码加密
         String encodePwd = BCrypt.hashpw(password, BCrypt.gensalt());
 
-        // 入库。email 留空、email_verified 走默认值 0 —— 此时是纯游客：
-        // 能登录能浏览能点赞，发帖和评论都会被拦（507）。
-        // 角色必须在这里显式给：insert 语句会把它写进去，靠列默认值会落成 member。
+        // 入库：邮箱和验证位一起写。
+        // 能走到这里说明第一步已经把邮箱验过了（ticket 就是证据），
+        // 所以 email_verified 直接是 1，新号一落地就是普通用户（能发帖能评论），
+        // 不存在「注册完什么都干不了」的空窗期。
         // name_color 不设 —— 它是固定色、不随主题变，深色值在暗色模式下会看不见，
         // 交给 DDL 默认的 #636161。
         User user = new User();
         user.setPassword(encodePwd);
+        user.setEmail(email);
+        user.setEmailVerified(1);
         user.setPrimaryRole(DEFAULT_ROLE);
         // 插入后自动获取自增 ID
-        int rows = userMapper.insert(user);
+        int rows;
+        try {
+            rows = userMapper.insert(user);
+        } catch (DuplicateKeyException e) {
+            // 上面的 selectByEmail 挡不住并发（双击「注册」、两台设备同时提交）：
+            // 两个请求都能查到「邮箱没人用」，第二个 insert 由 uk_user_email 拦下。
+            // 不接住的话 MyBatis 抛的是 RuntimeException，用户看到的是「服务器繁忙」——
+            // 而实际上他第一次点击已经注册成功了，这句话只会让他以为全失败了。
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "该邮箱已被注册");
+        }
         if(rows != 1){
             throw new CustomerException(ResultCode.REGISTER_ERROR, "用户创建失败");
         }
         Long userId = user.getId();
-        // 用户名即昵称，用户可以之后在「个人信息」里改昵称，用户名保持不变
-        user.setUsername(account);
-        user.setName(account);
-        rows = userMapper.updateUsernameAndName(user);
-        if (rows != 1) {
-            throw new CustomerException(ResultCode.REGISTER_ERROR, "操作失败");
+        // 生成本站用户名 + 派生昵称，然后写回。
+        // 撞名概率极低（36^8 ≈ 2.8e12），但 username 有唯一索引，并发下仍可能撞上：
+        // 换一个重试即可，**不能把 DuplicateKeyException 直接抛给用户** ——
+        // 他根本没填过用户名，看到「该用户名已被使用」只会一头雾水。
+        boolean named = false;
+        account = null;
+        for (int attempt = 0; attempt < 5 && !named; attempt++) {
+            String candidate = randomUsername();
+            // 先查一次，省掉一次必然失败的 UPDATE（也能挡住历史遗留的奇怪 username）
+            if (userMapper.selectByAccount(candidate) != null) {
+                continue;
+            }
+            user.setUsername(candidate);
+            user.setName(defaultNickname(candidate));
+            try {
+                named = userMapper.updateUsernameAndName(user) == 1;
+                if (named) {
+                    account = candidate;
+                }
+            } catch (DuplicateKeyException e) {
+                log.warn("[register] 用户名 {} 刚被别人占用，换一个重试", candidate);
+            }
+        }
+        if (!named || account == null) {
+            throw new CustomerException(ResultCode.REGISTER_ERROR, "注册失败，请稍后重试");
         }
 
         // 挂上默认角色：user_role 是权限链路的起点，
         // 不写这一条的话，新用户的 permissions 永远是空数组
         userRoleMapper.insertUserRole(userId, DEFAULT_ROLE);
 
-        return Result.success();
+        // 建号成功，凭证作废（不删的话 30 分钟内它还能再提交一次，
+        // 虽然会被邮箱唯一索引挡下，但没必要时时去撞库）
+        RegisterTicketCache.remove(ticket);
+        // 第一步的邮箱验证码也一起清掉。第一步用的是「只验不消费」，
+        // 码本来会活到 10 分钟自然过期；号都建好了，没必要留在内存里当第二把钥匙。
+        EmailCodeCache.clear(email);
+
+        // 注册即登录：邮箱都验证过了，账号归属已经确认，没必要再让用户输一遍密码。
+        // 走 findById 而不是手动拼 BO，是为了让 roles / permissions 一次带全，
+        // 否则前端刚登录那几秒会看不到发布框（权限还没进内存）。
+        LoginVO vo = LoginVO.fromUserBO(findById(userId));
+        log.info("[register] 新用户 {}（{}）注册成功，邮箱 {} 已验证",
+                userId, account, email);
+        return Result.success(vo);
+    }
+
+    /** 生成一个 {@code kokomi_xxxxxxxx} 形式的用户名（不含查重，查重在调用处） */
+    private static String randomUsername() {
+        StringBuilder sb = new StringBuilder(USERNAME_PREFIX.length() + USERNAME_RANDOM_LEN);
+        sb.append(USERNAME_PREFIX);
+        for (int i = 0; i < USERNAME_RANDOM_LEN; i++) {
+            sb.append(USERNAME_ALPHABET[USERNAME_RANDOM.nextInt(USERNAME_ALPHABET.length)]);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 从用户名推一个合法昵称。
+     * <p>
+     * 昵称的规则是「≤12 字符、只允许中文 / 英文 / 数字 / 下划线」（见 {@link #updateProfile}），
+     * 而用户名未必合规，所以要清洗一遍。不这么做的话，新用户一进「账号管理」点保存
+     * 就会被后端拒掉（"昵称不能包含特殊字符"），而他什么都没改。
+     * <p>
+     * 系统生成的名字（{@code kokomi_a3f9c2d1}）单独处理：直接取尾部 6 位拼成
+     * 「用户a3f9c2」。既符合昵称规则，也比原样截断成 "kokomia3f9c2" 好认 ——
+     * 后者和用户名几乎一样，用户会觉得"这网站连昵称都不会起"。
+     */
+    private static String defaultNickname(String account) {
+        if (account != null && account.startsWith(USERNAME_PREFIX)
+                && account.length() > USERNAME_PREFIX.length() + 6) {
+            return "用户" + account.substring(account.length() - 6);
+        }
+        String base = account == null ? "" : account;
+        int at = base.indexOf('@');
+        if (at > 0) {
+            base = base.substring(0, at);
+        }
+        base = base.replaceAll("[^\\u4e00-\\u9fa5A-Za-z0-9]", "");
+        if (base.isEmpty()) {
+            return "心海用户";
+        }
+        return base.length() > 12 ? base.substring(0, 12) : base;
     }
 
     @Override

@@ -3,20 +3,18 @@
     <router-view />
     <!-- 举报弹窗挂在全局：帖子菜单 / 评论 / 用户主页三个入口共用一份 -->
     <ReportModal />
-    <!-- 验证邮箱弹窗也挂全局：发布框提示、被 507 拦下、个人入口都复用它 -->
-    <VerifyEmailModal />
   </div>
 </template>
 
 <script setup>
 import { onMounted, onUnmounted, watch } from "vue";
 import ReportModal from "@/components/report/ReportModal.vue";
-import VerifyEmailModal from "@/components/modules/VerifyEmailModal.vue";
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
 import { useRoleStore } from "@/stores/role";
 import { log } from "@/utils/logger";
 import { message } from "@/utils/message";
+import { askBindEmail } from "@/utils/bindEmail";
 const ui = useUIStore();
 const user = useUserStore();
 const roleStore = useRoleStore();
@@ -24,10 +22,15 @@ const roleStore = useRoleStore();
 // 角色字典：身份标签要把 roleCode 翻成中文，越早拉越好（失败也不影响页面）
 onMounted(() => roleStore.load());
 
-// 后端回 507（邮箱未验证）时把「验证邮箱」弹窗叫出来。
-// 用事件而不是在 request.js 里直接开弹窗：拦截器不该知道 UI 长什么样。
-onMounted(() => window.addEventListener("kokomi:unverified", ui.openVerifyModal));
-onUnmounted(() => window.removeEventListener("kokomi:unverified", ui.openVerifyModal));
+// 后端回 507（游客 / 没绑邮箱）时，问一句「去个人中心绑定吗」。
+// 绑定本身在「个人中心 → 账号管理」，这里只负责把用户带过去；
+// 不直接跳是因为 507 往往发生在刚写完一段评论点发布的瞬间，换页会把内容丢掉。
+onMounted(() => window.addEventListener("kokomi:unverified", onUnverified));
+onUnmounted(() => window.removeEventListener("kokomi:unverified", onUnverified));
+
+function onUnverified() {
+  askBindEmail();
+}
 
 // 登录后第一次发现还是游客（没绑邮箱），提示一句就够（同一个标签页只提示一次，
 // 否则每次刷新都弹，等于骚扰）。真正的引导在发布框 / 评论框里。
@@ -41,7 +44,7 @@ watch(
     } catch {
       // 隐私模式下存不了，就当没提示过
     }
-    message.info("绑定邮箱后就能评论、发帖了，去个人空间点「去绑定」即可");
+    message.info("绑定邮箱后就能评论、发帖了，去个人中心 → 账号管理点「去绑定」即可");
   },
   { immediate: true }
 );

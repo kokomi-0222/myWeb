@@ -21,6 +21,7 @@ declare module 'vue' {
     Dropdown: typeof import('./src/components/modules/Dropdown.vue')['default']
     ElConfigProvider: typeof import('element-plus/es')['ElConfigProvider']
     ElDatePicker: typeof import('element-plus/es')['ElDatePicker']
+    EmailBindPanel: typeof import('./src/components/modules/EmailBindPanel.vue')['default']
     IconAlert: typeof import('./src/components/icons/IconAlert.vue')['default']
     IconArrow: typeof import('./src/components/icons/IconArrow.vue')['default']
     IconBan: typeof import('./src/components/icons/IconBan.vue')['default']
@@ -78,6 +79,5 @@ declare module 'vue' {
     ThemeToggle: typeof import('./src/components/buttons/ThemeToggle.vue')['default']
     Tooltip: typeof import('./src/components/modules/Tooltip.vue')['default']
     TopNavbar: typeof import('./src/components/navbar/TopNavbar.vue')['default']
-    VerifyEmailModal: typeof import('./src/components/modules/VerifyEmailModal.vue')['default']
   }
 }

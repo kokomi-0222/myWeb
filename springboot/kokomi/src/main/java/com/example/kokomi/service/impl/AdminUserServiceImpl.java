@@ -82,6 +82,7 @@ public class AdminUserServiceImpl implements AdminUserService {
             vo.setBanUntil(u.getBanUntil());
             vo.setBanReason(u.getBanReason());
             vo.setEmailVerified(u.getEmailVerified() == null || u.getEmailVerified() == 1);
+            vo.setEmail(u.getEmail());
             vo.setRoles(roleMap.getOrDefault(u.getId(), new ArrayList<>()));
             list.add(vo);
         }

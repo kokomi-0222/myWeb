@@ -126,16 +126,26 @@ export const useUserStore = defineStore('user', () => {
   }
 
   // 注册
-  const register = async (registerData, captchaKey, captchaCode) => {
-    const res = await apiRegister(registerData, captchaKey, captchaCode)
+  // 后端注册成功会直接返回 token（邮箱在注册时就验证过了，没必要再让用户输一遍密码），
+  // 所以这里拿到的就是一份完整的登录态，和 login 的收尾完全一样。
+  const register = async (registerData) => {
     try {
+      const res = await apiRegister(registerData)
       if (setting.successCode.includes(res.code)) {
-        return { success: true, data: res.data }
+        const data = res.data || {}
+        if (data.token) {
+          token.value = data.token
+          user.value = data.user
+          roles.value = data.roles || []
+          setAccessToken(data.token)
+          initPermissions(data.permissions || [])
+        }
+        return { success: true, data }
       }
       return { success: false, message: res.msg || '注册失败' }
     } catch (err) {
-      console.error(err)
-      return { success: false, message: res.msg }
+      // 错误文案拦截器已经弹过一次了，这里只把消息透给调用方决定落在哪个字段上
+      return { success: false, message: err?.message || '注册失败' }
     }
   }
 

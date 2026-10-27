@@ -15,11 +15,35 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class RegisterRateLimit {
 
-    /** 同一 IP 每小时最多注册几个 */
-    private static final int PER_IP_PER_HOUR = 20;
+    /** 同一 IP 每小时最多注册几个（默认 20，本地联调可以调大） */
+    private static volatile int perIpPerHour = 20;
     /** 全站每小时最多注册几个（分布式脚本的兜底） */
-    private static final int GLOBAL_PER_HOUR = 100;
+    private static volatile int globalPerHour = 100;
+    private static final int DEFAULT_PER_IP = 20;
+    private static final int DEFAULT_GLOBAL = 100;
     private static final long HOUR_MS = 60 * 60 * 1000L;
+
+    /**
+     * 让阈值可配置：本地开发 / 自动化验收会反复注册临时账号，
+     * 20 个/小时根本不够用。线上不设这两个键，走默认值。
+     */
+    public static void configure(Integer perIp, Integer global) {
+        if (perIp != null && perIp > 0) {
+            perIpPerHour = perIp;
+        }
+        if (global != null && global > 0) {
+            globalPerHour = global;
+        }
+    }
+
+    /** 清空计数（只在测试/运维脚本里用） */
+    public static synchronized void reset() {
+        BY_IP.clear();
+        globalCount.set(0);
+        globalWindowStart = 0;
+        perIpPerHour = DEFAULT_PER_IP;
+        globalPerHour = DEFAULT_GLOBAL;
+    }
     /** 记录的 IP 超过这个数就顺手清一遍过期窗口 */
     private static final int MAX_IPS = 10000;
 
@@ -35,7 +59,7 @@ public class RegisterRateLimit {
             globalWindowStart = now;
             globalCount.set(0);
         }
-        if (globalCount.get() >= GLOBAL_PER_HOUR) {
+        if (globalCount.get() >= globalPerHour) {
             return false;
         }
 
@@ -49,7 +73,7 @@ public class RegisterRateLimit {
             w.windowStart = now;
             w.count = 0;
         }
-        if (w.count >= PER_IP_PER_HOUR) {
+        if (w.count >= perIpPerHour) {
             return false;
         }
         w.count++;

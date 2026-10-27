@@ -22,7 +22,7 @@ const setting = {
     // 把发布框换成「你已被禁言」的提示条，而不是让人一直点发布一直失败。
     mutedCode: 506,
     //游客 / 没绑邮箱 code：能登录、能浏览，但评论、回复、举报会被拦。
-    // 前端收到它要把「绑定邮箱」弹窗直接叫出来，而不是只弹一条红色错误。
+    // 前端收到它要引导去「个人中心 → 账号管理」绑定邮箱，而不是只弹一条红色错误。
     unverifiedCode: 507,
     //没开通发帖权 code：账号能评论、能登录，但缺 post:create（自己解决不了）。
     // 和 507 分开处理 —— 507 用户去绑个邮箱就好了，这个只能等站长开通，
@@ -32,7 +32,8 @@ const setting = {
 
 
     //不经过token校验的路由
-    routesWhiteList: ['/user/login', '/user/register', '/404', '/401'],
+    //  /user/password/forgot：找回密码，登录不了才来这儿，带 token 反而是过期的那一个
+    routesWhiteList: ['/user/login', '/user/register', '/user/password/forgot', '/404', '/401'],
     //token名称
     tokenName: 'accessToken',
     //token存储位置localStorage sessionStorage

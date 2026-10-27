@@ -68,14 +68,14 @@
         <p class="muted-notice__title">绑定邮箱后就能评论</p>
         <p class="muted-notice__desc">
           <template v-if="userStore.user?.email">验证码会发到 {{ userStore.user.email }}</template>
-          <template v-else>点右侧按钮填一个邮箱，收 6 位验证码</template>
+          <template v-else>点右侧按钮去个人中心填个邮箱，收 6 位验证码</template>
         </p>
         <p class="muted-notice__hint">绑完自动成为普通用户，评论和发帖都开了</p>
       </div>
       <button
         type="button"
         class="muted-notice__refresh"
-        @click="uiStore.openVerifyModal()"
+        @click="goBindEmail()"
       >
         去绑定
       </button>
@@ -239,6 +239,7 @@
 <script setup>
 import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
+import { goBindEmail } from "@/utils/bindEmail";
 import { useTopicStore } from "@/stores/topic";
 import IconUser from "@/components/icons/IconUser.vue";
 import {
@@ -817,7 +818,14 @@ const handleDelete = (postId) => {
 }
 
 .user-name {
-  display: inline-block;
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  /* ⚠️ 两个约束要同时满足：
+     ① 角色标签**紧跟昵称**，不贴到卡片最右边 → 不能 flex-grow（谁 grow 谁把后面的元素推到边缘）；
+     ② 长昵称（中文无断行点、`vfy_guest_9107722065` 这种带下划线的英文串浏览器也不断）
+        不能把角色标签顶出视口 → 必须可收缩：flex-shrink:1 + min-width:0 + 下面的 anywhere 断行。 */
+  flex: 0 1 auto;
   margin-left: 10px;
   font-size: 1.2rem;
   font-weight: bold;
@@ -825,7 +833,15 @@ const handleDelete = (postId) => {
   transition: opacity 0.2s ease-in-out;
 }
 
+/* 昵称本体：长串允许在任意位置断行，宁可折两行也不要横向溢出 */
+.user-name > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .user-role {
+  flex: none; /* 角色标签不参与收缩，昵称再长也不会把它挤扁或顶出去 */
+  white-space: nowrap;
   padding: 2px 4px;
   margin-left: 10px;
   border-radius: 4px;

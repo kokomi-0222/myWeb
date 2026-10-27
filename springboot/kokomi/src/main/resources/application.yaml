@@ -7,6 +7,11 @@ app:
     # 本地开发用：SMTP 没配时，把验证码明文放进 /user/verify/send 的响应里，
     # 省得每次去翻后端日志。线上不要开（默认 false，prod 也没有这个键）。
     dev-echo: ${MAIL_DEV_ECHO:false}
+  captcha:
+    # 同上的本地调试开关：把图形验证码明文放进 /captcha 的响应里，
+    # 这样注册流程能被脚本自动验收。线上不设这个键，恒为 false。
+    # ⚠️ 打开等于取消图形验证码，只允许出现在本地配置里。
+    dev-echo: ${CAPTCHA_DEV_ECHO:false}
 
 server:
   port: 8080
@@ -33,22 +38,40 @@ spring:
       connection-test-query: SELECT 1
       max-lifetime: 1800000
 
-  # 注册验证码邮件。QQ 邮箱：设置 → 账户 → 开启 SMTP 服务 → 生成授权码（不是登录密码）。
-  # 两个凭据都从环境变量读，仓库里不留明文；本地可以写在 gitignored 的
-  # springboot/kokomi/config/application-local.yaml 里（同 datasource 的 password 一样）。
+  # 验证码邮件通道：阿里云邮件推送（DirectMail）的 SMTP。
+  #
+  # 它不是一套独立的 SDK —— 阿里云文档给的示例就是标准 JavaMail 的
+  # Session + Transport.send，底层协议完全一样。这里继续用 Spring 的
+  # JavaMailSender（Spring Boot 4 下是 jakarta.mail），而不是文档里的
+  # com.sun.mail:javax.mail —— 后者是 javax 包名，和 jakarta.mail 会冲突。
+  #
+  # 用前必须在阿里云控制台做完三步，少一步就会 535/554 发不出去：
+  #   1. 邮件推送 → 发信域名：添加域名并按提示配好 DNS（SPF / MX / DKIM 验证）
+  #   2. 发信地址：在该域名下新建一个，如 noreply@mail.example.com
+  #   3. 该发信地址 → 设置 SMTP 密码（不是阿里云登录密码，也不是 AccessKey）
+  # 然后 MAIL_USERNAME 填这个发信地址，MAIL_PASSWORD 填刚设的 SMTP 密码。
+  #
+  # 端口：465=SSL（推荐，阿里云 ECS 出方向 25 端口默认封禁，别用 25）；
+  #       也行 80（明文），把 MAIL_SSL 设成 false。
   mail:
-    host: ${MAIL_HOST:smtp.qq.com}
+    host: ${MAIL_HOST:smtpdm.aliyun.com}
     port: ${MAIL_PORT:465}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
     default-encoding: UTF-8
     properties:
       mail:
+        # 长参数（附件名）不折行，阿里云示例里的 mail.mime.splitlongparameters=false
+        mime:
+          splitlongparameters: false
         smtp:
           auth: true
           ssl:
-            enable: true
-          # QQ/163 在境外机房偶尔很慢，卡住不如快点报错让用户点重发
+            enable: ${MAIL_SSL:true}
+          # 阿里云要求 SMTP 信封发件人（MAIL FROM）等于控制台创建的发信地址。
+          # 缺省跟随 username，一般不用单独配；配了 MAIL_FROM 就以它为准。
+          from: ${MAIL_FROM:${MAIL_USERNAME:}}
+          # 跨境/弱网时卡住不如快点报错，让用户点重发
           connectiontimeout: 6000
           timeout: 8000
           writetimeout: 8000
@@ -66,6 +89,12 @@ auth:
     - /captcha
     - /user/login
     - /user/register
+    # 注册前发邮箱验证码：还没注册当然没有 token，必须免登录
+    - /user/register/email-code
+    # 注册第一步校验验证码换 ticket：同样还没有 token
+    - /user/register/verify-email
+    # 找回密码：登录不了才来这儿，必须免登录
+    - /user/password/forgot/**
     - /publicKey
     - /upload/**
     - /post/getPosts

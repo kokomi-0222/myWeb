@@ -3,6 +3,8 @@ CLAUDE.md
 # ---- 本地截图 / 调试产物（不入库）----
 shots/
 tools/ext-assets/
+__pycache__/
+*.pyc
 
 # ---- 本地/生产凭据（不入库）----
 # 数据库密码、JWT secret 一律走环境变量；本机值写在这里，不会被打进 jar

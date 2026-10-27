@@ -22,6 +22,15 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class CaptchaController {
 
+    /**
+     * 本地调试用：把图形验证码的明文一并返回，省得自测时对着图片猜。
+     * 和 {@code app.mail.dev-echo} 是同一套约定 —— 只在 local profile 打开，
+     * 线上（prod）没有这个键，恒为 false。
+     * ⚠️ 开着它等于图形验证码形同虚设，绝不能带到生产。
+     */
+    @org.springframework.beans.factory.annotation.Value("${app.captcha.dev-echo:false}")
+    private boolean devEcho;
+
     /** 每 IP 每分钟最多请求验证码次数 */
     private static final int MAX_PER_MINUTE = 60;
     /** 限流窗口（毫秒） */
@@ -57,6 +66,9 @@ public class CaptchaController {
         Map<String, Object> result = new HashMap<>();
         result.put("captchaKey", key);
         result.put("captchaImage", base64);
+        if (devEcho) {
+            result.put("captchaCode", code);
+        }
         return Result.success(result);
     }
 

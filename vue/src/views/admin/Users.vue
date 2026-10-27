@@ -80,9 +80,13 @@
           <span
             v-if="u.emailVerified === false"
             class="ban-chip verify-chip"
-            title="邮箱未验证：能登录能浏览，但发帖 / 评论 / 举报会被拦"
+            :title="
+              u.email
+                ? '邮箱未验证：能登录能浏览，但发帖 / 评论 / 举报会被拦'
+                : '还没绑定邮箱（升级前注册的老账号）：让他去「个人中心 → 账号管理」绑一个'
+            "
           >
-            未验证
+            {{ u.email ? "未验证" : "未绑邮箱" }}
           </span>
           <span
             v-if="u.status"
@@ -125,9 +129,13 @@
           解除
         </button>
 
-        <!-- 手动激活：SMTP 故障或老手机号账号没有邮箱时的兜底 -->
+        <!--
+          手动激活：SMTP 故障时给「有邮箱但没验证」的账号兜底。
+          没有邮箱的账号不显示 —— 后端没有邮箱可标记，会直接拒绝；
+          这种账号应该引导用户自己去个人中心绑定（绑定本来就要求他本人收码）。
+        -->
         <button
-          v-if="u.emailVerified === false"
+          v-if="u.emailVerified === false && u.email"
           type="button"
           class="user-row__style-btn"
           title="手动把邮箱标记为已验证，让对方立刻可以发言"

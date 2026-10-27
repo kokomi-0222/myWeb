@@ -39,7 +39,8 @@ realService.interceptors.response.use(
     }
 
     // 邮箱未验证 / 还是游客：这不是「操作失败」，而是「还没解锁评论」。
-    // 不弹红色错误（会盖住绑定弹窗），只广播一次让弹窗自己出来。
+    // 不弹红色错误，只广播一次 —— App.vue 会问一句「去个人中心绑定吗」，
+    // 绑定的实际入口在个人中心 → 账号管理（见 utils/bindEmail.js）。
     if (setting.unverifiedCode && res.code == setting.unverifiedCode) {
       window.dispatchEvent(new CustomEvent('kokomi:unverified'))
       const err = new Error(res.msg || '绑定邮箱后才能评论')
