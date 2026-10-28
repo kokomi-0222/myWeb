@@ -207,6 +207,28 @@ const get = (p) =>
     await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1 });
     await sleep(300);
   };
+  // 只悬停不点击：mouseMoved 才能干净地触发 :hover（点击会顺带跑掉副作用）
+  const hoverEl = async (sel, index = 0) => {
+    const pos = await evaluate(`(() => {
+      const el = document.querySelectorAll(${JSON.stringify(sel)})[${index}];
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    })()`);
+    if (!pos) throw new Error("找不到元素: " + sel);
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: pos.x, y: pos.y, button: "none" });
+    await sleep(420);
+  };
+  const moveAway = async () => {
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 5, y: 5, button: "none" });
+    await sleep(380);
+  };
+  const btnStyle = (sel, index = 0) => evaluate(`(() => {
+    const el = document.querySelectorAll(${JSON.stringify(sel)})[${index}];
+    if (!el) return null;
+    const cs = getComputedStyle(el);
+    return { bg: cs.backgroundColor, border: cs.borderTopColor };
+  })()`);
   const clickEl = async (sel) => {
     const pos = await evaluate(`(() => {
       const el = document.querySelector(${JSON.stringify(sel)});
@@ -245,6 +267,23 @@ const get = (p) =>
     (await evaluate(
       `document.querySelector(${JSON.stringify(sel)})?.textContent.trim() || ''`
     )) || "";
+  /**
+   * 过发码前的人机校验（CaptchaPrompt）。
+   * 本地 dev-echo 会把图形码明文渲染在 .cp-dev 里，照填就能过；线上没这段文本。
+   * @returns 填入的明文（空串 = 人机块没出现 / 后端没开 dev-echo）
+   */
+  const solveCaptcha = async () => {
+    if (!(await until("!!document.querySelector('.cp .cp-dev b')", 12000))) return "";
+    const plain = await text(".cp .cp-dev b");
+    if (!plain) return "";
+    await evaluate("document.querySelector('.cp')?.scrollIntoView({block:'center'})");
+    await sleep(200);
+    await fill(".cp .cp-input", plain);
+    // 等 Vue 把 v-model 回写、把「确定」从 disabled 放开
+    await sleep(250);
+    await clickEl(".cp .cp-ok");
+    return plain;
+  };
 
   try {
     // ---------------------------------------------------------- 1 入口
@@ -261,8 +300,14 @@ const get = (p) =>
 
     await clickByText(".footer-link .link-text", "忘记密码");
     check("切到「找回密码」屏", (await until(`document.querySelector('.form-title')?.textContent.trim() === '找回密码'`)));
-    const resetSub = await text(".form-subtitle");
-    check("副标题说明用邮箱收码", resetSub.includes("邮箱"), resetSub);
+    // 和注册同一个节奏：第 1 步只管邮箱（俩格子），第 2 步只管密码
+    check("第 1 步没有副标题（和注册一致）",
+      (await text(".form-subtitle")) === "", await text(".form-subtitle"));
+    const emailLabel = await evaluate(
+      `document.querySelector('.form-item .input-line-wrapper label')?.textContent.trim() || ''`);
+    check("邮箱这一格就叫「邮箱」", emailLabel === "邮箱", emailLabel);
+    const step1Count = await evaluate(`document.querySelectorAll('.form-item .input-line').length`);
+    check("第 1 步只有「邮箱 + 验证码」两格", step1Count === 2, String(step1Count));
     check("有邮箱输入框 + 发送按钮",
       await until(`!!document.querySelector('.reset-send')`));
     await shot("email-forgot-entry.png");
@@ -270,19 +315,40 @@ const get = (p) =>
     // ---------------------------------------------------------- 2 空邮箱
     console.log("\n[2] 空邮箱点发送");
     await clickEl(".reset-send");
-    check("提示「请输入绑定过的邮箱」",
-      await until(`document.querySelector('.err-tip')?.textContent.includes('请输入绑定过的邮箱')`, 6000));
+    check("提示「请输入邮箱」",
+      await until(`document.querySelector('.err-tip')?.textContent.includes('请输入邮箱')`, 6000));
     const emptyTip = await text(".err-tip");
-    check("文案正确", emptyTip === "请输入绑定过的邮箱", emptyTip);
+    check("文案正确", emptyTip === "请输入邮箱", emptyTip);
 
-    // ---------------------------------------------------------- 3 完整重置
-    console.log("\n[3] 完整重置：发码 → 错码 → 密码校验 → 成功");
+    // ---------------------------------------------------------- 2b 没绑定账号
+    console.log("\n[2b] 邮箱没有绑定账号：直接说，不假装已发送");
+    // 用户报的现场是「解绑过邮箱之后又忘了密码」：以前这里 toast「已发送」，
+    // 但一封信都不会发出去，人只能对着收件箱干等。现在后端直接报 400。
+    const ghostEmail = `ghost_${Date.now()}@example.com`;
+    await fill(".captcha-row input", ghostEmail);
+    await clickEl(".reset-send");
+    // 发码前先过人机校验：填对图才会打到后端，后端再回「没有绑定账号」
+    check("点发送先展开人机校验", await until(`!!document.querySelector('.cp')`, 8000));
+    await solveCaptcha();
+    check("红字提示「该邮箱没有绑定账号」",
+      await until(`document.querySelector('.err-tip')?.textContent.includes('没有绑定账号')`, 12000));
+    const ghostTip = await text(".err-tip");
+    check("文案就是一句「该邮箱没有绑定账号」", ghostTip === "该邮箱没有绑定账号", ghostTip);
+    check("没有进 60 秒倒计时（能立刻换邮箱重试）",
+      (await text(".reset-send")) === "发送验证码", await text(".reset-send"));
+    await shot("email-forgot-not-bound.png");
+
+    // ---------------------------------------------------------- 3 两步重置
+    console.log("\n[3] 两步重置：发码 → 验码 → 设密码 → 成功");
     const user = makeUser("reset");
     const hashBefore = sql(`SELECT password FROM user WHERE id = ${user.id}`);
     const tvBefore = Number(sql(`SELECT token_version FROM user WHERE id = ${user.id}`) || 1);
 
+    // ---------- 第 1 步：邮箱 + 码
     await fill(".captcha-row input", user.email);
     await clickEl(".reset-send");
+    const solvedReset = await solveCaptcha();
+    check("图形验证码能填能提交", !!solvedReset, solvedReset);
     check("发码成功后出现 dev-echo 明文码",
       await until(`!!document.querySelector('.reset-dev')`, 15000));
     const devCode = await text(".reset-dev b");
@@ -290,34 +356,48 @@ const get = (p) =>
     check("按钮进倒计时",
       await until(`/^\\d+s$/.test(document.querySelector('.reset-send')?.textContent.trim() || '')`, 6000));
 
-    // 表单顺序：邮箱 / 验证码 / 新密码 / 确认
-    const inputs = ".form-item .input-line";
+    let inputs = ".form-item .input-line";
     await fill(inputs, devCode === "000000" ? "111111" : "000000", 1);
-    await fill(inputs, "NewPass123", 2);
-    await fill(inputs, "NewPass123", 3);
-    // 逐个 fill 只等 120ms，四点连填后在同一个 tick 里点提交容易拿到旧的 model 值
-    // （曾经因此误报「请输入 6 位验证码」）。留一拍再点。
-    await sleep(600);
+    // 逐个 fill 只等 120ms，连填后立刻点提交容易拿到旧的 model 值，留一拍
+    await sleep(400);
     await clickEl(".submit-button");
-    check("错码提示「验证码不正确」",
+    check("错码停在第 1 步并提示「验证码不正确」",
       await until(`document.querySelector('.err-tip')?.textContent.includes('验证码不正确')`, 12000));
     const wrongTip = await text(".err-tip");
     check("错码提示带剩余次数", wrongTip.includes("再试"), wrongTip);
+    check("错码没让界面往下走",
+      (await evaluate(`document.querySelector('.form-title')?.textContent.trim() || ''`)) === "找回密码");
 
-    // 用错码试过一次后，码还剩 4 次机会：下面改成正确码继续
     await fill(inputs, devCode, 1);
-    await fill(inputs, "123", 2);
+    await sleep(400);
+    await clickEl(".submit-button");
+    check("对码 → 第 2 步「设置新密码」",
+      await until(`document.querySelector('.form-title')?.textContent.trim() === '设置新密码'`, 12000));
+
+    // ---------- 第 2 步：只填密码
+    inputs = ".form-item .input-line";
+    const step2Count = await evaluate(`document.querySelectorAll('.form-item .input-line').length`);
+    check("第 2 步只有两个密码框", step2Count === 2, String(step2Count));
+    check("第 2 步不回显邮箱（简洁）",
+      !(await evaluate(`document.body.innerText.includes(${JSON.stringify(user.email)})`)));
+    await shot("email-forgot-step2.png");
+
+    await fill(inputs, "123", 0);
+    await fill(inputs, "123", 1);
+    await sleep(400);
     await clickEl(".submit-button");
     check("新密码太短被拦",
       await until(`document.querySelector('.err-tip')?.textContent.includes('至少 6 位')`, 8000));
 
-    await fill(inputs, "NewPass123", 2);
-    await fill(inputs, "OtherPass123", 3);
+    await fill(inputs, "NewPass123", 0);
+    await fill(inputs, "OtherPass123", 1);
+    await sleep(400);
     await clickEl(".submit-button");
     check("两次不一致被拦",
       await until(`document.querySelector('.err-tip')?.textContent.includes('不一致')`, 8000));
 
-    await fill(inputs, "NewPass123", 3);
+    await fill(inputs, "NewPass123", 1);
+    await sleep(400);
     await clickEl(".submit-button");
     check("重置成功回到登录屏",
       await until(`document.querySelector('.form-title')?.textContent.trim() === '欢迎回来'`, 15000));
@@ -331,30 +411,32 @@ const get = (p) =>
     check("token_version +1", tvAfter === tvBefore + 1, `${tvBefore} → ${tvAfter}`);
 
     // ---------------------------------------------------------- 4 修改密码页入口
-    console.log("\n[4] 「修改密码」页的「用绑定邮箱重置」");
+    console.log("\n[4] 账号安全页 · 修改密码弹窗里的「用绑定邮箱重置」");
     await nav(BASE + "/");
     await evaluate(`localStorage.setItem('token', ${JSON.stringify(user.token)})`);
-    await nav(BASE + "/space/password");
+    await nav(BASE + "/space/security");
     // 上一轮重置已经把 token_version +1，旧 token 失效 → 重新签一个
     const freshTv = Number(sql(`SELECT token_version FROM user WHERE id = ${user.id}`) || 1);
     await evaluate(`localStorage.setItem('token', ${JSON.stringify(signToken(user.id, freshTv))})`);
-    await nav(BASE + "/space/password");
-    check("页面上有「用绑定邮箱重置」入口",
+    await nav(BASE + "/space/security");
+    // 改密码改成了弹窗：先进弹窗，底部才有「用绑定邮箱重置」
+    await clickByText(".sec-btn", "修改密码");
+    check("弹窗里有「用绑定邮箱重置」入口",
       await until(`!!document.querySelector('.forgot-link')`, 12000));
     await clickEl(".forgot-link");
     check("直接落在「找回密码」屏",
       await until(`document.querySelector('.form-title')?.textContent.trim() === '找回密码'`, 10000));
 
     // ---------------------------------------------------------- 5 账号页邮箱行的暗色 / 手机
-    console.log("\n[5] 账号页邮箱行：暗色 + 390 宽");
+    console.log("\n[5] 账号安全页邮箱行：暗色 + 390 宽");
     const guest = makeUser("row", { role: "guest", withEmail: false, verified: 0 });
     await evaluate(`localStorage.setItem('kokomi-theme', 'dark')`);
     await evaluate(`document.documentElement.classList.add('dark')`);
     await evaluate(`localStorage.setItem('token', ${JSON.stringify(guest.token)})`);
-    await nav(BASE + "/space/account?bind=1");
+    await nav(BASE + "/space/security?bind=1");
     check("暗色下绑定弹窗出现", await until(`!!document.querySelector('.bind-dialog')`, 12000));
     const darkRow = await evaluate(`(() => {
-      const row = document.querySelector('.email-line');
+      const row = document.querySelector('.sec-row--email');
       // 行内那行长说明已删，小字搬到弹窗底部（.bind-tip）
       const tip = document.querySelector('.bind-dialog .bind-tip');
       const panel = document.querySelector('.bind-dialog');
@@ -372,7 +454,7 @@ const get = (p) =>
     await send("Emulation.setDeviceMetricsOverride", {
       width: 390, height: 844, deviceScaleFactor: 1, mobile: false,
     });
-    await nav(BASE + "/space/account?bind=1");
+    await nav(BASE + "/space/security?bind=1");
     check("手机宽度下弹窗还在", await until(`!!document.querySelector('.bind-dialog')`, 12000));
     const mob = await evaluate(`(() => {
       const de = document.documentElement;
@@ -392,6 +474,54 @@ const get = (p) =>
     await send("Emulation.setDeviceMetricsOverride", {
       width: 1200, height: 1000, deviceScaleFactor: 1, mobile: false,
     });
+
+    // ---------------------------------------------------------- 6 邮箱行动作的 hover
+    // 曾经 hover 会铺一层 --bg-hover 灰底，两个按钮并排时像被同时选中；
+    // 现在只把描边点亮。这条断言是为了防止以后有人「顺手」把底色加回来。
+    console.log("\n[6] 邮箱行按钮：hover 只描边，不铺灰底");
+    const hoverUser = makeUser("hover", { role: "member", withEmail: true });
+    await evaluate(`localStorage.setItem('kokomi-theme', 'light')`);
+    await evaluate(`document.documentElement.classList.remove('dark')`);
+    await evaluate(`localStorage.setItem('token', ${JSON.stringify(hoverUser.token)})`);
+    await moveAway();
+    await nav(BASE + "/space/security");
+    check("看到「更换 / 解绑」",
+      await until(`document.querySelectorAll('.sec-row--email .sec-btn').length >= 2`, 12000));
+
+    const lc = await btnStyle(".sec-row--email .sec-btn", 0);
+    await hoverEl(".sec-row--email .sec-btn", 0);
+    const lch = await btnStyle(".sec-row--email .sec-btn", 0);
+    check("浅色 hover「更换」不铺底色",
+      lch.bg === lc.bg && /rgba\(0, 0, 0, 0\)/.test(lch.bg), `${lc.bg} → ${lch.bg}`);
+    check("浅色 hover「更换」边框转主题色",
+      lch.border !== lc.border, `${lc.border} → ${lch.border}`);
+
+    await moveAway();
+    const lu = await btnStyle(".sec-row--email .sec-btn", 1);
+    await hoverEl(".sec-row--email .sec-btn", 1);
+    const luh = await btnStyle(".sec-row--email .sec-btn", 1);
+    check("浅色 hover「解绑」不铺底色",
+      luh.bg === lu.bg && /rgba\(0, 0, 0, 0\)/.test(luh.bg), `${lu.bg} → ${luh.bg}`);
+    check("浅色 hover「解绑」边框转红",
+      luh.border !== lu.border && luh.border.startsWith("rgb(239"), `${lu.border} → ${luh.border}`);
+    await shot("email-link-hover.png");
+
+    await evaluate(`localStorage.setItem('kokomi-theme', 'dark')`);
+    await evaluate(`document.documentElement.classList.add('dark')`);
+    await moveAway();
+    await nav(BASE + "/space/security");
+    await until(`document.querySelectorAll('.sec-row--email .sec-btn').length >= 2`, 12000);
+    const dc = await btnStyle(".sec-row--email .sec-btn", 0);
+    await hoverEl(".sec-row--email .sec-btn", 0);
+    const dch = await btnStyle(".sec-row--email .sec-btn", 0);
+    check("暗色 hover 不铺底色",
+      dch.bg === dc.bg && /rgba\(0, 0, 0, 0\)/.test(dch.bg), `${dc.bg} → ${dch.bg}`);
+    check("暗色 hover 边框转主题色",
+      dch.border !== dc.border, `${dc.border} → ${dch.border}`);
+
+    // 恢复浅色，别把主题留给后面
+    await evaluate(`localStorage.setItem('kokomi-theme', 'light')`);
+    await evaluate(`document.documentElement.classList.remove('dark')`);
   } catch (e) {
     check("执行未抛异常", false, String(e && e.message ? e.message : e).slice(0, 200));
   } finally {

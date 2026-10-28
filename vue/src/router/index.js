@@ -45,9 +45,15 @@ const router = createRouter({
           component: () => import('@/views/space/Message.vue'),
         },
         {
+          path: 'security',
+          meta: { name: '账号安全' },
+          component: () => import('@/views/space/Security.vue'),
+        },
+        {
+          // 密码、邮箱、注销都并进了 /space/security（改密码还改成了弹窗）。
+          // 留一条重定向，免得收藏过 /space/password 的人点到 404。
           path: 'password',
-          meta: { name: '修改密码' },
-          component: () => import('@/views/space/Password.vue'),
+          redirect: '/space/security',
         },
         {
           // 用户管理已搬进 /admin 后台。留一条重定向，
@@ -93,6 +99,14 @@ const router = createRouter({
           component: () => import('@/views/admin/Reports.vue'),
         },
       ],
+    },
+    {
+      // 隐私政策：公开页面，**不能**加 requiresAuth —— 注册弹窗里勾选「同意」之前
+      // 就得能读到它（何况未登录的人也可能想先看看这站收集什么）。
+      // 没有 meta.requiresAuth，守卫直接放行。
+      path: '/privacy',
+      meta: { title: '隐私政策' },
+      component: () => import('@/views/Privacy.vue'),
     },
     {
       // 兜底：未匹配的路径走 404，避免白屏

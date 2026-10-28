@@ -39,10 +39,12 @@ public class UserVerifyServiceImpl implements UserVerifyService {
     private static final int CODE_MINUTES = 10;
     private static final String CODE_SENT_TEXT = "验证码已发送，请查收邮件";
     /**
-     * 找回密码的发送文案：故意写成「如果该邮箱绑定过账号」。
-     * 这个接口免登录，文案必须对「没注册过的邮箱」也成立，否则就成了账号探测器。
+     * 找回密码的发送文案。
+     * <p>
+     * 以前这里是条件句「如果该邮箱绑定过账号…」—— 那时候查不到账号也照样回「已发送」。
+     * 现在查不到账号会直接报错（见 {@link #sendResetCode}），所以文案可以写实了。
      */
-    private static final String RESET_SENT_TEXT = "如果该邮箱绑定过账号，重置验证码已经发出，请查收邮件";
+    private static final String RESET_SENT_TEXT = "重置验证码已发送，请查收邮件";
 
     /** 绑定邮箱后升级到的角色；游客之外的任何角色都不动 */
     private static final String GUEST_ROLE = "guest";
@@ -74,9 +76,9 @@ public class UserVerifyServiceImpl implements UserVerifyService {
     /**
      * 注册前给邮箱发码。
      * <p>
-     * 和「找回密码」反过来：那个接口怕被拿来探测账号，所以对谁都回「已发送」；
-     * 这个接口必须诚实 —— 邮箱被占了就直接告诉用户，否则他填完码提交又失败，
-     * 白等一次邮件和 60 秒倒计时。
+     * 邮箱被占了就直接告诉用户，否则他填完码提交又失败，白等一次邮件和 60 秒倒计时。
+     * 找回密码那边也是同样的口径（见 {@link #sendResetCode}）：宁可明说，
+     * 也不让用户对着一封不会到的邮件干等。
      * <p>
      * 防刷靠两层：调用方（UserController 的 /register/email-code）在
      * EmailCodeCache 的同邮箱 60 秒 / 每小时 5 封 + 全站每分钟 8 封配额之内，
@@ -123,7 +125,7 @@ public class UserVerifyServiceImpl implements UserVerifyService {
      * 而邮件上明明写着 10 分钟内有效。码在有效期内随便验几次都不增加风险，
      * 建号成功时由 {@code UserServiceImpl#register} 统一清掉。
      * <p>
-     * 顺序仍然把验码放在最后：邮箱已被注册时直接把话说明白（注册场景不需要防枚举），
+     * 顺序仍然把验码放在最后：邮箱已被注册时直接把话说明白（这里不玩防枚举那套），
      * 失败也不烧掉他刚收到的码。
      */
     @Override
@@ -467,15 +469,25 @@ public class UserVerifyServiceImpl implements UserVerifyService {
             throw new CustomerException(ResultCode.PARAM_ERROR, "请输入正确的邮箱");
         }
 
-        // 防枚举：无论这个邮箱有没有注册、是不是验证过，都走「已发送」这条文案。
-        // 真发信只发给已验证的邮箱，其余静默跳过（日志里也不打「不存在」，
-        // 免得运维把日志贴出去又把枚举答案抖出来）。
+        // 查不到「已验证的邮箱」就直接说，不再假装「已发送」。
+        //
+        // 这里的口径原来是防枚举：不管有没有账号都回同一句、只有真账号才发信。
+        // 2026-10-28 改掉了，三条理由：
+        //   ① 注册接口（/register/email-code）对「该邮箱已被注册」本来就是明说的
+        //      （不说实话用户会一直试）。想探某个邮箱有没有账号，走注册框一步就够，
+        //      这里沉默换不来任何保密，只是把防御堆在了没用的地方；
+        //   ② 真实代价全落在用户身上 —— 解绑过邮箱又忘了密码的人，看到「已发送」
+        //      却永远收不到邮件，也没有任何线索知道这条路已经断了，只能来问客服；
+        //   ③ 原来那个「静默分支」还要调 EmailCodeCache.issue 占一次配额，
+        //      被随机邮箱刷的时候会白占缓存名额（MAX_SIZE 5000）。
+        // 口径仍然做了取舍：只说「没有绑定账号」，不区分「从没注册」和「解绑了」——
+        // 解绑后 email 列已经清空，这两种情况在库里本来就是同一个样子，
+        // 也就不会多泄露「这个邮箱曾经注册过」。
+        // 文案只留主句（不再括注「解绑过…」）：拦截器会把 msg 原样弹成顶部 toast，
+        // 长文案在那儿要占三行，而表单里已经有一行红字，同一句话看两遍很吵。
         User owner = userMapper.selectByVerifiedEmail(target);
         if (owner == null) {
-            // 也占用一次发信配额，否则「有邮箱才有限流」本身就是一个可探测的信号
-            EmailCodeCache.issue(target);
-            log.info("[reset] {} 没有匹配的已验证账号，按「已发送」返回", maskEmail(target));
-            return result(true, maskEmail(target), RESET_SENT_TEXT, 60, null);
+            throw new CustomerException(ResultCode.PARAM_ERROR, "该邮箱没有绑定账号");
         }
 
         EmailCodeCache.Issue issue = EmailCodeCache.issue(target);
@@ -496,14 +508,23 @@ public class UserVerifyServiceImpl implements UserVerifyService {
     }
 
     @Override
+    public void verifyResetCode(String email, String code) {
+        String target = StrUtil.trimToNull(email);
+        if (target == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请输入邮箱");
+        }
+        // 只验码：不查账号、不消费。查账号会把「这个邮箱有没有人用」提前漏给第 1 步，
+        // 不消费是为了第 2 步 resetPassword 还能拿同一个码再验一次（那里失败也还能原地重试）。
+        checkResetCode(target, code);
+        log.info("[reset] {} 的重置码已通过校验，进入设置新密码", maskEmail(target));
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void resetPassword(String email, String code, String encryptedData) {
         String target = StrUtil.trimToNull(email);
         if (target == null) {
             throw new CustomerException(ResultCode.PARAM_ERROR, "请输入要找回的邮箱");
-        }
-        if (StrUtil.isBlank(code)) {
-            throw new CustomerException(ResultCode.VERIFY_CODE_ERROR, "请输入验证码");
         }
 
         // ① 先把新密码解出来、校验完，再动验证码。
@@ -514,19 +535,7 @@ public class UserVerifyServiceImpl implements UserVerifyService {
         // ② 校验验证码（错 5 次作废，见 EmailCodeCache）。
         //    用 verify：这里只验不消费 —— 校验通过但后面「这个邮箱没有账号」
         //    之类的失败还得让他能再试一次，真改成功了在末尾 clear。
-        EmailCodeCache.Check check = EmailCodeCache.verify(target, code);
-        switch (check.result) {
-            case OK -> {
-            }
-            case WRONG -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
-                    "验证码不正确，还可以再试 " + check.remaining + " 次");
-            case TOO_MANY -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
-                    "错误次数过多，验证码已作废，请重新获取");
-            case SUPERSEDED -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
-                    "验证码已更新，请使用最新收到的那封邮件里的验证码");
-            default -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
-                    "验证码已失效，请重新获取");
-        }
+        checkResetCode(target, code);
 
         // ③ 验证码过了才查账号 —— 反过来写的话，没验证码的人也能靠报错文案试探。
         User owner = userMapper.selectByVerifiedEmail(target);
@@ -546,6 +555,31 @@ public class UserVerifyServiceImpl implements UserVerifyService {
         // 失败都能原地重试，成功之后立刻清干净，避免 10 分钟内再被用一次
         EmailCodeCache.clear(target);
         log.info("[reset] 用户 {} 通过邮箱验证码重置了密码", owner.getId());
+    }
+
+    /**
+     * 校验重置验证码：错 5 次作废（见 EmailCodeCache），**只验不消费**。
+     * <p>
+     * 第 1 步「下一步」和第 2 步提交共用这一段，保证两处的文案、剩余次数、
+     * 旧码作废的语义完全一致 —— 否则用户会在两步里看到两套说法。
+     */
+    private void checkResetCode(String target, String code) {
+        if (StrUtil.isBlank(code)) {
+            throw new CustomerException(ResultCode.VERIFY_CODE_ERROR, "请输入验证码");
+        }
+        EmailCodeCache.Check check = EmailCodeCache.verify(target, code);
+        switch (check.result) {
+            case OK -> {
+            }
+            case WRONG -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "验证码不正确，还可以再试 " + check.remaining + " 次");
+            case TOO_MANY -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "错误次数过多，验证码已作废，请重新获取");
+            case SUPERSEDED -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "验证码已更新，请使用最新收到的那封邮件里的验证码");
+            default -> throw new CustomerException(ResultCode.VERIFY_CODE_ERROR,
+                    "验证码已失效，请重新获取");
+        }
     }
 
     /**

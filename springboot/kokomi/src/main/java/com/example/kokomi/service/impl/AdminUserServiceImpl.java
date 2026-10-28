@@ -8,6 +8,7 @@ import com.example.kokomi.entity.User;
 import com.example.kokomi.entity.UserRole;
 import com.example.kokomi.exception.CustomerException;
 import com.example.kokomi.mapper.RoleMapper;
+import com.example.kokomi.mapper.RolePermissionMapper;
 import com.example.kokomi.mapper.UserMapper;
 import com.example.kokomi.mapper.UserRoleMapper;
 import com.example.kokomi.service.AdminUserService;
@@ -15,9 +16,12 @@ import com.example.kokomi.service.UserBanService;
 import com.example.kokomi.service.UserVerifyService;
 import com.example.kokomi.util.LoginUserHolder;
 import com.example.kokomi.util.PermissionCache;
+import com.example.kokomi.util.UserTokenVersionCache;
 import com.example.kokomi.vo.AdminUserVO;
 import com.example.kokomi.vo.PageVO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,27 +32,34 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AdminUserServiceImpl implements AdminUserService {
 
     private static final int MAX_PAGE_SIZE = 50;
 
+    /** 后台「用户管理」权限码：持有它的账号不能被注销，见 {@link #deactivateUser} */
+    private static final String MANAGE_PERMISSION = "user:manage";
+
     private final UserMapper userMapper;
     private final UserRoleMapper userRoleMapper;
     private final RoleMapper roleMapper;
+    private final RolePermissionMapper rolePermissionMapper;
     private final UserBanService userBanService;
     private final UserVerifyService userVerifyService;
 
     @Override
-    public PageVO<AdminUserVO> page(String keyword, Integer pageNum, Integer pageSize) {
+    public PageVO<AdminUserVO> page(String keyword, Integer pageNum, Integer pageSize,
+                                    boolean includeDeleted) {
         int num = (pageNum == null || pageNum < 1) ? 1 : pageNum;
         int size = (pageSize == null || pageSize < 1) ? 20 : Math.min(pageSize, MAX_PAGE_SIZE);
         String kw = keyword == null ? null : keyword.trim();
 
-        Long total = userMapper.countAdminPage(kw);
+        Long total = userMapper.countAdminPage(kw, includeDeleted);
         if (total == null) {
             total = 0L;
         }
@@ -56,7 +67,7 @@ public class AdminUserServiceImpl implements AdminUserService {
             return PageVO.build(new ArrayList<>(), 0L, num, size);
         }
 
-        List<User> users = userMapper.selectAdminPage(kw, (num - 1) * size, size);
+        List<User> users = userMapper.selectAdminPage(kw, includeDeleted, (num - 1) * size, size);
 
         // 一次性把这一页所有用户的角色捞出来，避免 N+1
         Map<Long, List<String>> roleMap = new HashMap<>();
@@ -83,6 +94,7 @@ public class AdminUserServiceImpl implements AdminUserService {
             vo.setBanReason(u.getBanReason());
             vo.setEmailVerified(u.getEmailVerified() == null || u.getEmailVerified() == 1);
             vo.setEmail(u.getEmail());
+            vo.setDeletedAt(u.getDeletedAt());
             vo.setRoles(roleMap.getOrDefault(u.getId(), new ArrayList<>()));
             list.add(vo);
         }
@@ -202,5 +214,54 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     public void markEmailVerified(Long userId) {
         userVerifyService.markVerified(userId);
+    }
+
+    /**
+     * 管理员代为注销（不可逆）。
+     * <p>
+     * 只在「用户不会用自助入口 / 发邮件申请」时才用。因为不可逆，这里比处罚严：
+     * <b>不能注销自己</b>（自删是误触重灾区），<b>不能注销任何持 user:manage 的账号</b>
+     * （删掉最后一个管理员，站点就再也进不了后台）。
+     * <p>
+     * 真正的清除逻辑和用户自助注销共用同一条 SQL（{@link UserMapper#deactivate}），
+     * 所以两条路径的效果一定一致 —— 不会出现「自助注销清得干净、后台代注销漏了头像」。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deactivateUser(Long userId) {
+        if (userId == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请选择要注销的用户");
+        }
+        Long operatorId = LoginUserHolder.getUserId();
+        if (userId.equals(operatorId)) {
+            throw new CustomerException(ResultCode.PARAM_ERROR,
+                    "不能注销自己的账号，请先登录另一个管理员账号再操作");
+        }
+
+        User target = userMapper.selectById(userId);
+        if (target == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "用户不存在");
+        }
+        if (target.getDeletedAt() != null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "该账号已经注销过了");
+        }
+
+        List<String> targetPerms = rolePermissionMapper.selectPermissionsByUserId(userId);
+        if (targetPerms != null && targetPerms.contains(MANAGE_PERMISSION)) {
+            throw new CustomerException(ResultCode.NO_PERMISSION,
+                    "该账号持有「用户管理」权限，不能注销；请先移除它的管理员角色");
+        }
+
+        String placeholder = BCrypt.hashpw(UUID.randomUUID().toString(), BCrypt.gensalt());
+        int rows = userMapper.deactivate(userId, placeholder);
+        if (rows != 1) {
+            throw new CustomerException(ResultCode.SERVER_ERROR, "注销失败，请稍后重试");
+        }
+        UserTokenVersionCache.removeVersion(userId);
+        PermissionCache.remove(userId);
+
+        // 留痕：以后他说「我号怎么没了」，日志里查得到是谁、什么时候操作的
+        log.warn("[admin-deactivate] 管理员 {} 注销了用户 {}（原昵称 {}）",
+                operatorId, userId, target.getName());
     }
 }

@@ -10,7 +10,13 @@
         </span>
       </div>
 
-      <nav class="admin-nav">
+      <nav
+        ref="navRef"
+        class="admin-nav"
+        :class="{ 'can-left': navFade.left, 'can-right': navFade.right }"
+        @scroll="syncNavFade"
+        @wheel="onNavWheel"
+      >
         <RouterLink
           v-for="item in menuList"
           :key="item.path"
@@ -64,7 +70,7 @@
 </template>
 
 <script setup>
-import { computed, watch, ref } from "vue";
+import { computed, watch, ref, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { useRoute } from "vue-router";
 import router from "@/router";
 import IconDashboard from "@/components/icons/IconDashboard.vue";
@@ -114,6 +120,79 @@ const menuList = computed(() => [
   { path: "/admin/topics", text: "话题管理", icon: IconFlag },
 ]);
 
+/* ------------------------------------------------------------------
+   窄屏导航横向滚动：让「还能滑」这件事看得见
+   ------------------------------------------------------------------
+   背景：≤900px 时导航排成一行，5 项共 518px、容器只有 366px，
+   屏外还有 152px。手机浏览器会把滚动条自动隐藏，除了被切的半截文字，
+   没有任何「还能往右滑」的暗示 —— 用户根本不会想到去滑。
+
+   所以做两件事：
+   1. 滚动到哪一侧还有内容，哪一侧就渐隐（CSS mask），滑到底渐隐自动消失，
+      被 fade 掉的那半截本身就是提示；同时把那条灰色滚动条隐藏掉。
+   2. 路由切换 / 首次进入时，把当前项滚到视口中间 —— 深链接直接进
+      「话题管理」时不会看到一个「五项里没有一项高亮」的导航。
+   ------------------------------------------------------------------ */
+const navRef = ref(null);
+const navFade = ref({ left: false, right: false });
+
+function syncNavFade() {
+  const el = navRef.value;
+  if (!el) return;
+  const max = el.scrollWidth - el.clientWidth;
+  navFade.value = {
+    // 留 4px 容差：某些缩放比下 scrollLeft 取整会差一点，渐隐会一直闪
+    left: el.scrollLeft > 4,
+    right: max > 4 && el.scrollLeft < max - 4,
+  };
+}
+
+// 把当前菜单项滚到中间；不居中就会「滑到最右后切回概览，仍停在最右」
+function centerActiveNav() {
+  const el = navRef.value;
+  if (!el || el.scrollWidth <= el.clientWidth + 2) return;
+  const active = el.querySelector(".admin-nav__item.is-active");
+  if (!active) return;
+  const r = active.getBoundingClientRect();
+  const nr = el.getBoundingClientRect();
+  const delta = r.left - nr.left - (el.clientWidth - r.width) / 2;
+  el.scrollTo({ left: el.scrollLeft + delta, behavior: "smooth" });
+}
+
+// 鼠标滚轮竖着滚时转成横滑：桌面把窗口拖到 900 以下时，没有触摸也没法横滑，
+// 直接滚轮只能滚内容区，导航就变成「只能看到前三项」的死胡同。
+function onNavWheel(e) {
+  const el = navRef.value;
+  if (!el || el.scrollWidth <= el.clientWidth + 2) return;
+  if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // 已经是横向手势，交给浏览器
+  e.preventDefault();
+  el.scrollLeft += e.deltaY;
+}
+
+let navResizeHandler = null;
+
+onMounted(async () => {
+  await nextTick();
+  syncNavFade();
+  centerActiveNav();
+  navResizeHandler = () => syncNavFade();
+  window.addEventListener("resize", navResizeHandler);
+});
+
+onBeforeUnmount(() => {
+  if (navResizeHandler) window.removeEventListener("resize", navResizeHandler);
+});
+
+// 字重 / 字号随主题或字体加载变化时总宽会变，路由切换后再校一次
+watch(
+  () => route.path,
+  async () => {
+    await nextTick();
+    centerActiveNav();
+    syncNavFade();
+  }
+);
+
 // 顶栏标题跟着路由的 meta.name 走，加新页面时只改路由表
 const pageTitle = computed(() => route.meta?.name || "管理后台");
 
@@ -125,6 +204,9 @@ const goFront = () => router.push("/");
   display: flex;
   width: 100%;
   height: 100vh;
+  /* 手机浏览器地址栏会让 100vh 比可视区更高，底部内容被挡在地址栏后面；
+     dvh 跟随可视区变化。旧浏览器不认 dvh 时仍用上面那行 100vh。 */
+  height: 100dvh;
   background: var(--bg-secondary);
   color: var(--text-primary);
   overflow: hidden;
@@ -267,6 +349,12 @@ const goFront = () => router.push("/");
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  /* 🔴 关键：窄屏（≤900px）时 .admin-app 变成 column，这里是主轴上的 flex:1。
+     flex item 默认 min-height:auto = 内容高度，会被长表格撑到几千像素，
+     于是 .admin-content 永远跟内容一样高（没有可滚动余量），多出来的部分
+     又被 .admin-app 的 overflow:hidden 裁掉 —— 表现就是「手机上后台滑不动」。
+     允许收缩到 0，滚动权交给 .admin-content。 */
+  min-height: 0;
 }
 
 .admin-top {
@@ -356,15 +444,41 @@ const goFront = () => router.push("/");
     display: none;
   }
 
-  /* 小屏导航横向滚动，避免把内容区挤扁 */
+  /* 小屏导航横向滚动，避免把内容区挤扁。
+     条条（scrollbar）直接藏掉：真机上浏览器本来就不画，桌面窄窗口留着一条
+     灰杠既脏又难看；「还能滑」的提示改由两端的渐隐 + 被切半截的文字承担。 */
   .admin-nav {
     flex-direction: row;
     gap: 6px;
     overflow-x: auto;
-    padding-bottom: 2px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 右侧还有内容 → 右缘渐隐；滚过之后左侧出现渐隐；滑到底两端都恢复实心。
+     渐隐掉的那半截文字本身就是「这儿还能滑」的暗示。 */
+  .admin-nav.can-right {
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 26px), transparent 100%);
+    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 26px), transparent 100%);
+  }
+
+  .admin-nav.can-left {
+    -webkit-mask-image: linear-gradient(to left, #000 0, #000 calc(100% - 26px), transparent 100%);
+    mask-image: linear-gradient(to left, #000 0, #000 calc(100% - 26px), transparent 100%);
+  }
+
+  .admin-nav.can-left.can-right {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
   }
 
   .admin-nav__item {
+    flex: 0 0 auto;
     height: 32px;
     padding: 0 12px;
     white-space: nowrap;

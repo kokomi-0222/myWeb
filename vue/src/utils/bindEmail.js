@@ -6,18 +6,16 @@ import { useUserStore } from '@/stores/user'
 import { message } from '@/utils/message'
 
 /**
- * 绑定邮箱的唯一去处：个人中心 → 账号管理。
+ * 绑定邮箱的唯一去处：个人中心 → 账号安全。
  *
- * 以前是一个全局弹窗（VerifyEmailModal），后来搬进了账号页：
- *   1. 弹窗一关就没地方确认「我绑的是哪个邮箱」；
- *   2. 解绑、换绑这类管理动作，弹窗里放不下；
- *   3. 页面里能写清楚「绑定/解绑分别意味着什么」。
- * 所以全站三个入口（发布框提示条、评论框、回复框）统一跳过去，
+ * 以前是一个全局弹窗（VerifyEmailModal），后来搬进账号页，再后来
+ * 跟着「密码 / 邮箱 / 注销」一起归到账号安全页（这些都是登录凭据相关）。
+ * 全站三个入口（发布框提示条、评论框、回复框）统一跳过去，
  * 带 ?bind=1 让目标页自动展开绑定面板。
  */
-export const BIND_EMAIL_PATH = '/space/account'
+export const BIND_EMAIL_PATH = '/space/security'
 
-/** 直接跳到账号页并展开绑定面板（用户主动点的按钮用它） */
+/** 直接跳到账号安全页并展开绑定面板（用户主动点的按钮用它） */
 export function goBindEmail() {
   const userStore = useUserStore()
   const uiStore = useUIStore()

@@ -51,7 +51,7 @@ import IconHome from "@/components/icons/IconHome.vue";
 import IconUser from "@/components/icons/IconUser.vue";
 import IconMessage from "@/components/icons/IconMessage.vue";
 import router from "@/router";
-import IconLock from "@/components/icons/IconLock.vue";
+import IconShield from "@/components/icons/IconShield.vue";
 import LoginModal from "@/components/modules/LoginModal.vue";
 import { useNotificationStore } from "@/stores/notification";
 
@@ -63,11 +63,12 @@ onMounted(() => {
 });
 
 // 「用户管理」已独立成 /admin 后台（入口在顶栏），这里不再放管理相关菜单
+// 「修改密码」已并进「账号安全」（密码 / 邮箱 / 注销），换图标强调这是敏感操作区
 const menuList = [
   { path: "home", text: "首页", key: "home", icon: IconHome },
-  { path: "account", text: "账号管理", key: "account", icon: IconUser },
+  { path: "account", text: "我的信息", key: "account", icon: IconUser },
   { path: "message", text: "消息管理", key: "message", icon: IconMessage },
-  { path: "password", text: "修改密码", key: "password", icon: IconLock },
+  { path: "security", text: "账号安全", key: "security", icon: IconShield },
 ];
 
 const handleMenuClick = (menuPath) => {

@@ -121,13 +121,13 @@ const get = (p) =>
     await setViewport(1200, 900);
     await nav(BASE + "/");
     await evaluate(`localStorage.setItem('token', ${JSON.stringify(TOKENS.admin)})`);
-    await nav(BASE + "/space/account");
-    check("账号管理页加载", await until("!!document.querySelector('.email-line')"));
+    await nav(BASE + "/space/security");
+    check("账号安全页加载", await until("!!document.querySelector('.sec-row--email')"));
 
     // ---------- [1] 行内文案与按钮 ----------
     const row = await evaluate(`(() => {
-      const line = document.querySelector('.email-line');
-      const btns = [...line.querySelectorAll('.email-link')];
+      const line = document.querySelector('.sec-row--email');
+      const btns = [...line.querySelectorAll('.sec-btn')];
       return {
         texts: btns.map(b => (b.textContent || '').trim()),
         pageHasChangeOld: (document.body.innerText || '').includes('换绑'),
@@ -148,7 +148,7 @@ const get = (p) =>
     await shot("account-email-row.png");
 
     // ---------- [3] 更换弹窗 ----------
-    await clickText(".email-link", "更换");
+    await clickText(".sec-row--email .sec-btn", "更换");
     check("点「更换」弹出弹窗", await until("!!document.querySelector('.bind-dialog')"));
     const change = await evaluate(`(() => {
       const d = document.querySelector('.bind-dialog');
@@ -182,7 +182,7 @@ const get = (p) =>
     check("点 × 能关闭", closed && (await until("!document.querySelector('.bind-dialog')", 4000)));
 
     // ---------- [5] 解绑弹窗 ----------
-    await clickText(".email-link", "解绑");
+    await clickText(".sec-row--email .sec-btn", "解绑");
     check("点「解绑」弹出弹窗", await until("!!document.querySelector('.bind-dialog')"));
     const unbind = await evaluate(`(() => {
       const d = document.querySelector('.bind-dialog');

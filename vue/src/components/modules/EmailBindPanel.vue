@@ -77,6 +77,15 @@
           </button>
         </div>
 
+        <!-- 人机校验：点「发送验证码」才展开（发信要有人守着，见后端 UserController#requireCaptcha） -->
+        <CaptchaPrompt
+          v-if="captchaOpen"
+          ref="captchaRef"
+          class="bind-captcha"
+          @confirm="submitSend"
+          @cancel="captchaOpen = false"
+        />
+
         <p v-if="devCode" class="bind-dev">
           本地开发模式（未配 SMTP）：验证码是 <b>{{ devCode }}</b>
         </p>
@@ -131,6 +140,7 @@
  */
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import IconClose from "@/components/icons/IconClose.vue";
+import CaptchaPrompt from "@/components/modules/CaptchaPrompt.vue";
 import {
   confirmVerifyCode,
   sendVerifyCode,
@@ -165,6 +175,9 @@ const sending = ref(false);
 const submitting = ref(false);
 const countdown = ref(0);
 const devCode = ref("");
+/** 人机校验块（点「发送验证码」才展开） */
+const captchaOpen = ref(false);
+const captchaRef = ref(null);
 
 const isChange = computed(() => props.mode === "change");
 const isUnbind = computed(() => props.mode === "unbind");
@@ -214,6 +227,13 @@ const onInput = () => {
 const currentEmail = () =>
   hasEmail.value && !isChange.value ? "" : emailModel.value.trim();
 
+/** 换绑时 send() 已经算好的密码密文，submitSend 直接用，不再重复加密 */
+let pendingCipher = "";
+
+/**
+ * 点「发送验证码」：前置校验（邮箱 / 当前密码）通过后，把图形验证码那一行展开。
+ * 真正的发信交给 submitSend —— 后端要求带图形验证码，没有 key 发了也是 505。
+ */
 const send = async () => {
   if (sending.value || countdown.value > 0) return;
   const email = currentEmail();
@@ -229,8 +249,9 @@ const send = async () => {
     }
   }
 
-  // 换绑要先把密码加密：后端只按 RSA 密文解，明文解不开
-  let cipher = "";
+  // 换绑要先把密码加密：后端只按 RSA 密文解，明文解不开。
+  // 放在展开人机校验之前 —— 密码不对就别让人白看一张图。
+  pendingCipher = "";
   if (isChange.value) {
     const pwd = passwordModel.value.trim();
     if (!pwd) {
@@ -239,21 +260,32 @@ const send = async () => {
     }
     try {
       const { encryptedData } = await import("@/utils/encrypt");
-      cipher = await encryptedData({ oldPassword: pwd });
+      pendingCipher = await encryptedData({ oldPassword: pwd });
     } catch (e) {
       error.value = e?.message || "密码加密失败，请刷新页面后重试";
       return;
     }
   }
 
+  error.value = "";
+  captchaOpen.value = true;
+};
+
+/** 人机校验通过 → 真正发码 */
+const submitSend = async ({ captchaKey, captchaCode }) => {
+  if (sending.value) return;
+  const email = currentEmail();
+  const cipher = pendingCipher;
   sending.value = true;
   error.value = "";
   try {
     const res = isChange.value
-      ? await sendChangeEmailCode(email, cipher)
-      : await sendVerifyCode(email);
+      ? await sendChangeEmailCode(email, cipher, captchaKey, captchaCode)
+      : await sendVerifyCode(email, captchaKey, captchaCode);
     const data = res?.data || {};
     devCode.value = data.devCode || "";
+    // 后端受理了（发了 / 冷却中），人机校验块可以收起来
+    captchaOpen.value = false;
     if (data.sent) {
       // 重发即废旧码（后端只认最新一封）：清掉框里的旧码，别让用户拿上一条邮件的码去试
       code.value = "";
@@ -263,7 +295,15 @@ const send = async () => {
     }
     startCountdown(data.retryAfter || (data.sent ? 60 : 0));
   } catch (e) {
-    error.value = e?.message || "验证码发送失败，请稍后重试";
+    const msg = e?.message || "验证码发送失败，请稍后重试";
+    if (/人机|图形验证码/.test(msg)) {
+      // 图看错了：留在原地换一张
+      captchaRef.value?.fail(msg);
+    } else {
+      // 密码不对 / 这个账号已经绑过邮箱 —— 落在弹窗的红色提示里
+      captchaOpen.value = false;
+      error.value = msg;
+    }
   } finally {
     sending.value = false;
   }
@@ -335,6 +375,8 @@ const reset = () => {
   devCode.value = "";
   emailModel.value = "";
   passwordModel.value = "";
+  captchaOpen.value = false;
+  pendingCipher = "";
   clearTimer();
   countdown.value = 0;
 };
@@ -519,6 +561,11 @@ onUnmounted(clearTimer);
 .bind-send:disabled {
   color: var(--text-secondary);
   cursor: not-allowed;
+}
+
+/* 人机校验块：紧跟在「验证码 + 发送」那一行下面 */
+.bind-captcha {
+  margin-top: 10px;
 }
 
 .bind-dev {

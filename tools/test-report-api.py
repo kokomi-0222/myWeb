@@ -65,6 +65,14 @@ def make_token(uid, tv):
 
 
 def call(method, path, token=None, body=None):
+    # 四个「发验证码」接口现在都要带图形验证码。local profile 开了
+    # app.captcha.dev-echo，/captcha 的响应里就带明文，所以这里统一自动补一张，
+    # 省得每个脚本各自拼 —— 想故意测「没带图 / 图错了」时，body 里显式写上
+    # captchaKey 键（哪怕是空串）就会跳过自动补。
+    if method == "POST" and any(path.startswith(p) for p in CAPTCHA_PATHS):
+        if not (isinstance(body, dict) and "captchaKey" in body):
+            key, code = fetch_captcha()
+            body = dict(body or {}, captchaKey=key, captchaCode=code)
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(BASE + path, data=data, method=method)
     req.add_header("Content-Type", "application/json")
@@ -79,6 +87,30 @@ def call(method, path, token=None, body=None):
             return e.code, json.loads(raw or "{}")
         except Exception:
             return e.code, {"raw": raw}
+
+
+# 会真的发一封邮件的接口，必须带图形验证码
+CAPTCHA_PATHS = (
+    "/user/register/email-code",
+    "/user/verify/send",
+    "/user/email/change/send",
+    "/user/password/forgot/send",
+)
+
+
+def fetch_captcha():
+    """取一张图形验证码，返回 (key, 明文)。
+
+    依赖本地配置 app.captcha.dev-echo=true；线上恒为 false，所以这个函数
+    只能在验收环境用（生产环境拿不到明文，等于图灵测试是有效的）。
+    """
+    _, res = call("GET", "/captcha")
+    data = (res or {}).get("data") or {}
+    key, code = data.get("captchaKey"), data.get("captchaCode")
+    if not key or not code:
+        raise RuntimeError(
+            "拿不到图形验证码明文：后端没开 app.captcha.dev-echo（见 config/application-local.yaml）")
+    return key, code
 
 
 def tokens():

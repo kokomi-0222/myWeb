@@ -86,6 +86,20 @@ export function verifyUserEmail(userId) {
   })
 }
 
+/**
+ * 代为注销某个账号（不可逆）。
+ *
+ * 只给「用户发邮件申请、自己不会操作」兜底。注销之后他的帖子全部变成
+ * 「已注销用户」，所以调用方必须先让管理员手打一遍目标用户名 —— 别做成一点就生效。
+ * 后端另有两道闸：不能注销自己、不能注销持 user:manage 的账号。
+ */
+export function deactivateUser(userId) {
+  return request({
+    url: `/admin/user/${userId}/deactivate`,
+    method: 'post',
+  })
+}
+
 /* ---------------- 角色权限 ---------------- */
 
 /** 角色列表：每个角色带已勾选的权限码 + 名下用户数 */

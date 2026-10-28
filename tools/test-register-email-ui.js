@@ -4,7 +4,7 @@
 //   [3] 验证码通过 → 第 2 步：没有用户名输入框、没有用户名说明文字、
 //       没有「换一个邮箱」按钮，只有「邮箱已确认 xxx」+ 密码 + 确认密码
 //   [4] 注册成功直接登录：弹窗关闭、token 落地、账号是已验证的普通用户，
-//       用户名是后端生成的 kokomi_xxxxxxxx、昵称派生为「用户+6位」
+//       用户名是后端生成的 kokomi_00128、昵称派生为「用户128」
 //   [5] 个人中心：已绑定邮箱，有「更换」也有「解绑」
 //   [6] 解绑要验当前密码：错密码红字、对密码解绑成功、账号仍是 member
 //   [7] 解绑后发布框还在（权限不回收）
@@ -61,7 +61,7 @@ const stamp = String(Date.now()).slice(-7);
 const EMAIL = `ui_reg_${stamp}@example.com`;
 const PWD = "Passw0rd1";
 let createdId = 0;
-/** 注册时后端生成的 kokomi_xxxxxxxx，用来断言账号页确实把它显示出来 */
+/** 注册时后端生成的用户名（kokomi_00128），用来断言账号页确实把它显示出来 */
 let accountName = "";
 
 (async () => {
@@ -139,6 +139,29 @@ let accountName = "";
     if (!ok) throw new Error(`没找到含「${text}」的 ${sel}`);
   };
 
+  /**
+   * 过发码前的人机校验（CaptchaPrompt）。
+   * 本地 dev-echo 会把图形码明文渲染在 .cp-dev 里，脚本照着填就能过；
+   * 线上没有这段文本，所以这条等价于「真人看图」。
+   * @returns 填入的明文（拿不到就是空串，说明人机块没出现或后端没开 dev-echo）
+   */
+  const solveCaptcha = async () => {
+    if (!(await until("!!document.querySelector('.cp .cp-dev b')"))) return "";
+    const plain = await evaluate("document.querySelector('.cp .cp-dev b')?.textContent || ''");
+    if (!plain) return "";
+    await evaluate(`(() => {
+      const el = document.querySelector('.cp .cp-input');
+      if (!el) return false;
+      el.value = ${JSON.stringify(plain)};
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    })()`);
+    // 等 Vue 把 v-model 写回去、把「确定」从 disabled 放开
+    await sleep(150);
+    await evaluate("document.querySelector('.cp .cp-ok')?.click()");
+    return plain;
+  };
+
   // 按 InputLine 的 label 文本定位：表单里还有两个防自动填充的隐藏 input，
   // 按序号取会把它们也算进来（数量对不上）。
   const fillByLabel = async (pairs) => {
@@ -186,22 +209,68 @@ let accountName = "";
     const step1Inputs = await visibleInputs();
     check("第 1 步只有「邮箱 + 验证码」两个输入框", step1Inputs.length === 2,
       JSON.stringify(step1Inputs));
-    check("没有图形验证码（邮箱验证就够了）",
-      !(await evaluate("!!document.querySelector('.modal-container .captcha-img')")));
+    check("初始不展示人机校验（点「发送验证码」才出现，不占版面）",
+      !(await evaluate("!!document.querySelector('.modal-container .cp')")));
     check("没有用户名/密码框", !step1Inputs.some(t => /用户名|密码/.test(t)),
       JSON.stringify(step1Inputs));
 
     // ------------------------------------------------------------------
-    console.log("[2] 发邮箱验证码");
+    console.log("[2] 发邮箱验证码（先要同意隐私政策）");
     const fillMail = await fillByLabel([["邮箱", EMAIL]]);
     check("邮箱框能按 label 定位", fillMail === "ok", fillMail);
 
+    // 同意勾选框：默认不勾（默认勾选 = 未经同意收集，是通报高频项）
+    const agreeState = await evaluate(`(() => {
+      const box = document.querySelector('.modal-container .agree-box');
+      const link = document.querySelector('.modal-container .agree-link');
+      return {
+        exists: !!box,
+        checked: box ? box.checked : null,
+        linkHref: link ? link.getAttribute('href') : '',
+        linkTarget: link ? link.getAttribute('target') : '',
+      };
+    })()`);
+    check("注册第 1 步有《隐私政策》勾选框", agreeState.exists, JSON.stringify(agreeState));
+    check("勾选框默认不勾选", agreeState.checked === false, String(agreeState.checked));
+    check("政策链接指向 /privacy 且新开窗口",
+      agreeState.linkHref === "/privacy" && agreeState.linkTarget === "_blank",
+      `${agreeState.linkHref} / ${agreeState.linkTarget}`);
+
     await evaluate("document.querySelector('.modal-container .reset-send').click()");
-    const gotDev = await until("!!document.querySelector('.modal-container .reset-dev')");
+    const needAgree = await until(
+      "(document.querySelector('.modal-container .err-tip')?.textContent||'').includes('隐私政策')", 6000);
+    check("未勾选点发送 → 红字要求先同意", needAgree,
+      await evaluate("document.querySelector('.modal-container .err-tip')?.textContent.trim()"));
+    check("未勾选时不展开人机校验（连图都不拉）",
+      !(await evaluate("!!document.querySelector('.modal-container .cp')")));
+
+    await evaluate("document.querySelector('.modal-container .agree-box').click()");
+    check("勾选后复选框为选中态",
+      (await evaluate("document.querySelector('.modal-container .agree-box').checked")) === true);
+
+    // 勾选后点发送 → 不是直接发信，而是先展开图形验证码
+    await evaluate("document.querySelector('.modal-container .reset-send').click()");
+    const captchaShown = await until("!!document.querySelector('.modal-container .cp')", 8000);
+    check("勾选后点发送 → 先出现人机校验，不直接发信", captchaShown);
+    check("人机校验里有输入框和换图按钮",
+      await evaluate(`(() => {
+        const box = document.querySelector('.modal-container .cp');
+        return !!(box?.querySelector('.cp-input') && box?.querySelector('.cp-img'));
+      })()`));
+    // 图片是挂载后才异步拉的，别在同一个 tick 里查 querySelector('img')
+    check("图形码图片能加载出来",
+      await until("!!document.querySelector('.modal-container .cp-img img')", 8000));
+
+    const solvedPlain = await solveCaptcha();
+    check("图形验证码能填能提交（本地 dev-echo 有明文）", !!solvedPlain, solvedPlain);
+
+    const gotDev = await until("!!document.querySelector('.modal-container .reset-dev')", 12000);
     const devCode = gotDev
       ? await evaluate("document.querySelector('.reset-dev b')?.textContent || ''")
       : "";
-    check("发码后出现本地调试码", gotDev && /^\d{6}$/.test(devCode), devCode);
+    check("人机校验通过后能正常发码（出现本地调试码）", gotDev && /^\d{6}$/.test(devCode), devCode);
+    check("发码成功后收起人机校验块",
+      !(await evaluate("!!document.querySelector('.modal-container .cp')")));
     await shot("reg-step1-email.png");
 
     // ------------------------------------------------------------------
@@ -263,27 +332,32 @@ let accountName = "";
     check("账号落库且邮箱已验证", cells[1] === EMAIL && cells[2] === "1", String(row));
     check("注册完就是普通用户（member）", cells[3] === "member", cells[3]);
     accountName = cells[4] || "";
-    check("用户名是系统生成的 kokomi_xxxxxxxx",
-      /^kokomi_[a-z0-9]{8}$/.test(accountName), accountName);
-    check("昵称派生为「用户+6位」", /^用户[a-z0-9]{6}$/.test(cells[5] || ""), cells[5]);
+    check("用户名是系统生成的 kokomi_ + 序号（kokomi_00128）",
+      /^kokomi_\d{5,}$/.test(accountName), accountName);
+    check("昵称派生为「用户+序号」（去前导零）", /^用户\d+$/.test(cells[5] || ""), cells[5]);
 
     // ------------------------------------------------------------------
-    console.log("[5] 个人中心 → 账号管理");
+    console.log("[5] 个人中心 → 账号管理 / 账号安全");
     await nav(`${BASE}/space/account`);
+    await until("document.body.innerText.includes('用户名')");
+    const accountText = await evaluate("document.body.innerText");
+    check("账号页显示系统生成的用户名",
+      !!accountName && accountText.includes(accountName), accountName);
+    // 邮箱、改密码、注销都搬到了「账号安全」，账号管理只剩资料
+    await nav(`${BASE}/space/security`);
     await until("document.body.innerText.includes('邮箱')");
     const text = await evaluate("document.body.innerText");
-    check("账号页显示已绑定的邮箱", text.includes(EMAIL), EMAIL);
-    check("账号页显示系统生成的用户名", !!accountName && text.includes(accountName), accountName);
+    check("账号安全页显示已绑定的邮箱", text.includes(EMAIL), EMAIL);
     check("有「更换」按钮", await evaluate(
-      `[...document.querySelectorAll('button, .email-link, span')].some(e => (e.textContent||'').trim() === '更换')`));
+      `[...document.querySelectorAll('button, .sec-btn, span')].some(e => (e.textContent||'').trim() === '更换')`));
     check("有「解绑」按钮", await evaluate(
-      `[...document.querySelectorAll('button, .email-link, span')].some(e => (e.textContent||'').trim() === '解绑')`));
+      `[...document.querySelectorAll('button, .sec-btn, span')].some(e => (e.textContent||'').trim() === '解绑')`));
     await shot("reg-account-both.png");
 
     // ------------------------------------------------------------------
     console.log("[6] 解绑：必须验当前密码");
     await evaluate(
-      `[...document.querySelectorAll('button, .email-link, span')].find(e => (e.textContent||'').trim() === '解绑')?.click()`);
+      `[...document.querySelectorAll('button, .sec-btn, span')].find(e => (e.textContent||'').trim() === '解绑')?.click()`);
     check("解绑面板出现「当前密码」输入框",
       await until("!!document.querySelector('.bind-dialog input[type=password]')", 8000));
     check("解绑面板不要验证码（只验密码）",
@@ -312,8 +386,8 @@ let accountName = "";
       await until("document.querySelector('.email-text')?.textContent.trim() === '未绑定'", 12000),
       await evaluate("document.querySelector('.email-text')?.textContent.trim()"));
     check("按钮变回「去绑定」",
-      await evaluate("document.querySelector('.email-link')?.textContent.trim()") === "去绑定",
-      await evaluate("document.querySelector('.email-link')?.textContent.trim()"));
+      await evaluate("document.querySelector('.sec-row--email .sec-btn')?.textContent.trim()") === "去绑定",
+      await evaluate("document.querySelector('.sec-row--email .sec-btn')?.textContent.trim()"));
     await shot("reg-unbind-done.png");
 
     const after = sql(
@@ -331,8 +405,8 @@ let accountName = "";
       !(await evaluate("!!document.querySelector('.muted-notice--verify')")));
 
     // ------------------------------------------------------------------
-    console.log("[8] 手机宽度不溢出");
-    await nav(`${BASE}/space/account`);
+    console.log("[8] 手机宽度不溢出（账号安全页）");
+    await nav(`${BASE}/space/security`);
     await send("Emulation.setDeviceMetricsOverride", {
       width: 390, height: 900, deviceScaleFactor: 1, mobile: false,
     });
@@ -356,6 +430,8 @@ let accountName = "";
   if (FAIL.length) {
     console.log("失败项：");
     for (const n of FAIL) console.log("  - " + n);
-    process.exit(1);
   }
+  // 必须显式退出：WebSocket / Edge 的句柄挂着时 node 不会自己结束，
+  // 前台跑会一直挂到超时，管道里的输出也跟着丢
+  process.exit(FAIL.length ? 1 : 0);
 })();

@@ -5,6 +5,8 @@ shots/
 tools/ext-assets/
 __pycache__/
 *.pyc
+# 测试脚本重定向出来的运行日志（sec.log 这类），不入库
+*.log
 
 # ---- 本地/生产凭据（不入库）----
 # 数据库密码、JWT secret 一律走环境变量；本机值写在这里，不会被打进 jar

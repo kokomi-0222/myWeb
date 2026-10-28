@@ -1,7 +1,7 @@
 // 等级制（游客 / 普通用户 / 会员）界面验收
 //   [1] 注册表单是两步：第一步只收邮箱 + 验证码（用户名/密码在第 2 步）
 //   [2] 游客进空间页：没有发布框，出现「绑定邮箱后就能评论」的蓝色提示卡；评论区同样拦
-//   [3] 绑定邮箱在「个人中心 → 账号管理」：提示卡跳转过去、自动展开面板、
+//   [3] 绑定邮箱在「个人中心 → 账号安全」：提示卡跳转过去、自动展开面板、
 //       空邮箱拦、dev-echo 明文码、错码提示
 //   [4] 绑完变普通用户：评论框和发布框都回来，两张提示卡都消失
 //   [4.5] 解绑：验当前密码 → 邮箱清空，但仍是普通用户、发布框还在
@@ -106,6 +106,19 @@ const createPostAsAdmin = async (title, content) => {
 };
 
 /**
+ * 取一张图形验证码（本地 app.captcha.dev-echo=true 才拿得到明文）。
+ * 四个发信接口现在都要带 captchaKey + captchaCode，脚本直接打接口时也得先过这一关。
+ */
+const fetchCaptcha = async () => {
+  const j = await (await fetch(`${BASE}/api/captcha`)).json();
+  const d = j.data || {};
+  if (!d.captchaKey || !d.captchaCode) {
+    throw new Error("拿不到图形验证码明文：后端没开 app.captcha.dev-echo");
+  }
+  return d;
+};
+
+/**
  * 把测试账号的密码设成已知值。
  *
  * 为什么需要：makeUser 为了省事直接往 password 列塞了占位串 'x'，
@@ -125,11 +138,16 @@ const setKnownPassword = async (user, pwd = "Passw0rd1") => {
     )
     .toString("base64");
 
+  const cap = await fetchCaptcha();
   const s1 = await (
     await fetch(`${BASE}/api/user/password/forgot/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: user.email }),
+      body: JSON.stringify({
+        email: user.email,
+        captchaKey: cap.captchaKey,
+        captchaCode: cap.captchaCode,
+      }),
     })
   ).json();
   const code = (s1.data || {}).devCode;
@@ -331,6 +349,24 @@ const get = (p) =>
     })()`);
     await sleep(120);
   };
+  /**
+   * 过发码前的人机校验（CaptchaPrompt）。
+   * 本地 dev-echo 会把图形码明文渲染在 .cp-dev 里，照填就能过；线上没这段文本。
+   * @returns 填入的明文（空串 = 人机块没出现 / 后端没开 dev-echo）
+   */
+  const solveCaptcha = async () => {
+    if (!(await until("!!document.querySelector('.cp .cp-dev b')", 12000))) return "";
+    const plain = await evaluate(
+      "document.querySelector('.cp .cp-dev b')?.textContent.trim() || ''");
+    if (!plain) return "";
+    await evaluate("document.querySelector('.cp')?.scrollIntoView({block:'center'})");
+    await sleep(200);
+    await fill(".cp .cp-input", plain);
+    // 等 Vue 把 v-model 回写、把「确定」从 disabled 放开
+    await sleep(250);
+    await clickEl(".cp .cp-ok");
+    return plain;
+  };
 
   try {
     // ---------------------------------------------------------- 1 注册表单：两步
@@ -341,11 +377,12 @@ const get = (p) =>
     await clickEl(".login-button");
     check("登录弹窗已打开", await until(`!!document.querySelector('.modal-overlay')`));
     await clickEl(".footer-link .link-text");
-    check("切到注册表单", await until(`!!document.querySelector('.form-subtitle')`));
-    // 副标题只说明邮箱用来找回密码，不写「第 1 / 2 步」这类进度
-    const subtitle = await evaluate(`document.querySelector('.form-subtitle')?.textContent.trim()`);
-    check("副标题说明邮箱用途且不写步骤号",
-      (subtitle || "").includes("找回密码") && !/第\s*\d+/.test(subtitle || ""), subtitle);
+    // 注册第 1 步独有「我已阅读并同意隐私政策」勾选（副标题已删，不能再靠它判断）
+    check("切到注册表单", await until(`!!document.querySelector('.agree-row')`));
+    // 注册流程不写「第 1 / 2 步」这类进度，靠标题和按钮自然推进
+    const regText = await evaluate(`document.querySelector('.modal-container')?.innerText || ''`);
+    check("注册表单不写步骤号",
+      !/第\s*[12]\s*步/.test(regText), regText.replace(/\s+/g, " ").slice(0, 40));
 
     const step1Labels = await evaluate(`(() =>
       [...document.querySelectorAll('.modal-container .input-line-wrapper')]
@@ -354,8 +391,9 @@ const get = (p) =>
       JSON.stringify(step1Labels));
     check("用户名 / 密码还没出现",
       !step1Labels.some((t) => /用户名|密码/.test(t)), JSON.stringify(step1Labels));
-    check("注册不再要图形验证码",
-      !(await evaluate(`!!document.querySelector('.modal-container .captcha-img')`)));
+    check("注册表单初始不带图形码（点「发送验证码」才展开人机校验）",
+      !(await evaluate(`!!document.querySelector('.modal-container .captcha-img') ||
+                        !!document.querySelector('.modal-container .cp')`)));
 
     await clickEl(".submit-button");
     check("空着点「下一步」会被拦",
@@ -399,12 +437,12 @@ const get = (p) =>
       !(await evaluate(`!!document.querySelector('.comment-input-area textarea')`)));
 
     // ---------------------------------------------------------- 3 绑定邮箱（个人中心）
-    console.log("\n[3] 绑定邮箱搬到了个人中心：点提示卡跳过去，在账号页填邮箱验证");
+    console.log("\n[3] 绑定邮箱搬到了账号安全页：点提示卡跳过去，在那里填邮箱验证");
     await clickEl(".comment-muted-tip--verify");
-    check("跳到了个人中心账号页",
-      await until(`location.pathname === '/space/account'`, 12000));
+    check("跳到了个人中心账号安全页",
+      await until(`location.pathname === '/space/security'`, 12000));
     check("绑定面板自动展开（?bind=1）",
-      await until(`!!document.querySelector('.bind-panel')`, 12000));
+      await until(`!!document.querySelector('.bind-dialog')`, 12000));
     check("有邮箱输入框", await until(`!!document.querySelector('.bind-input--email')`));
     check("不再是弹窗（没有 .verify-card 遮罩）",
       !(await evaluate(`!!document.querySelector('.verify-card')`)));
@@ -420,7 +458,12 @@ const get = (p) =>
 
     await fill(".bind-input--email", guest.email);
     await clickEl(".bind-send");
-    check("填了邮箱后发码成功", await until(`!!document.querySelector('.bind-dev')`, 12000));
+    // 现在发码前要先过图形验证码（防脚本刷信），填对图才会真发
+    check("点发送后出现人机校验块",
+      await until(`!!document.querySelector('.cp')`, 8000));
+    const solved = await solveCaptcha();
+    check("图形验证码能填能提交", !!solved, solved);
+    check("人机校验通过后发码成功", await until(`!!document.querySelector('.bind-dev')`, 12000));
     const devCode = await evaluate(
       `document.querySelector('.bind-dev b')?.textContent.trim() || ''`);
     check("拿到本地 dev-echo 的 6 位码", /^\d{6}$/.test(devCode), devCode);
@@ -438,14 +481,14 @@ const get = (p) =>
     await fill(".bind-input--code", devCode);
     await clickEl(".bind-submit");
     check("绑定成功后面板自己收起来",
-      await until(`!document.querySelector('.bind-panel')`, 15000));
+      await until(`!document.querySelector('.bind-dialog')`, 15000));
     check("邮箱行显示邮箱 + 「换绑」按钮",
-      await until(`!!document.querySelector('.email-link')`, 10000));
+      await until(`!!document.querySelector('.sec-row--email .sec-btn')`, 10000));
     const boundEmail = await evaluate(
       `document.querySelector('.email-text')?.textContent.trim() || ''`);
     check("邮箱行显示的就是刚绑的邮箱", boundEmail === guest.email, boundEmail);
-    check("提示文案说明能找回密码",
-      (await evaluate(`document.querySelector('.email-hint')?.textContent.trim() || ''`))
+    check("邮箱段说明提到找回密码",
+      (await evaluate(`[...document.querySelectorAll('.sec-row__desc')][1]?.textContent || ''`))
         .includes("找回密码"));
     await shot("email-bound-row.png");
 
@@ -475,17 +518,17 @@ const get = (p) =>
     check("把测试账号密码设成已知值（为解绑做准备）", !!KNOWN_PWD, KNOWN_PWD);
 
     await evaluate(`localStorage.setItem('token', ${JSON.stringify(guest.token)})`);
-    await nav(BASE + "/space/account");
-    check("账号页有「解绑」按钮",
-      await until(`[...document.querySelectorAll('.email-link')]
+    await nav(BASE + "/space/security");
+    check("账号安全页有「解绑」按钮",
+      await until(`[...document.querySelectorAll('.sec-row--email .sec-btn')]
         .some(e => e.textContent.trim() === '解绑')`, 12000));
 
-    await clickByText(".email-link", "解绑");
+    await clickByText(".sec-row--email .sec-btn", "解绑");
     check("解绑面板只有密码框、没有验证码",
-      await until(`!!document.querySelector('.bind-panel input[type=password]')
-        && !document.querySelector('.bind-panel .bind-input--code')`, 8000));
+      await until(`!!document.querySelector('.bind-dialog input[type=password]')
+        && !document.querySelector('.bind-dialog .bind-input--code')`, 8000));
 
-    await fill(".bind-panel input[type=password]", "WrongPass123");
+    await fill(".bind-dialog input[type=password]", "WrongPass123");
     await clickEl(".bind-submit");
     check("密码错被拦下",
       await until(`(document.querySelector('.bind-error')?.textContent || '').includes('密码')`, 12000));
@@ -494,13 +537,13 @@ const get = (p) =>
     check("提示是「当前密码不正确」", unbindErr.includes("当前密码不正确"), unbindErr);
     await shot("email-unbind-wrong-pwd.png");
 
-    await fill(".bind-panel input[type=password]", KNOWN_PWD);
+    await fill(".bind-dialog input[type=password]", KNOWN_PWD);
     await clickEl(".bind-submit");
     check("解绑成功 → 邮箱行变回「未绑定」",
       await until(`document.querySelector('.email-text')?.textContent.trim() === '未绑定'`, 15000));
     check("按钮变回「去绑定」",
-      (await evaluate(`document.querySelector('.email-link')?.textContent.trim() || ''`)) === "去绑定",
-      await evaluate(`document.querySelector('.email-link')?.textContent.trim() || ''`));
+      (await evaluate(`document.querySelector('.sec-row--email .sec-btn')?.textContent.trim() || ''`)) === "去绑定",
+      await evaluate(`document.querySelector('.sec-row--email .sec-btn')?.textContent.trim() || ''`));
     await shot("email-unbound-row.png");
 
     const unboundRow = sql(

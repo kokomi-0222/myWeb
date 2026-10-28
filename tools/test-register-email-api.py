@@ -6,21 +6,23 @@
     ② 只填密码 → 凭 ticket 建号，邮箱当场就算已验证。
   好处：
     * 新号一落地就是普通用户（member），能发帖能评论，没有游客空窗期；
-    * 不再需要图形验证码（邮件已经证明了「是真人 + 邮箱是他的」）；
+    * 图形验证码只在「点发送验证码」那一步出现 —— 发信是有副作用的动作，
+      必须证明是人；验码、建号这些已由邮件/ticket 证明过的步骤不再重复要图；
     * 校验码第一步只验不消费（有效期内可重复验），ticket 可以在密码类失败后重试，
       用户不必为了一个小错重新收一封邮件。
 
-  用户名不再由用户填写：后端统一生成 kokomi_ + 8 位小写字母数字，
+  用户名不再由用户填写：后端统一生成 kokomi_ + 主键序号（kokomi_00128），
   请求体里的 account 会被完全忽略（老前端还会带这个字段）。理由见
-  UserServiceImpl.randomUsername ——「用户名已被占用」是注册流程里最容易卡住的一步，
+  UserServiceImpl.usernameOf ——「用户名已被占用」是注册流程里最容易卡住的一步，
   而用户名并不是展示名（站内显示的是 name 昵称）。
 
 覆盖：
   [1] 第一步发码（免登录）：正常 / 60 秒限流 / 格式错 / 邮箱已被注册
+  [1b] 发码前的人机校验：缺图 / 图错 / 同一 key 错 3 次作废
   [2] 第一步验码换 ticket：缺邮箱 / 格式错 / 缺码 / 错码 / 正确 / 同码可再验一次
   [3] 第二步建号：缺 ticket / 假 ticket / 两次密码不一致 / 密码太短 /
       非法 account 被忽略 / 成功（注册即登录 + member + 权限）
-  [4] 用户名格式（kokomi_xxxxxxxx）、昵称派生、两个账号不重名、长邮箱
+  [4] 用户名格式（kokomi_00128）、昵称派生、两个账号不重名、长邮箱
   [5] 失败后 ticket 仍可重试；注册接口本身不发信
   [6] 注册接口不顺手发信
   [7] 重发即废旧码（只认最新一封，旧码给「已更新」文案且不计试错）—— 要等 61 秒冷却
@@ -106,9 +108,28 @@ def rsa_encrypt(text):
     return base64.b64encode(c.to_bytes(k, "big")).decode()
 
 
-def send_code(email):
-    st, body = call("POST", "/user/register/email-code", body={"email": email})
-    return body or {}
+def send_code(email, captcha="ok"):
+    """发注册验证码。
+
+    captcha：
+      ok      —— 先取一张真的图形验证码（本地 dev-echo 才拿得到明文）
+      missing —— 故意不带图形码，测「请先完成人机验证」
+      wrong   —— 带 key 但字符是错的
+
+    后两种要在 body 里**显式写上 captchaKey 键**，否则 report_api.call 会
+    自动补一张真图（见它里面的 CAPTCHA_PATHS 逻辑）。
+    """
+    body = {"email": email}
+    if captcha == "missing":
+        body.update(captchaKey="", captchaCode="")
+    elif captcha == "wrong":
+        key, _ = report_api.fetch_captcha()
+        body.update(captchaKey=key, captchaCode="zzzz")
+    elif captcha == "ok":
+        key, code = report_api.fetch_captcha()
+        body.update(captchaKey=key, captchaCode=code)
+    st, res = call("POST", "/user/register/email-code", body=body)
+    return res or {}
 
 
 def verify_email(email, code):
@@ -169,6 +190,33 @@ try:
 
     body = send_code("not-an-email")
     check("邮箱格式错 → 400", body.get("code") == 400, f"code={body.get('code')}")
+
+    # ------------------------------------------------------------------
+    print("[1b] 发码前的人机校验")
+    # 这是全站唯一免登录的发信口，没有图形码就能被脚本拿几百个邮箱刷空配额
+    body = send_code(f"reg_{stamp}_nocap@example.com", captcha="missing")
+    check("不带图形验证码 → 505", body.get("code") == 505,
+          f"code={body.get('code')} msg={body.get('msg')}")
+    check("文案要求先完成人机验证", "人机" in (body.get("msg") or ""), str(body.get("msg")))
+
+    body = send_code(f"reg_{stamp}_badcap@example.com", captcha="wrong")
+    check("图形验证码错 → 505", body.get("code") == 505,
+          f"code={body.get('code')} msg={body.get('msg')}")
+
+    # 「只验不删」的代价是同一个 key 能被反复试，所以错满 3 次就作废
+    key, real = report_api.fetch_captcha()
+    wrong = "yyy9" if real.lower() != "yyy9" else "xx8x"
+    probe = f"reg_{stamp}_brute@example.com"
+    codes = []
+    for _ in range(3):
+        _, b = call("POST", "/user/register/email-code",
+                    body={"email": probe, "captchaKey": key, "captchaCode": wrong})
+        codes.append((b or {}).get("code"))
+    check("同一个图形码连错 3 次都是 505", codes == [505, 505, 505], str(codes))
+    _, b = call("POST", "/user/register/email-code",
+                body={"email": probe, "captchaKey": key, "captchaCode": real})
+    check("错满 3 次后 key 作废（填对也过不去）", (b or {}).get("code") == 505,
+          f"code={(b or {}).get('code')}")
 
     # ------------------------------------------------------------------
     print("[2] 第一步验码 → 换 ticket")
@@ -269,10 +317,10 @@ try:
 
     # ------------------------------------------------------------------
     print("[4] 用户名格式 / 昵称派生 / 长邮箱")
-    # 用户名统一是 kokomi_ + 8 位小写字母数字（UserServiceImpl.randomUsername）；
-    # 昵称由它派生：用户 + 尾 6 位（要过 updateProfile 的昵称规则：≤12、中文/英文/数字）
-    USERNAME_RE = r"kokomi_[a-z0-9]{8}"
-    NICK_RE = r"用户[a-z0-9]{6}"
+    # 用户名统一是 kokomi_ + 主键序号（UserServiceImpl.usernameOf，例 kokomi_00128）；
+    # 昵称由它派生：用户 + 序号去前导零（要过 updateProfile 的昵称规则：≤12、中文/英文/数字）
+    USERNAME_RE = r"kokomi_\d{5,}"
+    NICK_RE = r"用户\d+"
 
     # 邮箱本身仍然可能很长（email 列 varchar(50)），不能因为用户名不再用邮箱就漏测
     email_b = f"reg_{stamp}_long@a-very-long-domain.example.com"
@@ -288,15 +336,15 @@ try:
     if uid_b:
         acc_b = scalar(f"SELECT username FROM user WHERE id = {uid_b}")
         nick = scalar(f"SELECT name FROM user WHERE id = {uid_b}")
-        check("username 是 kokomi_ + 8 位",
+        check("username 是 kokomi_ + 序号（至少 5 位）",
               bool(re.fullmatch(USERNAME_RE, acc_b or "")), str(acc_b))
-        check("昵称是「用户+6位」", bool(re.fullmatch(NICK_RE, nick or "")), str(nick))
+        check("昵称是「用户+序号」（已去前导零）", bool(re.fullmatch(NICK_RE, nick or "")), str(nick))
         check("昵称 ≤12 字符（能过昵称校验）", bool(nick) and len(nick) <= 12, str(nick))
     else:
-        for n in ("username 是 kokomi_ + 8 位", "昵称是「用户+6位」", "昵称 ≤12 字符（能过昵称校验）"):
+        for n in ("username 是 kokomi_ + 序号（至少 5 位）", "昵称是「用户+序号」（已去前导零）", "昵称 ≤12 字符（能过昵称校验）"):
             check(n, False, "没拿到 uid")
 
-    # 第二个账号：用户名必须和第一个不同（随机 + 唯一索引重试双保险）
+    # 第二个账号：用户名必须和第一个不同（序号由主键决定，天然不同）
     email_c = f"reg_{stamp}_c@example.com"
     code_c = (send_code(email_c).get("data") or {}).get("devCode")
     tc = ticket_of(verify_email(email_c, code_c))

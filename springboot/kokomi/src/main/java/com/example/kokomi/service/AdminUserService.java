@@ -10,8 +10,8 @@ import java.util.List;
  */
 public interface AdminUserService {
 
-    /** 分页查用户，keyword 匹配账号 / 昵称 / 邮箱 */
-    PageVO<AdminUserVO> page(String keyword, Integer pageNum, Integer pageSize);
+    /** 分页查用户，keyword 匹配账号 / 昵称 / 邮箱；includeDeleted 时才带出已注销的 */
+    PageVO<AdminUserVO> page(String keyword, Integer pageNum, Integer pageSize, boolean includeDeleted);
 
     /** 可选角色列表（role 表里的全部编码） */
     List<String> listRoles();
@@ -38,4 +38,13 @@ public interface AdminUserService {
      * 用途：SMTP 挂了、或者用户是老手机号账号没有邮箱时，别让人卡死在「不能发言」。
      */
     void markEmailVerified(Long userId);
+
+    /**
+     * 管理员代为注销某个账号（不可逆）。
+     * <p>
+     * 只用于「用户不会自助注销 / 发邮件申请」的情况。注销不可逆，所以这里
+     * 比处罚多两道闸：① 不能注销自己；② 不能注销任何持 {@code user:manage} 的账号
+     * （否则可能把最后一个管理入口删掉）。真正的删除动作和用户自助注销同一个 SQL。
+     */
+    void deactivateUser(Long userId);
 }

@@ -32,8 +32,9 @@ public class AdminUserController {
     public Result<PageVO<AdminUserVO>> users(
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") Integer pageNum,
-            @RequestParam(defaultValue = "20") Integer pageSize) {
-        return Result.success(adminUserService.page(keyword, pageNum, pageSize));
+            @RequestParam(defaultValue = "20") Integer pageSize,
+            @RequestParam(defaultValue = "false") boolean includeDeleted) {
+        return Result.success(adminUserService.page(keyword, pageNum, pageSize, includeDeleted));
     }
 
     /** 可选角色字典 */
@@ -94,5 +95,21 @@ public class AdminUserController {
     public Result<Void> verifyEmail(@PathVariable Long id) {
         adminUserService.markEmailVerified(id);
         return Result.success(null, "邮箱已标记为已验证");
+    }
+
+    /**
+     * 代为注销某个账号（不可逆）。
+     * <p>
+     * 只给「用户发邮件申请、自己不会操作」这种情况兜底。注销之后帖子全部变成
+     * 「已注销用户」，所以前端必须让管理员手打一遍目标用户名才能提交，
+     * 不能像禁言那样点一下就生效。
+     * <p>
+     * 后端另有两道闸：不能注销自己、不能注销持 user:manage 的账号。
+     */
+    @PostMapping("/user/{id}/deactivate")
+    @RequirePermission(value = "user:manage", message = "只有管理员可以注销用户")
+    public Result<Void> deactivate(@PathVariable Long id) {
+        adminUserService.deactivateUser(id);
+        return Result.success(null, "账号已注销");
     }
 }

@@ -13,11 +13,14 @@ import java.util.List;
 public interface UserMapper {
 
     // 根据【账号】查询用户（支持 username / phone / email）
+    // 已注销的账号查不出来：注销后 email 已清空、username 也已改成 deleted_xx，
+    // 这里再兜一层 deleted_at，是为了挡住「注销流程只成功了一半」的历史脏数据。
     @Select("""
             select * from user 
-            where username = #{account} 
+            where (username = #{account} 
                or phone = #{account} 
-               or email = #{account}
+               or email = #{account})
+              and deleted_at is null
             """)
     User selectByAccount(String account);
 
@@ -37,8 +40,8 @@ public interface UserMapper {
             """)
     List<User> selectByIds(@Param("ids") Collection<Long> ids);
 
-    /** 全站注册用户数（首页统计用） */
-    @Select("select count(*) from user")
+    /** 全站注册用户数（首页统计用）—— 已注销的不算，否则数字只涨不跌 */
+    @Select("select count(*) from user where deleted_at is null")
     Long countAll();
 
 
@@ -83,17 +86,23 @@ public interface UserMapper {
      * 用户管理页的分页查询。
      * 只查展示需要的列，不返回 password / token_version。
      * keyword 同时匹配账号、昵称、邮箱。
+     * <p>
+     * ⚠️ keyword 那三个 or **必须用括号包起来**：一旦和 `deleted_at is null` 并列，
+     * 不加括号会变成 `deleted_at is null or username like ...`，已注销的人照样被搜出来。
+     * <p>
+     * includeDeleted=true 时才把已注销的带出来（后台「已注销」筛选），默认隐藏。
      */
     @Select("""
             <script>
             select id, username, name, name_color, role_color, avatar, primary_role,
-                   status, ban_until, ban_reason, create_time, email, email_verified
+                   status, ban_until, ban_reason, create_time, email, email_verified, deleted_at
             from user
             <where>
+                <if test="!includeDeleted">deleted_at is null</if>
                 <if test="keyword != null and keyword != ''">
-                    username like concat('%', #{keyword}, '%')
+                    and (username like concat('%', #{keyword}, '%')
                     or name like concat('%', #{keyword}, '%')
-                    or email like concat('%', #{keyword}, '%')
+                    or email like concat('%', #{keyword}, '%'))
                 </if>
             </where>
             order by id asc
@@ -101,6 +110,7 @@ public interface UserMapper {
             </script>
             """)
     List<User> selectAdminPage(@Param("keyword") String keyword,
+                               @Param("includeDeleted") boolean includeDeleted,
                                @Param("offset") int offset,
                                @Param("limit") int limit);
 
@@ -109,15 +119,17 @@ public interface UserMapper {
             <script>
             select count(*) from user
             <where>
+                <if test="!includeDeleted">deleted_at is null</if>
                 <if test="keyword != null and keyword != ''">
-                    username like concat('%', #{keyword}, '%')
+                    and (username like concat('%', #{keyword}, '%')
                     or name like concat('%', #{keyword}, '%')
-                    or email like concat('%', #{keyword}, '%')
+                    or email like concat('%', #{keyword}, '%'))
                 </if>
             </where>
             </script>
             """)
-    Long countAdminPage(@Param("keyword") String keyword);
+    Long countAdminPage(@Param("keyword") String keyword,
+                        @Param("includeDeleted") boolean includeDeleted);
 
     /**
      * 后台改某个用户的「外观」：名字颜色 + 身份标签底色。
@@ -232,5 +244,56 @@ public interface UserMapper {
      */
     @Select("select * from user where email = #{email} and email_verified = 1 limit 1")
     User selectByVerifiedEmail(@Param("email") String email);
+
+    /**
+     * 注销账号：清掉一切能指向这个人的信息，保留一行骨架给帖子挂在上面。
+     * <p>
+     * <b>为什么保留行、不 DELETE</b>：`post.user_id` / `comment.user_id` 都是
+     * NOT NULL 且没有外键级联，物理删掉 user 行之后，作者信息会在
+     * {@code PostServiceImpl#toVO} 里查不到、渲染成空头像空白名字的帖子，
+     * 而且再也修不回来（归属已经丢了）。所以「注销」= 抹掉身份，不是抹掉行。
+     * <p>
+     * <b>为什么 email 置 null 而不是打标记</b>：`uk_user_email` 是唯一索引，
+     * 但 MySQL 允许多个 NULL 并存 —— 邮箱立刻释放，本人（或后来者）能马上
+     * 用同一个邮箱重新注册，符合「个人信息应当删除」的要求。
+     * <p>
+     * <b>password 换成随机串的哈希</b>：不能留原密码（等于没注销），
+     * 也不能置空串 —— {@code BCrypt.checkpw} 遇到空串会抛 IllegalArgumentException
+     * 变成 500。给一个谁都不知道的随机密码哈希，登录时的行为就是「密码不对」，最干净。
+     * <p>
+     * `username` 改成 `deleted_{id}`：释放原用户名，同时杜绝「用已注销的账号名冒充」。
+     * `token_version + 1`：正在登录的设备下一跳就失效。
+     * <p>
+     * `where deleted_at is null` 保证幂等：重复调用只影响 0 行，不会把
+     * 已经变成 `deleted_5` 的用户名再套一层。
+     *
+     * @param password 调用方生成的随机密码哈希（BCrypt）
+     * @return 1 = 注销成功；0 = 本来就已经注销
+     */
+    @Update("""
+            update `user`
+            set username        = concat('deleted_', id),
+                name            = '已注销用户',
+                email           = null,
+                email_verified  = 0,
+                phone           = null,
+                birthday        = null,
+                gender          = null,
+                signature       = null,
+                avatar          = null,
+                badge           = null,
+                ornament        = null,
+                name_color      = null,
+                role_color      = null,
+                primary_role    = null,
+                password        = #{password},
+                status          = 0,
+                ban_until       = null,
+                ban_reason      = null,
+                deleted_at      = now(),
+                token_version   = token_version + 1
+            where id = #{userId} and deleted_at is null
+            """)
+    int deactivate(@Param("userId") Long userId, @Param("password") String password);
 
 }

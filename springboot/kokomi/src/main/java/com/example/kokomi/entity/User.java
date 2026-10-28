@@ -44,4 +44,15 @@ public class User {
      */
     private Integer emailVerified;
 
+    /**
+     * 注销时间：非空 = 该账号已注销。
+     * <p>
+     * 注销后这一行**仍然保留**（不是物理删除）：帖子 / 评论的外键列是 NOT NULL
+     * 且没有级联，删了 user 行会让所有帖子变成「查不到作者」的空壳。
+     * 所以走的是「清空个人信息 + 保留骨架」，帖子上作者显示为「已注销用户」。
+     * <p>
+     * 和 status 正交：status 只管处罚（禁言 / 封号），注销不占用它。
+     */
+    private LocalDateTime deletedAt;
+
 }

@@ -143,7 +143,24 @@
         </div>
       </aside>
     </div>
-    <div class="kokomi-footer"></div>
+    <!-- 页脚：备案号 + 隐私政策 + 联系方式。
+         原来是个 48px 的空 div（占位），按《互联网信息服务管理办法》要求，
+         经营性/非经营性网站在国内接入都要在首页底部展示备案号。
+         分成「版权+备案」和「链接」两组：手机上两组各占一行，
+         不分组的写法会把「联系我们」挤到第三行孤零零挂着。 -->
+    <footer class="kokomi-footer">
+      <div class="kokomi-footer__meta">
+        <span>© {{ year }} {{ site.name }}</span>
+        <span class="kokomi-footer__sep">·</span>
+        <a :href="site.icpUrl" target="_blank" rel="noopener">{{ site.icp }}</a>
+      </div>
+      <span class="kokomi-footer__sep kokomi-footer__sep--gap">·</span>
+      <div class="kokomi-footer__links">
+        <RouterLink to="/privacy">隐私政策</RouterLink>
+        <span class="kokomi-footer__sep">·</span>
+        <a :href="`mailto:${site.contactEmail}`">联系我们</a>
+      </div>
+    </footer>
     <!-- <BottomNavbar /> -->
     <LoginModal />
   </div>
@@ -153,11 +170,15 @@
 import { getPosts } from "@/api/posts";
 import { getSiteStats } from "@/api/user";
 import setting from "@/config/setting";
+import site from "@/config/site";
 import { useTopicStore } from "@/stores/topic";
 import { useRoute } from "vue-router";
 import router from "@/router";
 
 const route = useRoute();
+
+// 页脚版权年份：用运行时年份，免得每年手动改
+const year = new Date().getFullYear();
 
 import {
   ref,
@@ -882,7 +903,55 @@ const handleDelete = (postId) => {
 .kokomi-footer {
   position: relative;
   width: 100%;
-  height: 48px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 10px;
+  padding: 28px 16px 32px;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* 两组之间那一枚「·」只在桌面显示：手机上两组各占一行，中间的分隔点没意义 */
+.kokomi-footer__meta,
+.kokomi-footer__links {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kokomi-footer a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.kokomi-footer a:hover {
+  color: var(--primary-color);
+}
+
+.kokomi-footer__sep {
+  opacity: 0.45;
+}
+
+@media (max-width: 767px) {
+  .kokomi-footer {
+    gap: 4px;
+    padding: 20px 14px 26px;
+  }
+
+  /* 手机上竖排两行，避免「联系我们」被挤到单独一行 */
+  .kokomi-footer__sep--gap {
+    display: none;
+  }
+
+  .kokomi-footer__meta,
+  .kokomi-footer__links {
+    flex-basis: 100%;
+    justify-content: center;
+  }
 }
 
 /* 小屏 (<768px)：单栏全宽，卡片贴边 */

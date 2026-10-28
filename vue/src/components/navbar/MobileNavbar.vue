@@ -148,7 +148,7 @@ import { useTopicStore } from "@/stores/topic";
 import IconHome from "@/components/icons/IconHome.vue";
 import IconUser from "@/components/icons/IconUser.vue";
 import IconMessage from "@/components/icons/IconMessage.vue";
-import IconLock from "@/components/icons/IconLock.vue";
+import IconShield from "@/components/icons/IconShield.vue";
 import IconLogout from "@/components/icons/IconLogout.vue";
 import IconClose from "@/components/icons/IconClose.vue";
 import IconDark from "@/components/icons/IconDark.vue";
@@ -163,7 +163,8 @@ const menuItems = [
   { path: "/", text: "首页", icon: IconHome },
   { path: "/space/home", text: "动态管理", icon: IconMessage },
   { path: "/space/account", text: "个人信息", icon: IconUser },
-  { path: "/space/password", text: "修改密码", icon: IconLock },
+  // 原来叫「修改密码」，现在密码 / 邮箱 / 注销都在这一页
+  { path: "/space/security", text: "账号安全", icon: IconShield },
 ];
 
 // 手机端也要能进后台，否则管理员在小屏下没有入口

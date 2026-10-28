@@ -4,6 +4,18 @@
     <div class="users-head">
       <div class="users-head__left">
         <span class="users-head__count">{{ total }} 位用户</span>
+        <!--
+          已注销的账号默认不出现：他们不能再登录，留着只会让列表越滚越长。
+          要回看（比如有人问「我号怎么没了」）时再打开这个开关。
+        -->
+        <label class="users-head__filter">
+          <input
+            v-model="includeDeleted"
+            type="checkbox"
+            @change="handleSearch"
+          />
+          显示已注销
+        </label>
       </div>
       <div class="users-head__search">
         <IconSearch size="15" class="users-head__icon" />
@@ -27,7 +39,7 @@
     </div>
 
     <p class="users-tip">
-      点角色标签即可切换，改动立即生效。角色能做什么由「角色权限」页决定；
+      点角色标签切换角色，弹窗确认后立即生效。角色能做什么由「角色权限」页决定；
       右侧「外观」可以单独设置每个人的名字颜色和身份标签颜色。
     </p>
 
@@ -44,7 +56,12 @@
 
     <!-- 列表 -->
     <ul v-else-if="list.length > 0" class="user-list">
-      <li v-for="u in list" :key="u.id" class="user-row">
+      <li
+        v-for="u in list"
+        :key="u.id"
+        class="user-row"
+        :class="{ 'is-deleted': u.deletedAt }"
+      >
         <Avatar :src="u.avatar" :alt="u.name" :size="40" />
 
         <div class="user-row__main">
@@ -65,7 +82,7 @@
                 'is-on': u.roles.includes(r.code),
                 'is-locked': isLocked(u, r.code),
               }"
-              :disabled="savingId === u.id || isLocked(u, r.code)"
+              :disabled="savingId === u.id || isLocked(u, r.code) || !!u.deletedAt"
               :title="isLocked(u, r.code) ? '不能移除自己的管理员角色' : r.code"
               @click="toggleRole(u, r.code)"
             >
@@ -76,9 +93,17 @@
 
         <div class="user-row__side">
           <span v-if="savingId === u.id" class="user-row__state">保存中…</span>
+          <!-- 已注销：整行已经没有可操作的余地，只留一个标记说明「这个人走了」 -->
+          <span
+            v-if="u.deletedAt"
+            class="ban-chip deleted-chip"
+            title="该账号已注销：邮箱、昵称、头像等资料已清空，不能再登录"
+          >
+            已注销
+          </span>
           <span v-else-if="u.roles.length === 0" class="user-row__state is-warn">无角色</span>
           <span
-            v-if="u.emailVerified === false"
+            v-if="!u.deletedAt && u.emailVerified === false"
             class="ban-chip verify-chip"
             :title="
               u.email
@@ -89,7 +114,7 @@
             {{ u.email ? "未验证" : "未绑邮箱" }}
           </span>
           <span
-            v-if="u.status"
+            v-if="!u.deletedAt && u.status"
             class="ban-chip"
             :class="{ 'ban-chip--mute': u.status === 1 }"
             :title="u.banReason || '违反社区规范'"
@@ -98,9 +123,9 @@
           </span>
         </div>
 
-        <!-- 处罚 / 解除：正常时给两种力度，被处罚时只留「解除」 -->
+        <!-- 处罚 / 解除：正常时给两种力度，被处罚时只留「解除」；已注销的一律不显示 -->
         <button
-          v-if="!u.status"
+          v-if="!u.deletedAt && !u.status"
           type="button"
           class="user-row__style-btn"
           title="禁言：能登录，但不能发帖和评论"
@@ -110,7 +135,7 @@
           禁言
         </button>
         <button
-          v-if="!u.status"
+          v-if="!u.deletedAt && !u.status"
           type="button"
           class="user-row__style-btn user-row__ban"
           title="封号：不能登录"
@@ -120,7 +145,7 @@
           封号
         </button>
         <button
-          v-else
+          v-else-if="!u.deletedAt"
           type="button"
           class="user-row__style-btn user-row__unban"
           title="解除处罚，恢复正常"
@@ -135,7 +160,7 @@
           这种账号应该引导用户自己去个人中心绑定（绑定本来就要求他本人收码）。
         -->
         <button
-          v-if="u.emailVerified === false && u.email"
+          v-if="!u.deletedAt && u.emailVerified === false && u.email"
           type="button"
           class="user-row__style-btn"
           title="手动把邮箱标记为已验证，让对方立刻可以发言"
@@ -146,6 +171,7 @@
 
         <!-- 外观：名字颜色 + 身份标签底色 -->
         <button
+          v-if="!u.deletedAt"
           type="button"
           class="user-row__style-btn"
           title="设置名字颜色和身份标签颜色"
@@ -165,6 +191,21 @@
             }"
           ></span>
           外观
+        </button>
+
+        <!--
+          代为注销：只给「用户发邮件申请、自己不会点」兜底。
+          不可逆，所以和封号不是一回事 —— 点了要手打一遍用户名才生效，
+          而且管理员账号根本不显示这个按钮（后端也会拒）。
+        -->
+        <button
+          v-if="!u.deletedAt && !hasManageRole(u)"
+          type="button"
+          class="user-row__style-btn user-row__deactivate"
+          title="注销该账号（不可逆）：清空资料，帖子显示为「已注销用户」"
+          @click="handleDeactivate(u)"
+        >
+          注销
         </button>
       </li>
     </ul>
@@ -360,7 +401,7 @@ import { ElMessageBox } from "element-plus";
 import IconSearch from "@/components/icons/IconSearch.vue";
 import IconClose from "@/components/icons/IconClose.vue";
 import IconPerson from "@/components/icons/IconPerson.vue";
-import { getAdminUsers, getAdminRoleList, updateUserRoles, updateUserStyle, unbanUser, punishUser, verifyUserEmail } from "@/api/admin";
+import { getAdminUsers, getAdminRoleList, updateUserRoles, updateUserStyle, unbanUser, punishUser, verifyUserEmail, deactivateUser } from "@/api/admin";
 import { useUserStore } from "@/stores/user";
 import {
   normalizeHex,
@@ -391,6 +432,8 @@ const total = ref(0);
 const pageNum = ref(1);
 const pageSize = 20;
 const keyword = ref("");
+/** 是否把已注销的账号也带出来。默认 false：他们已经不能登录，混在列表里只是噪音 */
+const includeDeleted = ref(false);
 const loading = ref(false);
 const savingId = ref(null);
 // [{ code, name }]，顺序跟 role.sort 走
@@ -407,6 +450,7 @@ const load = async () => {
       keyword: keyword.value.trim() || undefined,
       pageNum: pageNum.value,
       pageSize,
+      includeDeleted: includeDeleted.value,
     });
     const data = res.data || {};
     list.value = Array.isArray(data.list) ? data.list : [];
@@ -444,9 +488,14 @@ const handleClear = () => {
 };
 
 /**
- * 点一下角色标签 = 立即保存。
- * 不做「先攒改动再点保存」：这里一次只改一个人，立即生效更符合直觉，
- * 失败就把本地状态回滚。
+ * 点角色标签 = 先确认、再保存。
+ *
+ * 原来点一下就直接写库（「一次只改一个人，立即生效更符合直觉」），
+ * 但标签又小又密（26px 高、间隔 6px），手机上很容易点到隔壁：
+ * 点错一个方向是「给错人权限」，另一个方向是「把人家版主/管理员摘了」，
+ * 两种都得回头再改一次。加一句确认比事后补救便宜。
+ *
+ * 确认框里写清楚「加还是减」「改的是谁」，管理员角色额外点明能进后台。
  */
 const toggleRole = async (user, roleCode) => {
   if (savingId.value === user.id) return;
@@ -461,11 +510,35 @@ const toggleRole = async (user, roleCode) => {
     return;
   }
 
+  const who = user.name || user.username || "该用户";
+  const roleName =
+    roleOptions.value.find((r) => r.code === roleCode)?.name || roleCode;
+  const tip = had
+    ? roleCode === "admin"
+      ? `「${who}」将失去「管理员」，再也进不了后台。`
+      : `「${who}」将失去「${roleName}」，立即生效。`
+    : roleCode === "admin"
+      ? `「${who}」将获得「管理员」，可以进入后台管理所有用户和内容。`
+      : `「${who}」将获得「${roleName}」，立即生效。`;
+
+  try {
+    await ElMessageBox.confirm(tip, had ? `移除「${roleName}」？` : `授予「${roleName}」？`, {
+      type: had ? "warning" : "info",
+      confirmButtonText: had ? "移除" : "授予",
+      cancelButtonText: "取消",
+      // 摘角色是减法，确认键用红的，和自己点错时的心跳对上
+      customClass: had ? "danger-confirm" : "",
+    });
+  } catch {
+    // 点了取消 / 按了 Esc —— 什么都不做，标签保持原样
+    return;
+  }
+
   savingId.value = user.id;
   try {
     await updateUserRoles(user.id, next);
     user.roles = next;
-    message.success(`已更新「${user.name || user.username || "该用户"}」的角色`);
+    message.success(`已更新「${who}」的角色`);
   } catch (err) {
     // request 层已弹过具体原因，这里不再重复弹
     if (!err?.message) message.error("角色更新失败");
@@ -579,6 +652,61 @@ async function handleUnban(u) {
       load();
     } else {
       message(res.msg || "操作失败", "error");
+    }
+  } catch (err) {
+    message(err?.msg || "网络异常，请稍后重试", "error");
+  }
+}
+
+/* ---------------- 注销（不可逆） ---------------- */
+
+/**
+ * 持管理员角色的账号不显示注销按钮（后端另有拦截）。
+ * 这里只按角色编码判断够用：默认矩阵里只有 admin 带 user:manage。
+ * 万一有人给自定义角色也挂了 user:manage，前端会显示按钮、后端会拒 ——
+ * 那个方向的错只是「点了没生效」，比「能删管理员」安全得多。
+ */
+const hasManageRole = (u) => Array.isArray(u.roles) && u.roles.includes("admin");
+
+/**
+ * 代为注销（不可逆）。
+ *
+ * 和封号最大的区别：**必须手打一遍目标用户名**才提交。
+ * 封号点错了还能「解除」，注销点错了帖子已经变成「已注销用户」，
+ * 原昵称、头像、邮箱全被清空，找不回来 —— 所以这里宁可多一道手动的坎。
+ */
+async function handleDeactivate(u) {
+  const name = u.name || u.username || `#${u.id}`;
+  // 用户名是系统生成的 kokomi_00128，管理员不一定记得，所以在提示里直接给出让他照抄
+  const expected = u.username || String(u.id);
+  let typed = "";
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `注销后无法恢复：昵称、头像、邮箱等资料会被清空，「${name}」发过的帖子会显示为「已注销用户」。请手动输入该用户的用户名「${expected}」以确认。`,
+      "注销账号",
+      {
+        type: "warning",
+        confirmButtonText: "确认注销",
+        cancelButtonText: "取消",
+        customClass: "danger-confirm",
+        inputPlaceholder: expected,
+        inputValidator: (v) => (v || "").trim() === expected || "用户名不一致，请重新输入",
+      }
+    );
+    typed = (value || "").trim();
+  } catch {
+    return; // 取消 / 按 Esc
+  }
+  // inputValidator 已经拦过一遍，这里再判一次：防止将来有人改了校验却忘了改提交
+  if (typed !== expected) return;
+
+  try {
+    const res = await deactivateUser(u.id);
+    if (res.code === 200) {
+      message(res.msg || "账号已注销", "success");
+      load();
+    } else {
+      message(res.msg || "注销失败", "error");
     }
   } catch (err) {
     message(err?.msg || "网络异常，请稍后重试", "error");
@@ -764,6 +892,26 @@ const saveStyle = async () => {
 .users-head__count {
   font-size: 0.8125rem;
   color: var(--text-secondary);
+}
+
+/* 「显示已注销」开关：和计数同一行，做得像一句附加说明而不是主操作 */
+.users-head__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.users-head__filter input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--primary-color);
+  cursor: pointer;
 }
 
 .users-head__search {
@@ -1274,7 +1422,22 @@ const saveStyle = async () => {
   }
 
   .user-row {
+    /* 窄屏把卡片拆成两行：第一行头像 + 名字/角色，第二行动作按钮。
+       不换行的话「禁言 / 封号 / 外观」这三个按钮会吃掉近 200px，
+       名字区被挤到 69px —— 昵称显示成「kokom…」、六个角色标签竖着排一列，
+       一张卡片 290px 高（曾实测），列表长得离谱。 */
+    flex-wrap: wrap;
     padding: 12px;
+  }
+
+  /* 头像 40 + gap 12 = 52，剩下的宽度全给名字区 */
+  .user-row__main {
+    flex: 1 1 calc(100% - 52px);
+  }
+
+  /* 第一枚动作按钮把整组推到行尾（.user-row__side 常驻 DOM，宽屏下才 display:none） */
+  .user-row__side + .user-row__style-btn {
+    margin-left: auto;
   }
 
   .user-row__name {
@@ -1301,12 +1464,40 @@ const saveStyle = async () => {
   white-space: nowrap;
 }
 
+/* ---------- 已注销 ---------- */
+/* 整行压暗 + 名字划掉：一眼看出这行已经没有可操作的余地（按钮也都隐藏了） */
+.user-row.is-deleted {
+  opacity: 0.6;
+}
+
+.user-row.is-deleted .user-row__name {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* 注销标记用中性的灰，而不是处罚那种红 —— 注销不是「被处理」，是「人走了」 */
+.deleted-chip {
+  background: var(--bg-nomarl);
+  color: var(--text-secondary);
+}
+
+/* 注销按钮和禁言 / 封号并排，但只在悬停时才明显发红：降低误点概率 */
+.user-row__deactivate {
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+}
+
+.user-row__deactivate:hover {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.08);
+}
+
 /* 解封：与「外观」同一尺寸，但用红色描边表明是撤销性质的操作 */
 .user-row__unban {
   color: #ef4444;
   border-color: rgba(239, 68, 68, 0.38);
 }
-
 .user-row__unban:hover {
   border-color: #ef4444;
   background: rgba(239, 68, 68, 0.1);

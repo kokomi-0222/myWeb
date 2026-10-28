@@ -81,10 +81,11 @@
 
         <!--
           注册：两步。
-          第 1 步只验邮箱（发码 + 输码 → 换一张 10 分钟的 ticket），
-          第 2 步才是用户名和密码。这样「邮箱是不是他的」在建号之前就有答案，
+          第 1 步只验邮箱（发码 + 输码 → 换一张 30 分钟的 ticket），
+          第 2 步才是密码。这样「邮箱是不是他的」在建号之前就有答案，
           新号落地就是 member，不存在「注册完什么都干不了」的空窗期。
-          不再要图形验证码：邮件都验了，再加一道图灵测试只是给真人添麻烦。
+          图形验证码只在「点发送验证码」那一刻出现（发信要有代价），
+          输码、建号这些没有副作用/已有凭据的动作不再重复要图。
         -->
         <div v-else-if="formType === 'register'" autocomplete="off" class="form-body">
           <div class="form-header">
@@ -122,6 +123,13 @@
                   <template v-else>发送验证码</template>
                 </button>
               </div>
+              <!-- 人机校验：点「发送验证码」才展开，不占一屏的版面 -->
+              <CaptchaPrompt
+                v-if="regCaptchaOpen"
+                ref="regCaptchaRef"
+                @confirm="submitRegCode"
+                @cancel="regCaptchaOpen = false"
+              />
               <div v-if="regErr.email" class="err-tip">{{ regErr.email }}</div>
             </div>
 
@@ -138,6 +146,22 @@
               <div v-if="regErr.emailCode" class="err-tip">{{ regErr.emailCode }}</div>
               <p v-if="regDevCode" class="reset-dev">本地调试码：<b>{{ regDevCode }}</b></p>
             </div>
+
+            <!-- 同意隐私政策：**默认不勾**。默认勾选属于「未经同意即收集」，是通报里的高频项；
+                 链接放 target="_blank" 打开，避免把填了一半的注册表单跳走。 -->
+            <div class="agree-row">
+              <label class="agree-label">
+                <input v-model="agreePolicy" type="checkbox" class="agree-box" />
+                <span class="agree-text">我已阅读并同意</span>
+              </label>
+              <a
+                class="agree-link"
+                href="/privacy"
+                target="_blank"
+                rel="noopener"
+              >《隐私政策》</a>
+            </div>
+            <div v-if="regErr.agree" class="err-tip">{{ regErr.agree }}</div>
 
             <Button
               class="submit-button"
@@ -197,83 +221,112 @@
           </div>
         </div>
 
-        <!-- 找回密码：登录不了才来这儿，所以整条链路都不需要 token -->
+        <!-- 找回密码：登录不了才来这儿，所以整条链路都不需要 token。
+             和注册一个节奏分两步：第 1 步只确认邮箱（邮箱 + 码），第 2 步只填新密码。
+             一屏四格的信息量太大，两次提交的报错也会混在一起。 -->
         <div v-else class="form-body" autocomplete="off">
           <div class="form-header">
-            <h2 class="form-title">找回密码</h2>
-            <p class="form-subtitle">用绑定的邮箱收验证码，重置后其它设备会退出登录</p>
+            <h2 class="form-title">{{ forgotStep === 1 ? "找回密码" : "设置新密码" }}</h2>
           </div>
 
-          <div class="form-item">
-            <div class="captcha-row">
-              <InputLine
-                v-model="forgotForm.email"
-                label="绑定邮箱"
-                type="email"
-                @focus="forgotErr.email = ''"
-                @keyup.enter="handleSendReset"
+          <!-- ---------- 第 1 步：邮箱 + 验证码 ---------- -->
+          <template v-if="forgotStep === 1">
+            <div class="form-item">
+              <div class="captcha-row">
+                <InputLine
+                  v-model="forgotForm.email"
+                  label="邮箱"
+                  type="email"
+                  autocomplete="off"
+                  @focus="forgotErr.email = ''"
+                  @keyup.enter="handleSendReset"
+                />
+                <button
+                  type="button"
+                  class="reset-send"
+                  :disabled="resetCountdown > 0 || sendingReset"
+                  @click="handleSendReset"
+                >
+                  <template v-if="sendingReset">发送中</template>
+                  <template v-else-if="resetCountdown > 0">{{ resetCountdown }}s</template>
+                  <template v-else>发送验证码</template>
+                </button>
+              </div>
+              <CaptchaPrompt
+                v-if="forgotCaptchaOpen"
+                ref="forgotCaptchaRef"
+                @confirm="submitResetCode"
+                @cancel="forgotCaptchaOpen = false"
               />
-              <button
-                type="button"
-                class="reset-send"
-                :disabled="resetCountdown > 0 || sendingReset"
-                @click="handleSendReset"
-              >
-                <template v-if="sendingReset">发送中</template>
-                <template v-else-if="resetCountdown > 0">{{ resetCountdown }}s</template>
-                <template v-else>发送验证码</template>
-              </button>
+              <div v-if="forgotErr.email" class="err-tip">{{ forgotErr.email }}</div>
             </div>
-            <div v-if="forgotErr.email" class="err-tip">{{ forgotErr.email }}</div>
-          </div>
 
-          <div class="form-item">
-            <InputLine
-              v-model="forgotForm.code"
-              label="6 位验证码"
-              type="text"
-              maxlength="6"
-              @focus="forgotErr.code = ''"
-              @keyup.enter="handleReset"
-            />
-            <div v-if="forgotErr.code" class="err-tip">{{ forgotErr.code }}</div>
-          </div>
+            <div class="form-item">
+              <InputLine
+                v-model="forgotForm.code"
+                label="验证码（6 位）"
+                type="text"
+                maxlength="6"
+                autocomplete="one-time-code"
+                @focus="forgotErr.code = ''"
+                @keyup.enter="handleVerifyResetCode"
+              />
+              <div v-if="forgotErr.code" class="err-tip">{{ forgotErr.code }}</div>
+              <p v-if="resetDevCode" class="reset-dev">
+                本地调试码：<b>{{ resetDevCode }}</b>
+              </p>
+            </div>
 
-          <div class="form-item">
-            <InputLine
-              v-model="forgotForm.newPassword"
-              label="新密码（至少 6 位）"
-              type="password"
-              @focus="forgotErr.password = ''"
-            />
-            <div v-if="forgotErr.password" class="err-tip">{{ forgotErr.password }}</div>
-          </div>
+            <Button
+              class="submit-button"
+              type="bilibili"
+              :disabled="verifyingReset"
+              @click="handleVerifyResetCode"
+            >
+              <span>{{ verifyingReset ? "验证中…" : "下 一 步" }}</span>
+            </Button>
+          </template>
 
-          <div class="form-item">
-            <InputLine
-              v-model="forgotForm.confirmPassword"
-              label="确认新密码"
-              type="password"
-              @focus="forgotErr.password = ''"
-            />
-          </div>
+          <!-- ---------- 第 2 步：只填新密码 ---------- -->
+          <template v-else>
+            <!-- 和注册第 2 步一样不回显邮箱：刚填完、记得住，再摆一遍纯属占地方。
+                 要换邮箱就关掉弹窗重来（重开时第 1 步的状态会被清掉）。 -->
+            <div class="form-item">
+              <InputLine
+                v-model="forgotForm.newPassword"
+                label="新密码（至少 6 位）"
+                type="password"
+                autocomplete="new-password"
+                @focus="forgotErr.password = ''"
+                @keyup.enter="handleReset"
+              />
+              <div v-if="forgotErr.password" class="err-tip">{{ forgotErr.password }}</div>
+            </div>
 
-          <p v-if="resetDevCode" class="reset-dev">
-            本地开发模式（未配 SMTP）：验证码是 <b>{{ resetDevCode }}</b>
-          </p>
+            <div class="form-item">
+              <InputLine
+                v-model="forgotForm.confirmPassword"
+                label="确认新密码"
+                type="password"
+                autocomplete="new-password"
+                @focus="forgotErr.password = ''"
+                @keyup.enter="handleReset"
+              />
+            </div>
 
-          <Button
-            class="submit-button"
-            type="bilibili"
-            :disabled="resetting"
-            @click="handleReset"
-          >
-            <span>{{ resetting ? "重置中…" : "重 置 密 码" }}</span>
-          </Button>
+            <Button
+              class="submit-button"
+              type="bilibili"
+              :disabled="resetting"
+              @click="handleReset"
+            >
+              <span>{{ resetting ? "重置中…" : "重 置 密 码" }}</span>
+            </Button>
 
-          <div v-if="forgotErr.general" class="err-tip err-tip--center">
-            {{ forgotErr.general }}
-          </div>
+            <div v-if="forgotErr.general" class="err-tip err-tip--center">
+              {{ forgotErr.general }}
+            </div>
+          </template>
 
           <div class="footer-link">
             想起来了?
@@ -291,8 +344,9 @@ import { useUIStore } from "@/stores/ui";
 import { useUserStore } from "@/stores/user";
 import { message } from "@/utils/message";
 import { getCaptcha } from "@/api/captcha";
-import { sendResetCode, resetPassword, sendRegisterCode, verifyRegisterEmail } from "@/api/user";
+import { sendResetCode, verifyResetCode, resetPassword, sendRegisterCode, verifyRegisterEmail } from "@/api/user";
 import IconClose from "@/components/icons/IconClose.vue";
+import CaptchaPrompt from "@/components/modules/CaptchaPrompt.vue";
 import router from "@/router";
 
 const uiStore = useUIStore();
@@ -315,8 +369,10 @@ const loginErr = ref({
 // 两步：① 邮箱 + 验证码 → 换 ticket；② 密码 → 建号。
 // 邮箱在注册时就必须验证，所以新号一落地就是普通用户，
 // 能直接发帖评论，不用再跑一趟个人中心。
-// 用户名不在这里填 —— 由后端生成 kokomi_xxxxxxxx（见 UserServiceImpl.randomUsername）。
+// 用户名不在这里填 —— 由后端生成 kokomi_00128（见 UserServiceImpl.usernameOf）。
 const regStep = ref<1 | 2>(1);
+/** 是否勾选了《隐私政策》。默认 false —— 默认勾选等于没征得同意。 */
+const agreePolicy = ref(false);
 /** 第一步验完邮箱后拿到的凭证（10 分钟有效），第二步建号带上它 */
 const regTicket = ref("");
 const verifyingEmail = ref(false);
@@ -330,6 +386,7 @@ const registerForm = reactive({
 const regErr = ref({
   email: "",
   emailCode: "",
+  agree: "",
   password: "",
   confirmPassword: "",
 });
@@ -337,6 +394,9 @@ const regErr = ref({
 // 注册邮箱验证码：和「找回密码」是两套独立倒计时，两个表单不会同时出现
 const regCountdown = ref(0);
 const sendingRegCode = ref(false);
+/** 人机校验块是否展开（点「发送验证码」才出现） */
+const regCaptchaOpen = ref(false);
+const regCaptchaRef = ref<any>(null);
 /** 本地没配 SMTP 时后端会把明文验证码回显，方便调试 */
 const regDevCode = ref("");
 let regTimer: ReturnType<typeof setInterval> | null = null;
@@ -420,6 +480,7 @@ const validateRegisterStep1 = (): boolean => {
   let ok = true;
   regErr.value.email = "";
   regErr.value.emailCode = "";
+  regErr.value.agree = "";
 
   const mail = registerForm.email.trim();
   if (!mail) {
@@ -436,6 +497,13 @@ const validateRegisterStep1 = (): boolean => {
     ok = false;
   } else if (mailCode.length !== 6) {
     regErr.value.emailCode = "验证码是 6 位数字";
+    ok = false;
+  }
+
+  // 同意政策放在最后检查：先把「邮箱 / 码」这类实质错误暴露出来，
+  // 免得用户以为勾上就能过，结果勾完还是卡在验证码上。
+  if (!agreePolicy.value) {
+    regErr.value.agree = "请先阅读并同意《隐私政策》";
     ok = false;
   }
 
@@ -503,16 +571,17 @@ const handleLogin = async () => {
 const registering = ref(false);
 
 /**
- * 发注册验证码。
+ * 点「发送验证码」：只做前置校验，然后把图形验证码那一行展开。
  * <p>
- * 和「找回密码」相反，这个接口对「邮箱已被占用」是**直接报错**的：
- * 注册场景瞒着用户没意义，他填完码提交还是会失败，不如在发码这一步就说清楚。
+ * 为什么不在这里直接发信：后端要求带图形验证码的 key + 用户输入的字符，
+ * 没拿到之前发了也是 505。所以这一步是「开门」，真正的发信在 submitRegCode。
  */
-const handleSendRegCode = async () => {
+const handleSendRegCode = () => {
   if (sendingRegCode.value || regCountdown.value > 0) return;
   const mail = registerForm.email.trim();
   regErr.value.email = "";
   regErr.value.emailCode = "";
+  regErr.value.agree = "";
   if (!mail) {
     regErr.value.email = "请先填写邮箱";
     return;
@@ -521,12 +590,37 @@ const handleSendRegCode = async () => {
     regErr.value.email = "邮箱格式不对，检查一下";
     return;
   }
+  // 发码这一步就要同意：邮箱从点击「发送验证码」起就已经在收集了，
+  // 拖到「下一步」再问等于未经同意先收集。
+  if (!agreePolicy.value) {
+    regErr.value.agree = "请先阅读并同意《隐私政策》";
+    return;
+  }
+  regCaptchaOpen.value = true;
+};
 
+/**
+ * 人机校验通过 → 真正给邮箱发验证码。
+ * <p>
+ * 和「找回密码」相反，这个接口对「邮箱已被占用」是**直接报错**的：
+ * 注册场景瞒着用户没意义，他填完码提交还是会失败，不如在发码这一步就说清楚。
+ */
+const submitRegCode = async ({
+  captchaKey,
+  captchaCode,
+}: {
+  captchaKey: string;
+  captchaCode: string;
+}) => {
+  if (sendingRegCode.value) return;
+  const mail = registerForm.email.trim();
   sendingRegCode.value = true;
   try {
-    const res = await sendRegisterCode(mail);
+    const res = await sendRegisterCode(mail, captchaKey, captchaCode);
     const data = res?.data || {};
     regDevCode.value = data.devCode || "";
+    // 走到这里后端已经受理（发信成功 / 冷却中），人机校验块可以收了
+    regCaptchaOpen.value = false;
     if (data.sent) {
       // 重发即废旧码（后端只认最新一封）：把输入框里已经填了的旧码清掉，
       // 免得用户拿着上一条邮件的码去验证、被回一句「验证码已更新」还得自己复盘
@@ -539,7 +633,15 @@ const handleSendRegCode = async () => {
     }
     startRegCountdown(data.retryAfter || (data.sent ? 60 : 0));
   } catch (e: any) {
-    regErr.value.email = e?.message || "验证码发送失败，请稍后重试";
+    const msg = e?.message || "验证码发送失败，请稍后重试";
+    if (/人机|图形验证码/.test(msg)) {
+      // 图打错了：留在原地换一张，别把整块收了让用户重新点一遍
+      regCaptchaRef.value?.fail(msg);
+    } else {
+      // 邮箱已被注册之类 —— 落在邮箱框下面，人机块收起来
+      regCaptchaOpen.value = false;
+      regErr.value.email = msg;
+    }
   } finally {
     sendingRegCode.value = false;
   }
@@ -629,6 +731,9 @@ const handleRegister = async () => {
 // ================ 找回密码 ================
 // 走的是「绑定邮箱 + 验证码」，和绑定流程共用同一套发码限流（EmailCodeCache），
 // 所以不用担心这里变成发信机。
+// 两步：1 = 邮箱 + 码（调 /password/forgot/verify 只验码），2 = 新密码（调 /password/forgot/reset）。
+const forgotStep = ref<1 | 2>(1);
+const verifyingReset = ref(false);
 const forgotForm = reactive({
   email: "",
   code: "",
@@ -643,6 +748,9 @@ const forgotErr = ref({
 });
 const resetCountdown = ref(0);
 const sendingReset = ref(false);
+/** 人机校验块是否展开（点「发送验证码」才出现） */
+const forgotCaptchaOpen = ref(false);
+const forgotCaptchaRef = ref<any>(null);
 const resetting = ref(false);
 const resetDevCode = ref("");
 
@@ -667,24 +775,39 @@ const startResetCountdown = (seconds: number) => {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const handleSendReset = async () => {
+/** 点「发送验证码」：先校验邮箱，再展开图形验证码；真正的发信在 submitResetCode */
+const handleSendReset = () => {
   if (sendingReset.value || resetCountdown.value > 0) return;
   const email = forgotForm.email.trim();
   forgotErr.value.email = "";
   forgotErr.value.general = "";
   if (!email) {
-    forgotErr.value.email = "请输入绑定过的邮箱";
+    forgotErr.value.email = "请输入邮箱";
     return;
   }
   if (!EMAIL_RE.test(email)) {
     forgotErr.value.email = "邮箱格式不对，检查一下";
     return;
   }
+  forgotCaptchaOpen.value = true;
+};
+
+/** 人机校验通过 → 给已绑定的邮箱发重置密码验证码 */
+const submitResetCode = async ({
+  captchaKey,
+  captchaCode,
+}: {
+  captchaKey: string;
+  captchaCode: string;
+}) => {
+  if (sendingReset.value) return;
+  const email = forgotForm.email.trim();
   sendingReset.value = true;
   try {
-    const res = await sendResetCode(email);
+    const res = await sendResetCode(email, captchaKey, captchaCode);
     const data = res?.data || {};
     resetDevCode.value = data.devCode || "";
+    forgotCaptchaOpen.value = false;
     if (data.sent) {
       // 重发即废旧码（后端只认最新一封）：清掉框里的旧码
       forgotForm.code = "";
@@ -695,9 +818,44 @@ const handleSendReset = async () => {
     }
     startResetCountdown(data.retryAfter || (data.sent ? 60 : 0));
   } catch (e: any) {
-    forgotErr.value.email = e?.message || "验证码发送失败，请稍后重试";
+    const msg = e?.message || "验证码发送失败，请稍后重试";
+    if (/人机|图形验证码/.test(msg)) {
+      forgotCaptchaRef.value?.fail(msg);
+    } else {
+      // 「该邮箱没有绑定账号」这类：直接说清楚，落在邮箱框下面
+      forgotCaptchaOpen.value = false;
+      forgotErr.value.email = msg;
+    }
   } finally {
     sendingReset.value = false;
+  }
+};
+
+/** 第 1 步「下一步」：只把码验掉，不动密码。后端只验不消费，第 2 步还会再验一次。 */
+const handleVerifyResetCode = async () => {
+  if (verifyingReset.value) return;
+  const email = forgotForm.email.trim();
+  const code = forgotForm.code.replace(/\D/g, "").slice(0, 6);
+  forgotErr.value.email = "";
+  forgotErr.value.code = "";
+  if (!EMAIL_RE.test(email)) {
+    forgotErr.value.email = "请先填邮箱并发送验证码";
+    return;
+  }
+  if (code.length !== 6) {
+    forgotErr.value.code = "请输入 6 位验证码";
+    return;
+  }
+  verifyingReset.value = true;
+  try {
+    await verifyResetCode(email, code);
+    forgotStep.value = 2;
+  } catch (e: any) {
+    const msg = e?.message || "验证码校验失败，请稍后重试";
+    if (/验证码/.test(msg)) forgotErr.value.code = msg;
+    else forgotErr.value.email = msg;
+  } finally {
+    verifyingReset.value = false;
   }
 };
 
@@ -708,14 +866,7 @@ const handleReset = async () => {
   const pwd = forgotForm.newPassword;
   forgotErr.value = { email: "", code: "", password: "", general: "" };
 
-  if (!EMAIL_RE.test(email)) {
-    forgotErr.value.email = "请先填写并发送验证码到你的邮箱";
-    return;
-  }
-  if (code.length !== 6) {
-    forgotErr.value.code = "请输入 6 位验证码";
-    return;
-  }
+  // 邮箱和码在第 1 步已经验过，这里只校验密码；后端仍会再验一遍码（防绕过）
   if (!pwd || pwd.length < 6) {
     forgotErr.value.password = "新密码至少 6 位";
     return;
@@ -741,11 +892,16 @@ const handleReset = async () => {
     loginForm.password = "";
     goToLogin();
   } catch (e: any) {
-    // 验证码错/过期是后端给的具体文案，放在验证码下面；其余归到通用提示
+    // 第 2 步只剩密码，所以「验证码错/过期」「这个邮箱没账号」这类问题
+    // 都只能退回第 1 步去处理（码过期是最可能的：用户在第 2 步想了五分钟）
     const msg = e?.message || "重置失败，请稍后重试";
     if (/验证码/.test(msg)) {
       forgotErr.value.code = msg;
       forgotForm.code = "";
+      forgotStep.value = 1;
+    } else if (/没有绑定账号/.test(msg)) {
+      forgotErr.value.email = msg;
+      forgotStep.value = 1;
     } else {
       forgotErr.value.general = msg;
     }
@@ -755,6 +911,8 @@ const handleReset = async () => {
 };
 
 const resetForgotState = () => {
+  forgotStep.value = 1;
+  verifyingReset.value = false;
   forgotForm.email = "";
   forgotForm.code = "";
   forgotForm.newPassword = "";
@@ -763,6 +921,7 @@ const resetForgotState = () => {
   resetDevCode.value = "";
   clearResetTimer();
   resetCountdown.value = 0;
+  forgotCaptchaOpen.value = false;
 };
 
 const goToForgot = () => {
@@ -788,9 +947,12 @@ const resetRegisterState = () => {
   registerForm.emailCode = "";
   registerForm.password = "";
   registerForm.confirmPassword = "";
-  regErr.value = { email: "", emailCode: "", password: "", confirmPassword: "" };
+  regErr.value = { email: "", emailCode: "", agree: "", password: "", confirmPassword: "" };
+  // 关掉弹窗就当作撤回同意：下次打开必须重新勾，别把上一次的勾选带过来
+  agreePolicy.value = false;
   regDevCode.value = "";
   regCountdown.value = 0;
+  regCaptchaOpen.value = false;
   clearRegTimer();
 };
 const closeModal = () => {  uiStore.closeLoginModal();
@@ -807,7 +969,8 @@ const closeModal = () => {  uiStore.closeLoginModal();
 const goToRegister = () => {
   formType.value = "register";
   resetRegisterState();
-  // 注册不需要图形验证码（邮箱验证码就是那道闸），所以这里不拉图
+  // 注册页的图形验证码由 CaptchaPrompt 自己按需拉取（点「发送验证码」才展开），
+  // 不像登录那样进弹窗就要一张 —— 大部分人第一眼只是来看看，没打算发信
 };
 
 const goToLogin = () => {
@@ -1064,6 +1227,52 @@ const goToLogin = () => {
 
 .err-tip--center {
   text-align: center;
+}
+
+/* 同意《隐私政策》：一行放下「勾选框 + 我已阅读并同意 + 链接」。
+   勾选框和链接拆成两个元素 —— 套在同一个 label 里点链接会连带勾上/取消勾。 */
+.agree-row {
+  display: flex;
+  align-items: center;
+  /* 0 间距：中文里「同意」和「《隐私政策》」之间不该有缝，勾选框到文字的距离
+     交给 .agree-label 自己的 gap */
+  gap: 0;
+  margin: 2px 0 0;
+  padding: 0 2px;
+  line-height: 1.5;
+}
+
+.agree-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.agree-box {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  flex: 0 0 auto;
+  cursor: pointer;
+  accent-color: var(--primary-color);
+}
+
+.agree-text {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.agree-link {
+  font-size: 0.8125rem;
+  color: var(--primary-color);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.agree-link:hover {
+  text-decoration: underline;
 }
 
 .link-text {

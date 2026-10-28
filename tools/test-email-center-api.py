@@ -9,9 +9,9 @@
   [2] 绑定：新号没邮箱必须先填、验证码错、验证码对 → 升普通用户
   [3] 换绑：必须验当前密码（错密码 / 同一个邮箱 / 缺密码都拒），
       成功只换 email，**角色和验证状态都不动**
-  [4] 换绑后旧邮箱不能再找回密码，新邮箱可以
-  [5] 找回密码：发码、错码次数、正确码重置、旧 token 立即失效
-  [6] 防枚举：没注册过的邮箱也返回「已发送」，文案一致
+  [4] 换绑后旧邮箱不能再找回密码（发码直接 400），新邮箱可以
+  [5] 找回密码：第 1 步只验码（不查账号、不消费）、错码次数、正确码重置、旧 token 立即失效
+  [6] 没绑定账号的邮箱：发码直接 400「没有绑定账号」，不假装已发送
   [7] 边界：邮箱格式、重复绑定占用、缺参数
   [8] 解绑：必须验当前密码；解绑后 email 清空、验证位归零，
       但**角色不动**（仍能发帖评论），只是不能再靠邮箱找回密码；
@@ -155,7 +155,10 @@ try:
 
     ghost = f"nobody_{int(time.time())}@example.com"
     st, body = call("POST", "/user/password/forgot/send", body={"email": ghost})
-    check("找回密码发码免登录", body.get("code") == 200, f"code={body.get('code')}")
+    # 免登录 = 不会被 401 拦掉；没绑定账号的邮箱现在明确报 400（见 [6]）
+    check("找回密码发码免登录（走到业务层，不是 401）",
+          body.get("code") == 400 and "没有绑定账号" in (body.get("msg") or ""),
+          f"code={body.get('code')} msg={body.get('msg')}")
 
     # ------------------------------------------------------------------
     print("[2] 绑定邮箱（游客 → 普通用户）")
@@ -252,9 +255,9 @@ try:
     # ------------------------------------------------------------------
     print("[4] 换绑后旧邮箱不能找回密码，新邮箱可以")
     st, body = call("POST", "/user/password/forgot/send", body={"email": email})
-    check("旧邮箱发码仍走防枚举文案（不暴露「这号已换绑」）",
-          body.get("code") == 200 and (body.get("data") or {}).get("sent") is True,
-          str((body.get("data") or {}).get("message")))
+    check("换绑后旧邮箱发码 → 400「没有绑定账号」",
+          body.get("code") == 400 and "没有绑定账号" in (body.get("msg") or ""),
+          f"code={body.get('code')} msg={body.get('msg')}")
     st, body = reset_with("123456", email, "Hacked12345")
     # 400（查不到账号）或 508（压根没给它发过码，验证码不存在）都算拒绝，
     # 关键是「重置不成功」—— 先验码再找账号，所以实际走的是 508 那条
@@ -274,6 +277,19 @@ try:
     # 这里再发一次会拿到 sent=false（devCode 为空），那不是找回密码坏了，是限流。
     rcode = ncode
     check("拿到可用的重置验证码", bool(rcode), str(rcode))
+
+    # 界面第 1 步的「下一步」：只验码（/password/forgot/verify），不动密码、不消费。
+    # 错码照样计入「5 次作废」的额度，所以这里只试一次。
+    st, body = call("POST", "/user/password/forgot/verify",
+                    body={"email": email, "code": "000000"})
+    check("第 1 步验码：错码 → 508 且带剩余次数",
+          body.get("code") == 508 and "再试" in (body.get("msg") or ""),
+          f"code={body.get('code')} msg={body.get('msg')}")
+
+    st, body = call("POST", "/user/password/forgot/verify",
+                    body={"email": email, "code": rcode})
+    check("第 1 步验码：对码通过（免登录，不带 token）",
+          body.get("code") == 200, f"code={body.get('code')} msg={body.get('msg')}")
 
     old_hash = scalar(f"SELECT password FROM user WHERE id = {uid}")
     old_tv = int(scalar(f"SELECT token_version FROM user WHERE id = {uid}", "1"))
@@ -307,19 +323,36 @@ try:
     check("同一个验证码不能复用（508）", body.get("code") == 508, f"code={body.get('code')}")
 
     # ------------------------------------------------------------------
-    print("[6] 防枚举")
+    print("[6] 没绑定账号的邮箱：直接说，不假装已发送")
     ghost1 = f"ghost_{int(time.time())}@example.com"
     st, body = call("POST", "/user/password/forgot/send", body={"email": ghost1})
-    d = body.get("data") or {}
-    check("不存在的邮箱也返回 sent=true", body.get("code") == 200 and d.get("sent") is True,
-          str(d.get("message")))
-    check("文案不暴露账号是否存在", "如果该邮箱" in (d.get("message") or ""),
-          str(d.get("message")))
+    check("从没注册过的邮箱 → 400", body.get("code") == 400, f"code={body.get('code')}")
+    check("文案是「该邮箱没有绑定账号」", "没有绑定账号" in (body.get("msg") or ""),
+          str(body.get("msg")))
+    check("不再给 sent=true 的假成功（前端不会进 60 秒倒计时）",
+          (body.get("data") or {}).get("sent") is not True, str(body.get("data")))
+
+    # 第 1 步验码对任何邮箱都只回答「验证码」的问题，不查账号 ——
+    # 否则界面第 1 步就成了「这个邮箱有没有人用」的查询器。
+    st, body = call("POST", "/user/password/forgot/verify",
+                    body={"email": ghost1, "code": "123456"})
+    check("第 1 步验码不查账号（未绑定邮箱也只报验证码问题）",
+          body.get("code") == 508 and "没有绑定账号" not in (body.get("msg") or ""),
+          f"code={body.get('code')} msg={body.get('msg')}")
 
     # ------------------------------------------------------------------
     print("[7] 边界")
     st, body = call("POST", "/user/password/forgot/send", body={"email": "not-an-email"})
     check("邮箱格式错 → 400", body.get("code") == 400, f"code={body.get('code')}")
+
+    st, body = call("POST", "/user/password/forgot/verify",
+                    body={"email": email, "code": ""})
+    check("第 1 步验码：缺验证码 → 400", body.get("code") == 400,
+          f"code={body.get('code')} msg={body.get('msg')}")
+
+    st, body = call("POST", "/user/password/forgot/verify", body={"code": "123456"})
+    check("第 1 步验码：缺邮箱 → 400", body.get("code") == 400,
+          f"code={body.get('code')} msg={body.get('msg')}")
 
     st, body = call("POST", "/user/password/forgot/reset", body={
         "email": email, "code": "123456", "encryptedData": ""})
@@ -366,11 +399,12 @@ try:
     check("已经解绑过再点一次 → 幂等成功（不验密码也不报错）",
           body.get("code") == 200, f"code={body.get('code')} msg={body.get('msg')}")
 
-    # 解绑后这个邮箱不再属于任何账号：找回密码走防枚举，重置一定失败
+    # 解绑后这个邮箱不再属于任何账号 —— 就是「解绑后又忘了密码」的现场：
+    # 以前这里回「已发送」但根本不发信，用户只能对着收件箱干等；现在明确报 400。
     st, body = call("POST", "/user/password/forgot/send", body={"email": email})
-    check("解绑后旧邮箱发码仍是防枚举文案（sent=true）",
-          body.get("code") == 200 and (body.get("data") or {}).get("sent") is True,
-          str((body.get("data") or {}).get("message")))
+    check("解绑后该邮箱发码 → 400「没有绑定账号」（不再假成功）",
+          body.get("code") == 400 and "没有绑定账号" in (body.get("msg") or ""),
+          f"code={body.get('code')} msg={body.get('msg')}")
     st, body = reset_with("123456", email, "Hacked12345")
     check("解绑后该邮箱不能重置密码", body.get("code") in (400, 508),
           f"code={body.get('code')} msg={body.get('msg')}")

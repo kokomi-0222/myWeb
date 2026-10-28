@@ -135,8 +135,10 @@ def main():
         check("挡下时给了倒计时", (data.get("retryAfter") or 0) > 0, str(data.get("retryAfter")))
 
         code, data, msg = send(done)
+        # 只看语义（不发码 + 说清原因），不逐字比对文案：
+        # 后端已经改成「这个账号已经绑过邮箱了，要更换请用换绑」，测试没必要跟着改字
         check("已验证账号不再发码",
-              data.get("sent") is False and "已验证" in (data.get("message") or ""),
+              data.get("sent") is False and "已经绑过邮箱" in (data.get("message") or ""),
               f"{data.get('sent')} {data.get('message')}")
 
         # ---------------------------------------------------------- 2 验码

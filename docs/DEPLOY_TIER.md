@@ -4,7 +4,7 @@
 > 发帖只要求登录。照这份清单从上到下做一遍就上线了，顺序不要打乱。
 >
 > **后续增量 1（同一份 jar / 前端包已包含，不需要额外 SQL）**：
-> 邮箱绑定从弹窗搬进「个人中心 → 账号管理」、绑过的邮箱可以找回密码。
+> 邮箱绑定从弹窗搬进「个人中心 → 账号安全」、绑过的邮箱可以找回密码。
 > 白名单 `/user/password/forgot/**` 写在 jar 的 `application.yaml` 里，不用改服务器配置。
 >
 > **后续增量 3 —— 注册改两步 + 邮箱可解绑**：
@@ -37,13 +37,32 @@
 > ⚠️ 两个缓存都在**进程内存**里，`systemctl restart` 会让所有未用的验证码和 ticket 立刻失效。
 > 如果用户刚收到码、你正好在发版，让他重新点一次「发送验证码」即可。
 
+> **后续增量 6 —— 用户名改为「前缀 + 主键序号」（本次）**：
+> **只换 jar，前端不用动，也不需要 SQL。**
+> `kokomi_` + 8 位随机串 → `kokomi_` + 主键序号：`kokomi_00128`（补零 5 位；id 超过 5 位自然变长，如 `kokomi_100128`）。
+> 昵称同步从「用户 + 尾 6 位」变成「用户 + 序号去前导零」：`用户128`。
+> 为什么改：随机串是为了「不暴露注册顺序、防遍历」，但本站没有任何按用户名访问的路由（没有 `/u/{username}`），
+> 这个理由不成立；序号在 `journalctl` 里一眼能认出是谁，而且 `id` 唯一 ⇒ 用户名必唯一，省掉「先查一次 + 撞名重试 5 次」。
+> **存量账号不动**（老用户仍是随机串），新旧两种格式并存，都合法、都能登录。
+>
+> **后续增量 7 —— 发验证码前加人机校验（本次）**：
+> **只换 jar + 前端包，不需要 SQL，也不需要新的环境变量。**
+> 四个发信接口（`/user/register/email-code`、`/user/verify/send`、`/user/email/change/send`、
+> `/user/password/forgot/send`）的 body 各多两个字段 `captchaKey` / `captchaCode`，
+> 不带就是 505「请先完成人机验证」。前端在点「发送验证码」后展开一小块图形验证码
+> （`components/modules/CaptchaPrompt.vue`），验完才真发信。
+> 校验是「只验不删、发信成功才消费」：邮箱已被注册 / 密码不对 / 60 秒冷却都不烧图，
+> 同一个码连错 3 次才作废（防暴力枚举）。
+> ⚠️ **前后端必须一起上**：旧前端不带这两个字段，换 jar 后所有发码一律 505（注册、找回密码、绑换邮箱全断）。
+> ⚠️ 线上**不要**配 `app.captcha.dev-echo`（开了等于取消这道校验）。
+
 ## 0. 一句话看完
 
 | 要动的东西 | 数量 | 说明 |
 |---|---|---|
 | SQL 脚本 | **3 个** | 前两个先跑、必须在新 jar 启动之前；第三个是数据纠正，随时能跑 |
 | 后端 jar | **1 个** | 重新 `mvn package` 打出来的那个 |
-| 前端构建包 | **1 个** | `vue/dist_1027_username.zip`（增量 4 起用这个），解压覆盖站点目录 |
+| 前端构建包 | **1 个** | `vue/dist_1027_email_border.zip`（最新，含「更换/解绑」描边按钮与解绑后果文案），解压覆盖站点目录 |
 | 环境变量 | **2 个必填** | `MAIL_USERNAME` / `MAIL_PASSWORD`，不配没人能绑邮箱 |
 
 `pom.xml`（多了 `spring-boot-starter-mail`）和 `application.yaml`（多了 `app.mail.*`、`spring.mail.*`）
@@ -60,8 +79,9 @@
 | `springboot/sql_email_verify.sql` | 给 `user` 加 `email_verified TINYINT`（默认 0），并把**存量用户回填成 1** | 没有这列，后端启动就报字段不存在；老用户不回填会被当成游客锁死 |
 | `springboot/sql_tier_permission.sql` | 新增 `comment:create` 权限码、新增 `guest` 角色、写死「角色 → 权限」矩阵、清空 `guest` 的权限 | 等级制的地基。代码里一句角色名都没写死，全靠这张表 |
 | `springboot/sql_fix_primary_role.sql` | 把「`user_role` 是 `guest`、但 `user.primary_role` 写着 `member`」的账号纠正成 `guest` | 修一个显示 bug：注册的 insert 漏写了 `primary_role`，落成 DDL 默认的 `member`。**权限一直是对的**（判定看 `user_role`），只是个人中心显示成「普通用户」 |
+| `springboot/sql_user_deactivate.sql` | 给 `user` 加 `deleted_at DATETIME NULL` + 索引 | 用户自助注销用（见 `PROJECT_STATE.md` §5.12）。非空 = 已注销。⚠️ **必须在换 jar 之前跑**，新查询带 `deleted_at is null`，列不存在会直接 SQL 报错 |
 
-⚠️ 三个脚本都**幂等**，重复跑不会出事。前两个顺序不能反（`sql_email_verify` 在前），第三个跟 jar 无关、随时能跑。
+⚠️ 四个脚本都**幂等**，重复跑不会出事。前两个顺序不能反（`sql_email_verify` 在前）；`sql_user_deactivate` 跟其它三个没有依赖，但**必须早于新 jar**。
 
 ### 1.2 执行
 
@@ -70,6 +90,7 @@ cd /path/to/myWeb
 mysql -uroot -p --default-character-set=utf8mb4 kokomi < springboot/sql_email_verify.sql
 mysql -uroot -p --default-character-set=utf8mb4 kokomi < springboot/sql_tier_permission.sql
 mysql -uroot -p --default-character-set=utf8mb4 kokomi < springboot/sql_fix_primary_role.sql
+mysql -uroot -p --default-character-set=utf8mb4 kokomi < springboot/sql_user_deactivate.sql
 ```
 
 两个必须带：

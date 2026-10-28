@@ -4,8 +4,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
 
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.dao.DuplicateKeyException;
@@ -74,19 +75,28 @@ public class UserServiceImpl implements UserService {
     /**
      * 系统生成的用户名前缀。
      * <p>
-     * 用户名不再由用户填写，统一是 {@code kokomi_} + 8 位小写字母数字，
-     * 例如 {@code kokomi_a3f9c2d1}，长度 15，落在 {@code username varchar(50)} 里很宽松。
+     * 用户名不由用户填写，统一是 {@code kokomi_} + 主键序号（补到 5 位），
+     * 例如 {@code kokomi_00128}；id 超过 5 位自然变长（{@code kokomi_100128}），
+     * 始终落在 {@code username varchar(50)} 里。
      * <p>
-     * 为什么用随机串而不是"用户123"这类自增：自增能被人一眼看出注册顺序和总量，
-     * 随机串不会；而且随机串不会和存量账号（admin / test_member）撞名。
-     * 唯一性靠「先查一次 + username 唯一索引冲突重试」双保险。
+     * 为什么用序号而不是随机串：随机串当初是为了「不暴露注册顺序、防遍历」，
+     * 但本站没有任何按用户名访问的路由（不存在 {@code /u/{username}}），
+     * 别人拿不到用户名列表，这个理由不成立；id 本来就在接口返回里，也不差这一份。
+     * 而序号是可读的 —— 日志里 {@code kokomi_00128} 一眼看出是谁、第几个，
+     * 随机串在 journalctl 里只能当乱码看。而且 id 唯一 ⇒ 用户名必唯一，
+     * 不需要「先查一次 + 撞名重试」那套逻辑。
      */
     private static final String USERNAME_PREFIX = "kokomi_";
-    private static final int USERNAME_RANDOM_LEN = 8;
-    private static final char[] USERNAME_ALPHABET =
-            "abcdefghijklmnopqrstuvwxyz0123456789".toCharArray();
-    /** SecureRandom 而不是 Random：用户名会暴露在 URL/接口里，不该被预测 */
-    private static final SecureRandom USERNAME_RANDOM = new SecureRandom();
+    /** 序号补零到这个宽度（只影响观感，不限制长度） */
+    private static final int USERNAME_SEQ_WIDTH = 5;
+
+    /**
+     * 后台「用户管理」的权限码。
+     * <p>
+     * 持有它的账号不允许自助注销：注销不可逆，最后一个管理员把自己删掉之后
+     * 站里就没人能进后台了，只能去改数据库。要删必须先由别人把权限收走。
+     */
+    private static final String MANAGE_PERMISSION = "user:manage";
 
     private final UserMapper userMapper;
     private final UserRoleMapper userRoleMapper;
@@ -203,13 +213,11 @@ public class UserServiceImpl implements UserService {
         }
 
         // ---------------- 用户名：系统生成，不让用户填 ----------------
-        // 用户名统一是 kokomi_xxxxxxxx（见 randomUsername）。
-        // 这么定有两个理由：
+        // 建号后按主键拼成 kokomi_00128（见 USERNAME_PREFIX），用户填不了：
         //   ① 注册路径越短越好 ——「用户名已被占用」是最容易让人卡住重填的一步；
         //   ② 用户名不是展示名，站内显示的是 name（昵称），它只是登录/归属标识，
         //      用户点自己头像进个人中心就能看到。
-        // 老前端可能还会带 form.account 上来，这里直接忽略。
-        String account;
+        // 老前端可能还会带 form.account 上来，这里直接忽略（下面不再引用它）。
 
         // 邮箱是否已被注册。第一步发码时查过一次，这里再查一次 ——
         // 两次之间可能已经有人用同一个邮箱注册成功了（并发），唯一索引也会兜底。
@@ -284,30 +292,22 @@ public class UserServiceImpl implements UserService {
             throw new CustomerException(ResultCode.REGISTER_ERROR, "用户创建失败");
         }
         Long userId = user.getId();
-        // 生成本站用户名 + 派生昵称，然后写回。
-        // 撞名概率极低（36^8 ≈ 2.8e12），但 username 有唯一索引，并发下仍可能撞上：
-        // 换一个重试即可，**不能把 DuplicateKeyException 直接抛给用户** ——
-        // 他根本没填过用户名，看到「该用户名已被使用」只会一头雾水。
-        boolean named = false;
-        account = null;
-        for (int attempt = 0; attempt < 5 && !named; attempt++) {
-            String candidate = randomUsername();
-            // 先查一次，省掉一次必然失败的 UPDATE（也能挡住历史遗留的奇怪 username）
-            if (userMapper.selectByAccount(candidate) != null) {
-                continue;
+        // 用户名 = kokomi_ + 主键序号，昵称从它派生，然后写回。
+        // 不需要查重、不需要撞名重试：id 是自增主键，天然唯一 ⇒ 用户名必唯一
+        // （之前的 8 位随机串才需要「先查一次 + DuplicateKeyException 换一个」）。
+        String account = usernameOf(userId);
+        user.setUsername(account);
+        user.setName(defaultNickname(account));
+        try {
+            if (userMapper.updateUsernameAndName(user) != 1) {
+                throw new CustomerException(ResultCode.REGISTER_ERROR, "注册失败，请稍后重试");
             }
-            user.setUsername(candidate);
-            user.setName(defaultNickname(candidate));
-            try {
-                named = userMapper.updateUsernameAndName(user) == 1;
-                if (named) {
-                    account = candidate;
-                }
-            } catch (DuplicateKeyException e) {
-                log.warn("[register] 用户名 {} 刚被别人占用，换一个重试", candidate);
-            }
-        }
-        if (!named || account == null) {
+        } catch (DuplicateKeyException e) {
+            // 理论上不可能命中（id 唯一 → 用户名必唯一）。只有一种情况会撞：
+            // 历史数据里已经存在同名的 kokomi_00128（手工改库 / 外部导入）。
+            // 重试同一个 id 没有意义，也不能把「用户名已被使用」甩给用户 ——
+            // 他根本没填过用户名。
+            log.error("[register] 用户名 {} 撞上唯一索引，请检查是否有同名历史数据", account, e);
             throw new CustomerException(ResultCode.REGISTER_ERROR, "注册失败，请稍后重试");
         }
 
@@ -331,14 +331,13 @@ public class UserServiceImpl implements UserService {
         return Result.success(vo);
     }
 
-    /** 生成一个 {@code kokomi_xxxxxxxx} 形式的用户名（不含查重，查重在调用处） */
-    private static String randomUsername() {
-        StringBuilder sb = new StringBuilder(USERNAME_PREFIX.length() + USERNAME_RANDOM_LEN);
-        sb.append(USERNAME_PREFIX);
-        for (int i = 0; i < USERNAME_RANDOM_LEN; i++) {
-            sb.append(USERNAME_ALPHABET[USERNAME_RANDOM.nextInt(USERNAME_ALPHABET.length)]);
-        }
-        return sb.toString();
+    /**
+     * 按主键序号拼一个用户名：{@code kokomi_00128}。
+     * <p>
+     * 补零只为观感（长度一致、列表对齐）；id 超过 5 位就自然变长，不做截断。
+     */
+    private static String usernameOf(Long id) {
+        return USERNAME_PREFIX + String.format("%0" + USERNAME_SEQ_WIDTH + "d", id);
     }
 
     /**
@@ -348,14 +347,17 @@ public class UserServiceImpl implements UserService {
      * 而用户名未必合规，所以要清洗一遍。不这么做的话，新用户一进「账号管理」点保存
      * 就会被后端拒掉（"昵称不能包含特殊字符"），而他什么都没改。
      * <p>
-     * 系统生成的名字（{@code kokomi_a3f9c2d1}）单独处理：直接取尾部 6 位拼成
-     * 「用户a3f9c2」。既符合昵称规则，也比原样截断成 "kokomia3f9c2" 好认 ——
-     * 后者和用户名几乎一样，用户会觉得"这网站连昵称都不会起"。
+     * 系统生成的 {@code kokomi_00128} 单独处理：取出序号、去掉前导零拼成
+     * 「用户128」。既符合昵称规则（全是数字+汉字），也比原样截断成 "kokomi_00"
+     * 好认 —— 后者用户会觉得"这网站连昵称都不会起"。
      */
     private static String defaultNickname(String account) {
-        if (account != null && account.startsWith(USERNAME_PREFIX)
-                && account.length() > USERNAME_PREFIX.length() + 6) {
-            return "用户" + account.substring(account.length() - 6);
+        if (account != null && account.startsWith(USERNAME_PREFIX)) {
+            String tail = account.substring(USERNAME_PREFIX.length());
+            if (tail.matches("\\d+")) {
+                // 去掉前导零：kokomi_00128 → 用户128（别给用户看「用户00128」）
+                return "用户" + tail.replaceFirst("^0+(?!$)", "");
+            }
         }
         String base = account == null ? "" : account;
         int at = base.indexOf('@');
@@ -566,6 +568,91 @@ public class UserServiceImpl implements UserService {
         }
         UserTokenVersionCache.removeVersion(userId);
         return Result.success("密码修改成功");
+    }
+
+    /**
+     * 自助注销（不可逆）。
+     * <p>
+     * 这是《个人信息保护法》第 47 条「删除权」在站内的落地：用户不需要写邮件、
+     * 不需要等管理员审批，验一次密码就能自己删。做成审批制反而会踩到
+     * 「注销需人工审核且长期不处理」那条通报项。
+     * <p>
+     * 真正动手的是 {@link UserMapper#deactivate}，这里只负责三件事：
+     * ① 拦住管理员（否则站点可能失去全部管理入口）；
+     * ② 验密码（token 只能证明「这台设备登录过」，不能证明是本人）；
+     * ③ 把两个缓存清掉（不清的话旧 token 还能继续用，等于没注销）。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deactivate(String encryptedData) {
+        Long userId = LoginUserHolder.getUserId();
+        if (userId == null) {
+            throw new CustomerException(ResultCode.AUTHOR_ERROR, "请先登录");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "账号不存在");
+        }
+        if (user.getDeletedAt() != null) {
+            // 正常流程走不到：注销那一刻 token 就作废了。留着是为了防并发重复提交
+            throw new CustomerException(ResultCode.PARAM_ERROR, "该账号已注销");
+        }
+
+        // 管理员护栏放在验密码之前：这是「你这个账号类型就不允许」，
+        // 跟密码对不对无关，先验密码会让人误以为输对就能删。
+        List<String> perms = rolePermissionMapper.selectPermissionsByUserId(userId);
+        if (perms != null && perms.contains(MANAGE_PERMISSION)) {
+            throw new CustomerException(ResultCode.NO_PERMISSION,
+                    "管理员账号不能自助注销；如确需删除，请先由其他管理员收回「用户管理」权限");
+        }
+
+        String password = decryptOldPassword(encryptedData);
+        if (!BCrypt.checkpw(password, user.getPassword())) {
+            throw new CustomerException(ResultCode.UPDATE_PASSWORD_ERROR, "密码不正确");
+        }
+
+        // 占位密码：随机 UUID 的哈希，谁都不知道，登录时表现为「密码不对」。
+        // 不能置空串 —— BCrypt.checkpw 遇到非法哈希会抛异常，变成 500。
+        String placeholder = BCrypt.hashpw(UUID.randomUUID().toString(), BCrypt.gensalt());
+        int rows = userMapper.deactivate(userId, placeholder);
+        if (rows != 1) {
+            throw new CustomerException(ResultCode.SERVER_ERROR, "注销失败，请稍后重试");
+        }
+
+        // 🔴 两个缓存都必须清：
+        //   UserTokenVersionCache 命中时**不查库**，留着旧版本号等于旧 token 继续有效；
+        //   PermissionCache 同理，会话期间不会重新查权限。
+        UserTokenVersionCache.removeVersion(userId);
+        PermissionCache.remove(userId);
+
+        log.warn("[deactivate] 用户 {}（原昵称 {}）已自助注销，邮箱等信息已清空", userId, user.getName());
+    }
+
+    /**
+     * 从 RSA 密文里取出当前密码（注销 / 改密共用同一套前端加密格式）。
+     * <p>
+     * 和 {@code UserVerifyServiceImpl#checkPassword} 是同源逻辑，区别是这里
+     * 只解不比对 —— 调用方拿到明文自己决定用哪个错误码。
+     */
+    private String decryptOldPassword(String encryptedData) {
+        if (StrUtil.isBlank(encryptedData)) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请输入当前密码");
+        }
+        String json = rsaUtil.decrypt(encryptedData);
+        if (json == null) {
+            throw new CustomerException(ResultCode.RSA_DECRYPT_ERROR, "解密失败");
+        }
+        PasswordDTO dto;
+        try {
+            dto = objectMapper.readValue(json, PasswordDTO.class);
+        } catch (Exception e) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "参数格式错误");
+        }
+        String password = StrUtil.trimToNull(dto.getOldPassword());
+        if (password == null) {
+            throw new CustomerException(ResultCode.PARAM_ERROR, "请输入当前密码");
+        }
+        return password;
     }
 
 

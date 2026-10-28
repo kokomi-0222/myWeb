@@ -57,6 +57,21 @@ realService.interceptors.response.use(
       return Promise.reject(err)
     }
 
+    // 图形验证码错：登录页靠 toast 提示，但发码接口（注册 / 找回密码 / 绑换邮箱）
+    // 已经把错误写在「人机校验」那一小块里了 —— 请求方带 silent: true 时不再重复弹一条。
+    if (setting.captchaCode && res.code == setting.captchaCode && response.config?.silent) {
+      return Promise.reject(new Error(res.msg || '图形验证码错误'))
+    }
+
+    // config.silent：调用方自己会在界面上就地显示这条错误（发码接口的人机校验块就是），
+    // 这里就别再弹一条 toast —— 同一个错提示两遍，看着像出了两个问题。
+    // 401 / 402 例外：它们要走下面的清理 token / 权限不足流程。
+    if (response.config?.silent
+        && res.code != setting.invalidCode
+        && res.code != setting.noPermissionCode) {
+      return Promise.reject(new Error(res.msg || '请求失败'))
+    }
+
     message.error(res.msg)
     if (res.code == setting.invalidCode) {
       removeAccessToken()
