@@ -1,6 +1,17 @@
 app:
   base-url: http://localhost:8080
   upload-path: ${user.dir}/upload/
+  # upload/temp 的过期清理（TempFileCleanupTask，每周扫一次）
+  upload-cleanup:
+    # 总开关。想手动接管（比如要先把文件捞出来备份）就设 false
+    enabled: ${UPLOAD_CLEANUP_ENABLED:true}
+    # 保留多少小时以内的临时文件。配图上传先落 temp、提交时才 move 进 images，
+    # 所以这里只影响「传了没提交」的残留；正在编辑的图（刚上传）不会被删。
+    # 别设太小：用户可能晚上传好、第二天再发帖。被删了帖子仍能发，只是图没了。
+    retention-hours: ${UPLOAD_CLEANUP_RETENTION_HOURS:24}
+    # Spring 6 段 cron（秒 分 时 日 月 周），默认每周一凌晨 4:17。
+    # 想改成每天凌晨 4:17 就写 "0 17 4 * * *"；每周日 3:30 写 "0 30 3 * * SUN"
+    cron: "${UPLOAD_CLEANUP_CRON:0 17 4 * * MON}"
   mail:
     # 邮件里署的发件人名
     from-name: 心海的小窝
