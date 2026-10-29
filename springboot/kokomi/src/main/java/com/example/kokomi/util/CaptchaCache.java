@@ -1,5 +1,9 @@
 package com.example.kokomi.util;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -15,6 +19,12 @@ public class CaptchaCache {
     private static final int MAX_SIZE = 1000;
 
     /**
+     * 满了之后淘汰到这个水位，而不是只挤掉一条。
+     * 每次淘汰一批，省得在持续高压下每次 put 都要全表排序一遍。
+     */
+    private static final int EVICT_TO = MAX_SIZE * 4 / 5;
+
+    /**
      * 「只验不删」模式下同一个码最多错几次就作废。
      * 发码接口不能一错就把图烧掉（用户往往只是打错一个字母），但也不能让他
      * 拿同一张图无限试 —— 4 位字符猜几百次就出来了。
@@ -24,16 +34,35 @@ public class CaptchaCache {
     private static final ConcurrentHashMap<String, CaptchaEntry> CACHE = new ConcurrentHashMap<>();
 
     /**
-     * 存入验证码。缓存已满时返回 false，调用方应拒绝生成新验证码。
+     * 存入验证码。
+     * <p>
+     * 缓存满了**淘汰最老的几条**，不再拒绝写入。原来是「满了返回 false、
+     * 接口回 429 系统繁忙」，而 /captcha 是登录、注册、找回密码、绑邮箱的公共入口：
+     * 攻击者伪造 IP 刷 1000 次就能把这个表灌满，然后所有正常用户都拿不到图，
+     * 全站登录直接挂掉 —— 花 1000 个请求换一次全站不可用，很划算的放大攻击。
+     * <p>
+     * 被淘汰的用户会看到「图形验证码已失效」，换一张即可，代价远小于全站 429。
      */
-    public static boolean put(String key, String code) {
+    public static void put(String key, String code) {
+        if (key == null || code == null) {
+            return;
+        }
         // 先清理过期条目，释放空间
         cleanExpired();
         if (CACHE.size() >= MAX_SIZE) {
-            return false;
+            evictOldest();
         }
         CACHE.put(key, new CaptchaEntry(code, System.currentTimeMillis()));
-        return true;
+    }
+
+    /** 淘汰最老的一批条目，直到降到 {@link #EVICT_TO} 以下 */
+    private static void evictOldest() {
+        List<Map.Entry<String, CaptchaEntry>> entries = new ArrayList<>(CACHE.entrySet());
+        entries.sort(Comparator.comparingLong(e -> e.getValue().timestamp));
+        int drop = entries.size() - EVICT_TO;
+        for (int i = 0; i < drop && i < entries.size(); i++) {
+            CACHE.remove(entries.get(i).getKey());
+        }
     }
 
     /**
