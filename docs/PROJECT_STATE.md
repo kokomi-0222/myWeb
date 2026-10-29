@@ -100,6 +100,7 @@ cd vue && npm install && npm run dev
 - **等级制（游客 / 普通用户 / 会员）**：注册即验邮箱，新号落地就是普通用户，发帖评论都通；「游客」只剩历史存量账号（没绑过邮箱的老号）这一种来源，补绑后自动升普通用户。会员由管理员授予，目前与普通用户等价。判定全靠权限码，改规则只改 `role_permission` 表
 - **外观**：深色模式（持久化）、名字颜色 / 身份标签颜色、角色标签
 - **合规三件套**：首页页脚展示网站备案号（`赣ICP备2025059521号-1`，可点回工信部）、独立的 `/privacy` 隐私政策页（免登录可读）、注册第 1 步的「我已阅读并同意《隐私政策》」勾选框（默认不勾）
+- **临时文件定时清理**：`upload/temp/` 里「传了图片但没提交」的残留，每周一凌晨扫一次，超过 24 小时自动删（见 5.13）；保留窗口、cron、开关都可配，`enabled=false` 直接停
 
 ### 没做（有 `user:block` / `comment:report` 这种空壳权限码，别被误导）
 
@@ -209,6 +210,10 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
   - 「确定」是描边按钮（跟同行的「发送验证码」同款），不是实心主色——实心会抢「下一步」的视觉重量。
   - 提示与错误**共用一行**（`.cp-note`，错误时加 `.cp-err` 只换颜色），右边常驻「取消」。写成 `v-if/v-else` 二选一会让报错时「取消」消失、整块还上下跳一下。
 - 前端判定：后端 505 的两句文案（「请先完成人机验证」/「图形验证码不对，换一张再试」）用正则 `/人机|图形验证码/` 识别，命中就留在原地换图；其它错误（邮箱已被注册等）落到原来的红字位置。
+- 🔴 **`/captcha` 的两个容量坑（2026-10-29 修）**，都属于「花很小的力气换你全站不可用」的放大攻击：
+  - `CaptchaCache` 写满后**淘汰最老的**（降到 800 条），不再返回 false。原来是「满了回 429 系统繁忙」，而 `/captcha` 是登录 / 注册 / 找回密码 / 绑邮箱的公共入口 —— 灌满这 1000 条就能让**所有正常用户**拿不到图。被淘汰的人只是「换一张」，代价远小于全站 429。
+  - `CaptchaController` 的限流表原来有一段死代码：`compute()` 之后判断「窗口过期就 remove」，而那个条件恒为假（窗口一过期，`compute` 里已经换成新对象、`windowStart` 就是 `now`），等于每个访问过的 IP 永久留一条。现在改成每 60 秒扫一次过期窗口，外加 5 万条的硬上限兜底（实测灌 2700 个 IP 后停 70 秒，表从 2704 条降到 1 条）。
+  - 这两处由 `src/test/java/.../util/CaptchaCacheTest.java` 与 `IpUtilsTest.java` 守着（`mvn test -Dtest='IpUtilsTest,CaptchaCacheTest'`，12 项）。
 
 | 账号状态 | 能登录 | 浏览 / 点赞 | 评论 / 回复 / 举报 / 发帖 |
 |---|---|---|---|
@@ -262,7 +267,13 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
   - 但输旧码**不报「验证码不正确」**：`EmailCodeCache` 还给最近 `MAX_RETIRED=2` 个旧码留着做识别，命中就返回 `CheckResult.SUPERSEDED` → 文案「验证码已更新，请使用最新收到的那封邮件里的验证码」，而且**不计入试错次数**（他不是在猜，是拿了上一封邮件）。前端在重发成功后会把验证码输入框清空，正常路径下碰不到这句。
   - 同一封邮件里的码在有效期内仍然可以**反复验证**（`verify` 只验不消费），这两条不冲突：不重发就一直有效，一重发旧的立刻作废。
 - `EmailCodeCache` 是静态 `ConcurrentHashMap`（仿 `CaptchaCache`），**重启即全部失效 / 限流清零**。单机部署够用，要上多实例得换 Redis。
-- 取 IP 走 `util/IpUtils`，优先 `X-Forwarded-For`（线上走 nginx 反代，`getRemoteAddr()` 只会拿到 127.0.0.1，限速会变成全站共用）。
+- 取 IP 走 `util/IpUtils.getClientIP`，规则（2026-10-29 加固）：
+  - **直连**（`getRemoteAddr()` 是公网地址）→ 代理头一律不信，就用 `remoteAddr`；
+  - **经反代**（`getRemoteAddr()` 是回环/内网）→ 才解析 `X-Forwarded-For`，并且**从右往左**取第一个非内网地址。
+  - 为什么改：代理头是客户端能自己写的。原来无条件取 XFF 最左一段，实测 500 次请求带 500 个假 IP 全部通过，一次 429 都没吃到 —— 60 次/分钟的限流等于不存在。改完之后，伪造左端（`1.2.x.x, 真实IP`）会被按真实 IP 计数（实测 62 次里 60 通过 + 2 次 429）。
+  - ⚠️ **依赖 nginx 写法**：必须 `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`（追加）或 `$remote_addr`（覆盖）。如果 nginx 完全不碰这个头，伪造值会原样透传，从右往左也治不了。上线后验一次：带假 XFF 连打 61 次，看第 61 次是否 429。
+  - 顺带校验地址格式和长度（≤45 字符），拿不到合法 IP 就回退 `remoteAddr` —— 这个值会被当成 Map 的 key，不校验的话一个 8KB 的垃圾头就能往内存里塞一个 8KB 的键。
+  - `RegisterRateLimit` 用的也是它，所以注册限流一起变严了（原来同样能被伪造 IP 绕过）。
 
 **两个内存缓存会不会满（`MAX_SIZE = 5000`）**
 
@@ -407,6 +418,98 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 
 ---
 
+### 5.13 upload/temp 的定时清理
+
+配图（帖子 / 评论 / 头像）都是先传到 `upload/temp/`，用户**真正提交时**才 move 进 `upload/images/`。传了不提交的（关弹窗、断网、换一张重传）就永久留在 temp 里，磁盘只增不减 —— 上线后累积了十几张 10 月 20 日的残留，故加定时清理。
+
+- **实现**：`task/TempFileCleanupTask`（`@Scheduled`，**每周一凌晨 4:17**）+ `util/TempFileCleaner`（纯逻辑，可单测）。启动类加了 `@EnableScheduling`，这是项目里**目前唯一的定时任务**。
+- **为什么是每周一次**：temp 只放「传了没提交」的残留，攒一周的量一次清干净就够；用户明确要求不要一小时一趟，没必要让磁盘操作日更。
+- **判断依据是 mtime**（文件最后修改时间）。文件名是 UUID，不带时间信息，别想着从名字解析。
+- 🔴 **刻意不查数据库**（用户明确要求）：temp 就是垃圾桶，过了窗口一律删，哪怕某条历史数据里还存着指向它的 URL。曾经加过一版 `UploadRefMapper`（捞 `post_media` / `comment.image` / `user.avatar` 里含 `/upload/temp/` 的 URL 做白名单），后来按用户判断拆掉了 —— 线上发布流程稳定，temp 里的东西不该被引用；为一条 2026-06 的历史脏数据（`post_media.id=2`）每周多查三张表不值得。**后果**：真出现「URL 仍指着 temp」的记录，那张图到期就没了，页面静默裂图（不报错）。要修也是修数据，不是给清理加豁免。
+- **保留窗口默认 24 小时**：发帖基本是「传完几分钟内提交」，24 小时覆盖「晚上写好、第二天再发」。窗口内的文件一律不动，所以正在编辑的图不会被误删。配合周级 cron，实际残留最长约 8 天，也就是「每周把上周所有超 24 小时的清掉」。
+- **只删普通文件，不递归、不删目录、跳过符号链接**。temp 本该是一层平铺的图片；真出现子目录多半是人为放错，删错的代价远大于留着。
+- 单个文件删失败（Windows 被占用 / 权限）只计数不中断；整轮异常被 `try/catch` 兜住，保证下一轮照跑。
+- **真被删了也不会让帖子发不出去**：`PostServiceImpl#moveTempFileToImages` 失败只是返回 null、跳过该项媒体，帖子照常入库，只是少一张图。这是刻意保留的降级路径。
+- **配置**（`application.yaml` 的 `app.upload-cleanup.*`，都有环境变量兜底）：
+
+  | 键 | 环境变量 | 默认 | 说明 |
+  |---|---|---|---|
+  | `enabled` | `UPLOAD_CLEANUP_ENABLED` | `true` | 总开关，要手动备份时先关掉 |
+  | `retention-hours` | `UPLOAD_CLEANUP_RETENTION_HOURS` | `24` | 保留窗口，代码里 `Math.max(1, ...)` 兜底，配 0 不会变成「全删」 |
+  | `cron` | `UPLOAD_CLEANUP_CRON` | `0 17 4 * * MON` | Spring **6 段**cron（秒 分 时 日 月 周），最后一段用 `MON`/`1`。改每天凌晨写 `0 17 4 * * *` |
+
+- **日志**：每周一条，两种情况都打 —— 真删到东西是 `清理 upload/temp：删除 N 个超过 24 小时的文件，释放 X，失败 0 个`，没东西可删是 `本轮无过期文件`（这行是确认调度还活着的唯一凭据；周级频率不用担心刷屏，所以不再做心跳节流）。排查时 `grep "upload/temp" 日志`。
+- 验收：`TempFileCleanerTest` 5 项（只删过期的 / 24h 边界保留 / 不碰子目录 / 空目录与不存在目录 / 零窗口）+ 隔离目录实跑（30h、25h 删，1h、刚传的留，`enabled=false` 时一个不动）+ 真实目录实跑（18 个 10-20 的残留一次清完，释放 2.6 MB）。
+
+### 5.14 数据备份（服务器脚本 + 本地拉取）
+
+网站数据总共约 5 MB（库 0.56 MB + 图片 3.9 MB），所以不引对象存储，做法是「服务器每天打包 + 拉到本地」。
+
+**为什么不用 `@Scheduled` 写进应用**：应用挂了、库坏了、jar 起不来 —— 这些恰恰是最需要备份的时刻，写进应用里的任务会跟它同生共死，等于最需要时它也不在了。对比 5.13 的 temp 清理（该跟应用同生共死、且紧随上传逻辑），两者的**故障耦合方向正好相反**，这才是它们放在不同地方的原因，跟「业务 / 运维」的标签无关。
+
+- **服务器端** `/root/backup.sh`（仓库留档 `tools/backup.sh`，两边要同步）：`mysqldump --single-transaction` + `tar` 打包 `upload/{images,avatars}`（**temp 不备份**，那是垃圾桶）+ 本地保留 7 天。
+  - 🔴 **两个包都用 7z AES-256 加密**（`-mhe=on` 连包内文件名一起加密），密码读 `/root/.backup-pass`（`600`，第一行）。备份一旦离开服务器（Xftp 拉到本地、再进网盘同步目录），`600` 就管不着了，而包里有用户邮箱、BCrypt 哈希、帖子正文。产物是 `db-<日期>.sql.7z` / `upload-<日期>.tar.7z`。
+  - **为什么是 7z 不是 gpg**：gpg 更安全（密码走 `--passphrase-file`，不经过命令行），但 `.gpg` 在 Windows 上必须装 GPG4win 才能解。目标是「双击 + 输密码」这种最普通的使用方式，所以换成 7z —— 7-Zip / WinRAR / Bandizip 都能开。
+  - ⚠️ **Windows 自带的解压不支持任何加密包**（加密 zip 和加密 7z 都一样报「无法完成提取」）。电脑上必须有解压软件，这跟选哪个格式无关，先跟用户确认过。
+  - **7z 的密码只能走命令行**（`-p"$PASS_VAL"`），进程存活那一两秒里 `ps aux` 能看到 —— 这是 7z 格式的固有限制（它没有 `--passphrase-file`）。5 MB 数据压不到 2 秒，窗口极短；**但绝不能把密码写死在脚本里**，只从 `$PASS_FILE` 读。
+  - 🔴 **密码丢了 = 这些包全部报废**，比明文躺硬盘更危险。必须另存两处（密码管理器 + 纸质），且**不能放在 `/kokomi/backup` 里**跟包待在一起 —— 否则整目录被拷走等于没加密。
+  - **7z 不支持从 stdin 读**，所以 dump 和 tar 得先落到 `mktemp -d` 的临时目录（`700`），并用 `trap 'rm -rf "$TMP"' EXIT INT TERM` 保证无论怎么退出（含中途报错）都把含明文的目录删掉。
+  - **临时名必须以 `.part.7z` 结尾**：7z 对不以 `.7z` 结尾的归档名会自动补后缀，写成 `.part` 会变成 `.part.7z.7z`，后面的 `mv` 就找不到文件。
+  - `umask 077`：dump 里有邮箱、密码哈希、帖子正文。
+  - **先写临时名再 `mv`**：同分区 `mv` 是原子的，正式文件名一出现就代表内容完整；中途失败只留临时文件，不会被误当成「今天已经备过了」。
+  - `set -euo pipefail`：别以为少了 `pipefail` 才有事 —— 现在是 `mysqldump > 文件` 而不是管道，dump 失败本来就非零退出；但脚本仍然保留它，因为 `7z` 找不到输入文件时退出码是 1，靠在 `set -e` 上拦住，不会静默产出空包（已实测）。
+  - 第 0 步先查密码文件（在不在、第一行空不空）和 `7z` 命令在不在，缺了直接 `exit 1` 并说清原因（否则 7z 报的错完全看不出根因）。
+  - dump 小于 1024 字节时**只警告不 `exit`**：库真被清空时空 dump 好歹还有表结构，比一个包都不留强。别为了这条检查让备份停摆。
+  - 🔴 **脚本自己验收**：打完包立刻 `7z t -p"$PASS_VAL"` 把两个包各完整解一遍（校验加密头 + CRC），失败就 `exit 1`。这样「密码设错了 / 包被截断 / 磁盘写坏」在备份当天就暴露，而不是等真出事那天才发现解不开。实测：截断包退出码 2、错密码退出码 2、正常包退出码 0。**别为了省一两秒删掉它** —— 这是「备份可用」唯一的自动证据。
+  - 日志把两个包的**完整路径**打出来（不只是大小），因为「文件在哪个目录、叫什么名字」靠猜最容易错（2026-10-29 就因为按 `/kokomi/backup/db-$(date +%F).sql.7z` 猜路径去 `7z x`，报 `errno=2 No such file`，白折腾一轮）。
+  - 成功时 `touch /kokomi/backup/.last-success`，「最近一次备份成没成」就看这个文件的时间，别用目录里文件的 mtime 猜（`.part` 残留会骗人）。
+  - 密码用 `head -1 | tr -d '\r'` 取：`/root/.backup-pass` 若被 Windows 编辑器改过会带 CRLF，CR 混进密码里，加密/解密都不会报错但两边密码不一致 —— 表现在「昨天能解，今天解不开」。
+- **cron**（Ubuntu）：`0 4 * * * /root/backup.sh >> /var/log/kokomi-backup.log 2>&1`。cron 的 `PATH` 只有 `/usr/bin:/bin`，「手动能跑」不等于「cron 能跑」，验证用 `env -i HOME=/root SHELL=/bin/sh PATH=/usr/bin:/bin /bin/sh -c '/root/backup.sh'`。脚本首行 `#!/bin/bash` 不能删（`pipefail` 是 bash 特性，Ubuntu 的 `/bin/sh` 是 dash，会报 `Illegal option -o pipefail`）。
+- **本地拉取** `tools/pull.ps1`：`scp` 只拉 `.7z`（不带 `.part`），本地留 60 天 —— 服务器 7 天只管「昨天误删」，长期回溯靠本地。`BatchMode=yes` 保证连不上**立刻失败**而不是卡在密码提示上（任务计划里卡住 = 永远不结束，且不会有人发现）。前提是 SSH 免密钥。⚠️ 加密上线前手动拉的 `*.gz` 不受它的 60 天清理管，要删自己动手。
+- ⚠️ `/kokomi/backup` 和网站在**同一块盘**（`/dev/vda3`），盘挂了两个一起没。**本地那份副本才是这套方案真正起作用的部分**，服务器上的只是中转。
+- ⚠️ 编码两个方向都要小心：`backup.sh` 必须是 **LF**（CRLF 上去会报 `$'\r': command not found`）；`pull.ps1` 必须是 **UTF-8 with BOM**（Windows PowerShell 5.1 把无 BOM 的 UTF-8 按 ANSI/GBK 解析，中文注释会让解析器报「字符串缺少终止符」，看起来像语法错误其实是编码）。
+- **日常不用人工验收**：脚本末尾的 `7z t` 自检已经覆盖「包能不能解开」。只有做**恢复演练**（换个库导一遍）时才需要比对数量：线上表数 vs `7z x -so -p"$(head -1 /root/.backup-pass)" db-*.sql.7z | grep -c "CREATE TABLE"`、图片数 vs `... upload-*.tar.7z | tar tf - | grep -v '/$' | wc -l`，必须相等；再 `grep -c "INSERT INTO"` 确认导出了数据而不只是表结构。
+- 已实测：2026-10-29 明文版首跑 `db-*.sql.gz` 11 KB / `upload-*.tar.gz` 803 KB，表 14=14、图片 6=6，权限 `-rw-------`。加密版用假 dump + 官方免安装 `7zr.exe` 跑过全流程：正常产出 `退出码 0` 且日志打出两个包的完整路径、内置 `7z t` 自检通过、`-mhe=on` 生效（不输密码连文件名都看不到）、截断包和错密码的自检退出码均为 2、`/root/.backup-pass` 带 CRLF 也能正常加密解密、密码文件缺失或第一行为空都 `exit 1`、8 天前的 `.7z` 和 `.gz` 都被清而 2 天前的保留、临时明文目录跑完为 0 个文件。
+
+**恢复（2026-10-29 在生产库实操验证过）**
+
+dump 是**覆盖式**的 —— 每张表前都有 `DROP TABLE IF EXISTS`，跑完目标库就完全等于备份那一刻，备份之后新增的数据全部消失。这不是「补数据」，是「时光倒流」。
+
+- 🔴 **文件里既没有 `CREATE DATABASE` 也没有 `USE kokomi`**（打包时 mysqldump 没带 `--databases`）。Navicat 里必须**先选中目标库**（左侧双击 `kokomi` 让它变蓝）再「右键 → 运行 SQL 文件…」，否则报 `1046 - No database selected`。在查询窗口执行同理，窗口要切到该库。
+- **先演练再动生产**：建 `kokomi_restore_test`（`CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci`）→ 对它跑一遍 → 核对 14 张表行数 → 全对上才碰生产。核对 SQL 里的每个字面量都要跟 `COLLATE utf8mb4_general_ci`，否则跨表 `UNION` 会撞 `1271 Illegal mix of collations`（见第 6 章）。备份里应有的数：user 10 / post 3 / comment 9 / notification 13 / report 9 / post_like 9 / comment_like 2 / topic 7 / role 6 / permission 8 / role_permission 20 / user_role 11 / post_media 0 / post_tag 0。
+- **动生产前先存现场**：`mysqldump kokomi > /tmp/before-restore.sql`。多几秒钟，多一条退路 —— 导入是单向操作，没有 undo。
+- **完整回滚 = 停服务 → 导库 → 还原图片 → 起服务**，四步缺一不可：
+
+  ```bash
+  systemctl stop kokomi
+  7z x -so -p"$(head -1 /root/.backup-pass)" /kokomi/backup/db-2026-10-29.sql.7z \
+     | mysql -u root -p kokomi
+  7z x -so -p"$(head -1 /root/.backup-pass)" /kokomi/backup/upload-2026-10-29.tar.7z \
+     | tar xf - -C /kokomi/upload
+  systemctl start kokomi
+  ```
+
+  - **必须停服务**：导库时表先被 DROP 再重建，应用还在跑就会往半成品里写。
+  - **图片必须一起还原**：库里存的是 `/upload/images/xxx.jpg` 这种路径，只导 SQL 会整站裂图，而 `user` / `post` 行数**照样全对** —— 只看数字发现不了这个问题。
+  - **必须 `restart` 而不是 `reload`**：`PermissionCache` 是内存里的角色权限矩阵，数据被覆盖后缓存仍是旧的，表现为「管理员进不去后台」「该禁言的还能发言」这种和库对不上的怪现象。
+- ⚠️ 2026-10-29 那份包里 **`post_media` / `post_tag` 都是 0 行**，恢复后帖子会退化成纯文本、话题筛选空。验收除了行数还要点开帖子看图、点话题看能不能筛出来。
+- ⚠️ dump 由 **MySQL 8.4** 导出，14 张表里 11 张带 `utf8mb4_0900_ai_ci`。目标库低于 8.0（5.7 / MariaDB）会报 `Unknown collation`，那是版本不够，不是文件坏了。
+- ⚠️ **文件名按天（`db-$(date +%F)`），一天跑两次后一次会顶掉前一次**。2026-10-29 手动跑了一次 `backup.sh`，把 cron 凌晨 4 点那份覆盖成了 14:39 的现场 —— 当天真要回退，只有一个 14:39 可选。要留一天多个还原点，文件名加时分：`db-$(date +%F-%H%M).sql.7z`，清理规则不用改。
+- ⚠️ **别在 Navicat 里对着生产库直接跑 DROP 型脚本**。2026-10-29 就这么干了一次（运气好，包是当天的，只差 1.5 小时）。这是单向操作，先进 `kokomi_restore_test` 走一遍的成本远低于事后找 binlog。
+
+### 5.15 HTTPS 证书（Let's Encrypt，2026-10-29 核验）
+
+站点走 `https://kokomi.net.cn`，证书是 **certbot + Let's Encrypt**，不是买的年费证书。这条线一年只在续期时用一次，所以配置状态记在这里。Nginx 配置在服务器 `/etc/nginx/conf.d/domian.conf`（本地同名文件，已被 `.gitignore` 排除）。
+
+- 证书路径 `/etc/letsencrypt/live/kokomi.net.cn/fullchain.pem`，覆盖 **`kokomi.net.cn` + `www.kokomi.net.cn`** 两个名字。80 端口只有一句 `return 301 https://$host$request_uri`。
+- **只有 90 天有效期**，靠 `certbot.timer` 自动续（`systemctl is-enabled certbot.timer` = `enabled`）。每天跑两次（约 04:28 / 16:28，带随机延迟），到期前 30 天才真续。**所以证书快到期时不要以为出了问题**，`certbot certificates` 看剩余天数。
+- `authenticator = nginx` / `installer = nginx`：用 nginx 插件，续期时**插件自己会改配置并 reload**，不依赖额外 hook。
+- 另加了 `/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh`（`#!/bin/sh` + `systemctl reload nginx`，33 字节，`755`）。属于双保险 —— 显式 reload，且将来若改用 `webroot` 续期它就是唯一保障。续期时最多 reload 两次，平滑不中断。
+- **验证方法**：`certbot renew --dry-run`。走的是 Let's Encrypt **staging** 环境，输出里的 `Account registered.` 是临时注册的测试账号，**不影响正式证书**，看到这行不要慌。成功标志是 `all simulated renewals succeeded`。
+- ⚠️ 改完 Nginx 配置后必须 `nginx -t && systemctl reload nginx`。证书换了但 nginx 没 reload 时，磁盘上是新的、内存里是旧的 —— 表现为「证书看着没过期但浏览器报错」，且 certbot 日志一路 success，极难排查。
+
+---
+
 ## 6. 已知的坑（都是真踩过的）
 
 **构建 / 部署**
@@ -414,6 +517,9 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 - 打包前停掉在跑的 `java -jar`，Windows 文件锁会产出 192KB 的坏 jar。
 - 前端 build **不能 `rm -rf dist`**（safe-delete 失败）→ 先 `mv dist /tmp/xxx`。`dist_old_*` 不能堆，会写满 C 盘。
 - 「换包看不到新功能」先查 `index.html` 缓存：`curl -s 站点/ | grep -o 'assets/index-[^"]*\.js'` 比对 hash。
+- `@EnableScheduling` 是**全局开关**（挂在启动类上），加了之后任何 `@Scheduled` 都会跑。默认调度线程池只有 **1 个线程**，以后再挂耗时任务要显式配 `spring.task.scheduling.pool.size`，否则任务互相排队。
+- 🔴 **清理任务的配置键别写 `app.upload.*`**：`app.upload-path` 已经占着这个名字，两个键在宽松绑定下会争同一个前缀（将来谁写个 `@ConfigurationProperties("app")` 就直接炸）。所以是 `app.upload-cleanup.*`。
+- Spring 的 `@Scheduled(cron=...)` 是 **6 段**（秒 分 时 日 月 周），不是 Linux 的 5 段；写成 5 段会启动即报 `IllegalStateException`。想快速验调度，启动时用 `--app.upload-cleanup.cron="*/5 * * * * *"` 临时压成 5 秒一轮 —— 默认是每周一凌晨，不然验一次要等一周。
 
 **Element Plus**
 - 按需注入只管模板组件，`ElMessageBox` 是 JS API，`.el-overlay` 基础样式不会注入 → 弹框掉到视口下（表现为「点删除没反应」）。`main.js` 里显式引入 `el-overlay / el-message-box / el-button / el-input / el-icon` 的 css，且排在 `assets/css/message-box.css` **之前**。
@@ -466,6 +572,7 @@ JWT payload 里带 `tokenVersion`，`LoginInterceptor` 每次比对库里的值�
 - ⚠️ **`name_color` 是固定色，不随明暗主题变**。往注册流程里写死 `#18191c` 之类的深色，等于把「暗色模式下名字看不见」埋进去。想给默认值就用 DDL 的 `#636161`，显示层用 `readableNameColor()` 兜。
 - `user.create_time`，`post` / `comment` 是 `created_at`，列名不统一。
 - `user.primary_role`(general_ci) 与 `user_role.role_code`(0900_ai_ci) 排序规则不同，列对列比较会 `Illegal mix of collations` 并**中止整份脚本**（终端看着像跑完了）→ 一律 `BINARY a = BINARY b`。
+- ⚠️ **跨表 `UNION` 会因为同样的 collation 差异直接报错**：`select … from post_media … union select … from comment …` → `ERROR 1271 Illegal mix of collations for operation 'UNION'`（`post_media` 与 `comment` / `user` 的字符集不同）。写「一次捞齐几张表的同类字段」这种查询时，要么一张表一个查询、在 Java 里合并，要么显式 `CONVERT(... USING utf8mb4) COLLATE ...`。**同一张表内部 union 是安全的**，跨表才要小心。
 - `PostMapper.xml` 注释里禁止连续 `--`，MyBatis 启动即崩。
 - 列表 SQL 里别加 `SUBSTRING(content,1,1200)` 省带宽，长文会被截断；折叠交给 CSS。
 - ⚠️ 迁移脚本里「老用户回填成已验证」这种 **UPDATE 必须写在「刚加列」的分支里**（`IF(@col_exists = 0, 'UPDATE ...', 'DO 0')`）。写成无条件执行的话，重跑一次就把所有新注册的未验证用户全放过，防刷形同虚设。
@@ -582,6 +689,11 @@ node tools/test-admin-nav.js        # 窄屏导航：五项溢出一行 / 滚动
 node tools/test-privacy-page.js      # 隐私政策页：/privacy 免登录直达 / 十章齐全 / 备案号与联系方式 / 首页页脚三项链接 / 390 宽不溢出 / 深色反差 / 勾选同意不跨会话保留：33 项
 node tools/test-security-page.js     # 账号安全页：侧栏「修改密码」→「账号安全」/ /space/password 重定向 / 三段（密码·邮箱·注销）/ 邮箱地址在标题下方且按钮与「修改密码」同款 / 改密码弹窗三类校验 / 弹窗里「用绑定邮箱重置」/ 注销弹窗 / 390 宽（按钮收右下：单按钮贴右、邮箱两钮并排、保存键贴右）/ 暗色可读 / 账号管理页已无邮箱与注销：35 项
 node tools/test-deactivate-ui.js     # 注销：账号安全页的注销段 / 弹窗两个条件缺一不可 / 注销后回首页且 token 清空 / 管理员行无注销键 / 代注销必须手打用户名 / 已注销默认隐藏 + 勾选后带「已注销」标记：37 项
+```
+
+```bash
+# 后端单测（纯逻辑，不用起服务、不碰数据库）
+cd springboot/kokomi && mvn -B test -Dtest='TempFileCleanerTest,IpUtilsTest,CaptchaCacheTest'
 ```
 
 ```bash

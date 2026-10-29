@@ -11,11 +11,23 @@ __pycache__/
 # ---- 本地/生产凭据（不入库）----
 # 数据库密码、JWT secret 一律走环境变量；本机值写在这里，不会被打进 jar
 springboot/kokomi/config/
+# 备份加密密码：只该存在服务器 /root/.backup-pass 和用户的密码管理器里。
+# 仓库里永远不该出现它 —— 真正跑备份的脚本在服务器上，本地不需要这个文件。
+# 2026-10-29 清掉过一个 13 字节的测试残留（tools/.backup-pass）。
+.backup-pass
 
 # ---- 服务器运维配置（Nginx / systemd 等，含线上路径与生产密码，不入库）----
 domian.conf
 *.nginx.conf
 springboot/kokomi.service
+
+# ---- 用户上传内容（不入库）----
+# 头像是用户数据、帖子配图是用户数据，生产实例在服务器 /kokomi/upload，
+# 本地这份是开发时传的残留。曾经被跟踪 42 个文件 → 清理任务每周删 temp
+# 就污染一次工作区（git status 一串 D），仓库也被越撑越大。
+# 2026-10-29 用 `git rm -r --cached springboot/kokomi/upload` 移出 index（磁盘文件未删）。
+# ⚠️ 需要测试图片时手工往 images/ 丢，别再加回来。
+springboot/kokomi/upload/
 
 # ---- 前端构建产物、历史备份与部署包 ----
 # dist 由 npm run build 重建；dist_xxx/ 是带用途后缀的临时构建目录
