@@ -1,17 +1,18 @@
 <template>
-  <!-- 给外层容器绑定鼠标移入/离开事件 -->
-  <div 
+  <!-- 给外层容器绑定鼠标移入/离开事件；右键禁用（不弹「图片另存为」） -->
+  <div
     class="bili-header__banner"
     @mouseenter="isHover = true"
     @mouseleave="isHover = false"
+    @contextmenu.prevent
   >
     <!-- 兜底背景（取背景图列表第一张，兼容本地/远程URL） -->
     <picture v-for="bg in bgImageList" class="v-img banner-img">
-      <img :src="bg" alt="banner背景" />
+      <img :src="bg" alt="banner背景" draggable="false" @contextmenu.prevent />
     </picture>
 
-    <!-- 核心：视差滑动的animated-banner -->
-    <div class="animated-banner" ref="bannerRef">
+    <!-- 核心：视差滑动的animated-banner（enableLayers=false 时整块不渲染） -->
+    <div v-if="enableLayers" class="animated-banner" ref="bannerRef">
       <!-- 遍历传入的图层列表渲染（兼容本地/远程URL） -->
       <div
         v-for="(layer, index) in layerList"
@@ -40,7 +41,7 @@ const bannerLayerModules = import.meta.glob(
 );
 
 const bannerBgModules = import.meta.glob(
-  "../../assets/images/bgbili.png",
+  "../../assets/images/bgbili.webp",
   { eager: true, import: "default" }
 );
 </script>
@@ -198,9 +199,15 @@ const props = defineProps({
   bgImageList: {
     type: Array,
     default: () => {
-      const bgUrl = bannerBgModules["../../assets/images/bgbili.png"];
+      const bgUrl = bannerBgModules["../../assets/images/bgbili.webp"];
       return bgUrl ? [bgUrl] : [];
     },
+  },
+  // 是否启用 32 层视差素材
+  // false = 只用 bgImageList 里的整图当横幅（32 层是上一套雪景的完整场景，压在新图上会打架）
+  enableLayers: {
+    type: Boolean,
+    default: true,
   },
   // layerList 中 x 字段约定：
   //   负值(-) = 左侧元素 → 鼠标右移（由远及近）时向左散开
@@ -377,6 +384,15 @@ watch(isHover, (hovering) => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* 禁掉长按/拖拽出图，配合 @contextmenu.prevent 挡「图片另存为」 */
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* 横幅整块不可选中、不响应右键菜单 */
+.bili-header__banner {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* 视差层容器 */

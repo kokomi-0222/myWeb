@@ -3,7 +3,13 @@
     <TopNavbar @search="handleGlobalSearch" />
     <MobileNavbar @search="handleGlobalSearch" />
     <div class="header-banner">
-      <img class="banner-img" src="@/assets/images/bgbili.png" alt="banner" />
+      <img
+        class="banner-img"
+        src="@/assets/images/bgbili.webp"
+        alt="banner"
+        draggable="false"
+        @contextmenu.prevent
+      />
     </div>
     <div ref="mainView" class="app-main">
       <aside class="sidebar-left">

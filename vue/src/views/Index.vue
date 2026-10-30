@@ -3,7 +3,7 @@
     <TopNavbar @search="handleGlobalSearch" @home="handleGoHome" />
     <MobileNavbar @search="handleGlobalSearch" @home="handleGoHome" />
     <div class="header-banner">
-      <Banner />
+      <Banner :enable-layers="false" />
     </div>
     <div ref="mainView" class="app-main">
       <!-- 左侧：话题导航 -->

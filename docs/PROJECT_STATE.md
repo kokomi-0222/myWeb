@@ -508,6 +508,16 @@ dump 是**覆盖式**的 —— 每张表前都有 `DROP TABLE IF EXISTS`，跑�
 - **验证方法**：`certbot renew --dry-run`。走的是 Let's Encrypt **staging** 环境，输出里的 `Account registered.` 是临时注册的测试账号，**不影响正式证书**，看到这行不要慌。成功标志是 `all simulated renewals succeeded`。
 - ⚠️ 改完 Nginx 配置后必须 `nginx -t && systemctl reload nginx`。证书换了但 nginx 没 reload 时，磁盘上是新的、内存里是旧的 —— 表现为「证书看着没过期但浏览器报错」，且 certbot 日志一路 success，极难排查。
 
+### 5.16 首页横幅（2026-10-30 换图，32 层视差已关）
+
+`components/modules/Banner.vue` 被 `Index.vue` / `PostDetail.vue` / `UserProfile.vue` 三处共用；容器高 `--header-banner-height: 160px`（`assets/css/global.css`），宽度铺满，`min-width: 1000px`，≤767px 整块 `display:none`。
+
+- 🔴 **可见画面不是 `bgbili.png` 画的**：`assets/images/banner/layer01~32.png` 才是本体，`layer01` 全图 alpha 229~255（100% 不透明，就是那层天空），把底图彻底盖住；`bgbili.png` 只是图层加载前的兜底。所以「换 bgbili.png 却看不出变化」是正常的。
+- 现在三处都传 `:enable-layers="false"`，32 层整块 `v-if` 不渲染，底图 `assets/images/bgbili.webp`（**2560×240，WebP q95，289KB**）直接当横幅。**代价是没有鼠标视差了**，想恢复得为这张图重做分层素材（旧那套是雪景，压在海滩上会打架）。
+- 横幅上禁了右键/拖拽：`@contextmenu.prevent` + `draggable="false"` + `-webkit-user-drag:none; user-select:none`。⚠️ 只挡得住普通用户的「图片另存为」，图片 URL 直连照样能下，真要防得在后端加 Referer 校验。
+- 素材尺寸约定 **10.667:1**（宽 = 高 × 10.667）：**3840×360** 能覆盖到 4K@100%；2560×240 够 2K 及以下；再小在 2K 屏会被放大 1.33× 发虚。⚠️ 别用超分工具导出的「6688×627」当源 —— 那是被放大过的，缩回显示尺寸比原图更糊；也别为了「凑设计稿尺寸」把小图放大，会吃三次重采样。
+- 裁切比例随视口宽度变（高度固定 160px、宽度铺满）：1366 → 左右各裁 10%；1920 → 上下 5.6%；2560 → 上下 16.7%；3840 → 上下 27.8%。**构图时主体要放在画面中间 55% 高度内**。
+
 ---
 
 ## 6. 已知的坑（都是真踩过的）

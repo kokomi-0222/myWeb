@@ -5,7 +5,7 @@
 
     <!-- 横幅：与首页、详情页完全同源（同一个 Banner.vue + 同一套 32 层素材） -->
     <div class="header-banner">
-      <Banner />
+      <Banner :enable-layers="false" />
     </div>
 
     <div class="user-page__body">

@@ -5,7 +5,7 @@
     <MobileNavbar @search="handleGlobalSearch" />
 
     <div class="header-banner">
-      <Banner />
+      <Banner :enable-layers="false" />
     </div>
     <div class="post-detail-container">
       <!-- 返回按钮 -->
